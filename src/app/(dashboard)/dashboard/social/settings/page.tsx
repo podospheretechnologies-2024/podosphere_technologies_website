@@ -1,10 +1,19 @@
 import type { Metadata } from 'next';
-import { ComingSoonSection } from '@/modules/social/components/coming-soon-section';
+import { SettingsPanel } from '@/modules/social/components/settings/settings-panel';
+import { socialSections } from '@/modules/social/config/navigation';
+import { PageHeader } from '@/shared/components/ui/page-header';
 
 export const metadata: Metadata = {
   title: 'Settings',
 };
 
 export default function SettingsPage() {
-  return <ComingSoonSection section="settings" />;
+  const { label, description } = socialSections.settings;
+
+  return (
+    <>
+      <PageHeader title={label} description={description} />
+      <SettingsPanel />
+    </>
+  );
 }

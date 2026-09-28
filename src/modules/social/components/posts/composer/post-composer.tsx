@@ -8,11 +8,16 @@ import { POST_MAX_THREAD_ITEMS, type PostSaveType } from '../../../config/posts'
 import { useAiStatus } from '../../../hooks/use-ai-status';
 import { useChannels } from '../../../hooks/use-channels';
 import { usePostGroup } from '../../../hooks/use-posts';
+import { useSignatures } from '../../../hooks/use-settings';
 import { splitIntoThread } from '../../../lib/ai.client';
 import { nextPostSlot, savePost, toDateTimeLocal } from '../../../lib/posts.client';
 import type { AvailableProvider, ChannelItem } from '../../../types/integration';
 import type { PostGroup, PostMedia } from '../../../types/post';
+import type { SignatureItem, TemplateItem } from '../../../types/settings';
 import { ChannelSelector } from './channel-selector';
+import { SignatureSelect } from './signature-select';
+import { TagPicker } from './tag-picker';
+import { TemplateBar } from './template-bar';
 import { ThreadItemEditor, type ThreadItemDraft } from './thread-item-editor';
 
 export interface ComposerInitialItem {
@@ -40,6 +45,14 @@ function toDraft(item: ComposerInitialItem): ThreadItemDraft {
   return { ...item, key: crypto.randomUUID(), delay: 0 };
 }
 
+function withSignature(item: ThreadItemDraft, signature: string): ThreadItemDraft {
+  return { ...item, content: `${item.content.trimEnd()}\n\n${signature}` };
+}
+
+function toggle(ids: string[], id: string): string[] {
+  return ids.includes(id) ? ids.filter((entry) => entry !== id) : [...ids, id];
+}
+
 export function PostComposer({
   open,
   group,
@@ -50,6 +63,8 @@ export function PostComposer({
 }: PostComposerProps) {
   const { data: channelsData, error: channelsError } = useChannels();
   const { data: groupData, error: groupError } = usePostGroup(open ? group : null);
+  // Signatures are optional: if they fail to load the composer still opens.
+  const { data: signatures, error: signaturesError } = useSignatures();
   const loadError = channelsError ?? groupError;
 
   return (
@@ -58,7 +73,7 @@ export function PostComposer({
         <p className="text-danger text-sm">
           {loadError instanceof Error ? loadError.message : 'Could not load the post'}
         </p>
-      ) : !channelsData || (group && !groupData) ? (
+      ) : !channelsData || (group && !groupData) || (!signatures && !signaturesError) ? (
         <p className="text-muted-foreground text-sm">Loading…</p>
       ) : (
         <ComposerForm
@@ -69,6 +84,7 @@ export function PostComposer({
           initialItems={initialItems}
           channels={channelsData.channels}
           providers={channelsData.providers}
+          signatures={signatures ?? []}
           onCancel={onClose}
           onSaved={onSaved}
         />
@@ -84,6 +100,7 @@ interface ComposerFormProps {
   initialItems?: ComposerInitialItem[];
   channels: ChannelItem[];
   providers: AvailableProvider[];
+  signatures: SignatureItem[];
   onCancel: () => void;
   onSaved: () => void;
 }
@@ -95,6 +112,7 @@ function ComposerForm({
   initialItems,
   channels,
   providers,
+  signatures,
   onCancel,
   onSaved,
 }: ComposerFormProps) {
@@ -108,8 +126,11 @@ function ComposerForm({
     if (initial?.posts[0]) {
       return initial.posts[0].values.map((value) => ({ ...value, key: crypto.randomUUID() }));
     }
-    return initialItems?.length ? initialItems.map(toDraft) : [emptyItem()];
+    const [first, ...rest] = initialItems?.length ? initialItems.map(toDraft) : [emptyItem()];
+    const autoSignature = signatures.find((signature) => signature.autoAdd);
+    return [autoSignature ? withSignature(first, autoSignature.content) : first, ...rest];
   });
+  const [tagIds, setTagIds] = useState<string[]>(() => initial?.tags.map((tag) => tag.id) ?? []);
   const [date, setDate] = useState(() =>
     initial ? toDateTimeLocal(initial.publishDate) : (defaultDate ?? nextPostSlot())
   );
@@ -129,13 +150,28 @@ function ComposerForm({
   const maxLength = selectedLimits.length ? Math.min(...selectedLimits) : null;
 
   function toggleChannel(id: string) {
-    setSelectedIds((current) =>
-      current.includes(id) ? current.filter((entry) => entry !== id) : [...current, id]
-    );
+    setSelectedIds((current) => toggle(current, id));
   }
 
   function updateItem(updated: ThreadItemDraft) {
     setItems((current) => current.map((item) => (item.key === updated.key ? updated : item)));
+  }
+
+  function insertSignature(signature: string) {
+    setItems(([first, ...rest]) => [withSignature(first, signature), ...rest]);
+  }
+
+  // Channels or media removed since the template was saved are simply left out.
+  function applyTemplate(template: TemplateItem) {
+    const { content } = template;
+    setSelectedIds(
+      content.integrationIds.filter((id) => channels.some((channel) => channel.id === id))
+    );
+    setTagIds(content.tagIds);
+    if (content.values.length > 0) {
+      setItems(content.values.map(toDraft));
+    }
+    setError(null);
   }
 
   // The media of the original post stays on the first item of the thread.
@@ -177,6 +213,7 @@ function ComposerForm({
         {
           type,
           date: new Date(date || Date.now()).toISOString(),
+          tagIds,
           posts: selectedIds.map((integrationId) => ({
             integrationId,
             values: items.map((item) => ({
@@ -205,6 +242,19 @@ function ComposerForm({
 
   return (
     <div className="space-y-5">
+      <TemplateBar
+        canApply={!group}
+        current={{
+          integrationIds: selectedIds,
+          tagIds,
+          values: items.map((item) => ({
+            content: item.content,
+            mediaIds: item.media.map((media) => media.id),
+          })),
+        }}
+        onApply={applyTemplate}
+      />
+
       <section className="space-y-2">
         <h3 className="text-sm font-medium">Channels</h3>
         <ChannelSelector channels={channels} selectedIds={selectedIds} onToggle={toggleChannel} />
@@ -244,7 +294,16 @@ function ComposerForm({
               {splitting ? 'Splitting…' : 'Split into thread with AI'}
             </Button>
           )}
+          <SignatureSelect signatures={signatures} disabled={busy} onInsert={insertSignature} />
         </div>
+      </section>
+
+      <section className="space-y-2">
+        <h3 className="text-sm font-medium">Tags</h3>
+        <TagPicker
+          selectedIds={tagIds}
+          onToggle={(id) => setTagIds((current) => toggle(current, id))}
+        />
       </section>
 
       <section className="space-y-2">

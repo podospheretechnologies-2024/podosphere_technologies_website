@@ -1,15 +1,24 @@
 import 'server-only';
-import type { Prisma, SocialPostState } from '@/generated/prisma/client';
+import type { Prisma, SocialCreationMethod, SocialPostState } from '@/generated/prisma/client';
 import { prisma } from '@/shared/lib/prisma';
 import { POSTS_PAGE_SIZE, type PostListFilter } from '../../config/posts';
 import type { PostMedia } from '../../types/post';
 
-const channelSelect = {
-  id: true,
-  name: true,
-  picture: true,
-  providerIdentifier: true,
-} satisfies Prisma.SocialIntegrationSelect;
+const postInclude = {
+  integration: {
+    select: {
+      id: true,
+      name: true,
+      picture: true,
+      providerIdentifier: true,
+    },
+  },
+  tags: {
+    where: { tag: { deletedAt: null } },
+    select: { tag: { select: { id: true, name: true, color: true } } },
+    orderBy: { tag: { name: 'asc' } },
+  },
+} satisfies Prisma.SocialPostInclude;
 
 export interface CreateThreadData {
   integrationId: string;
@@ -21,6 +30,9 @@ export interface CreateGroupData {
   group: string;
   state: SocialPostState;
   publishDate: Date;
+  /** Attached to the first post of every channel. */
+  tagIds: string[];
+  creationMethod: SocialCreationMethod;
   threads: CreateThreadData[];
 }
 
@@ -58,7 +70,12 @@ async function createThreads(tx: Prisma.TransactionClient, data: CreateGroupData
           content: value.content,
           media: value.media as unknown as Prisma.InputJsonValue,
           delay: value.delay,
+          creationMethod: data.creationMethod,
           parentPostId,
+          tags:
+            parentPostId === null && data.tagIds.length > 0
+              ? { create: data.tagIds.map((tagId) => ({ tagId })) }
+              : undefined,
         },
         select: { id: true },
       });
@@ -82,7 +99,7 @@ export const postRepository = {
       prisma.socialPost.count({ where }),
       prisma.socialPost.findMany({
         where,
-        include: { integration: { select: channelSelect } },
+        include: postInclude,
         orderBy: [{ publishDate: orderBy }, { createdAt: 'asc' }],
         skip: (page - 1) * POSTS_PAGE_SIZE,
         take: POSTS_PAGE_SIZE,
@@ -101,7 +118,7 @@ export const postRepository = {
         integration: { deletedAt: null },
         publishDate: { gte: start, lt: end },
       },
-      include: { integration: { select: channelSelect } },
+      include: postInclude,
       orderBy: [{ publishDate: 'asc' }, { createdAt: 'asc' }],
     });
   },
@@ -136,10 +153,30 @@ export const postRepository = {
     );
   },
 
+  async findTakenDates(
+    organizationId: string,
+    integrationIds: string[],
+    start: Date,
+    end: Date
+  ): Promise<Date[]> {
+    const posts = await prisma.socialPost.findMany({
+      where: {
+        organizationId,
+        integrationId: { in: integrationIds },
+        deletedAt: null,
+        parentPostId: null,
+        state: { in: ['QUEUE', 'PUBLISHED'] },
+        publishDate: { gte: start, lt: end },
+      },
+      select: { publishDate: true },
+    });
+    return posts.map((post) => post.publishDate);
+  },
+
   findGroup(organizationId: string, group: string) {
     return prisma.socialPost.findMany({
       where: { organizationId, group, deletedAt: null },
-      include: { integration: { select: channelSelect } },
+      include: postInclude,
       orderBy: { createdAt: 'asc' },
     });
   },

@@ -16,6 +16,7 @@ import { integrationService } from '../integrations/integration.service';
 import { mediaRepository } from '../media/media.repository';
 import { readMedia } from '../posts/post.service';
 import { getStorage } from '../storage/storage.factory';
+import { webhookService } from '../webhooks/webhook.service';
 import { publishQueue, type PublishPostJobData } from './publish.queue';
 import { publishRepository } from './publish.repository';
 
@@ -143,6 +144,9 @@ export const publishService = {
     }
 
     await publishRepository.markPublished(post.id, result);
+    if (!post.parentPostId) {
+      await webhookService.queuePublished(post.integration.id, post.id);
+    }
 
     const next = await publishRepository.findNext(post.id);
     if (next) {

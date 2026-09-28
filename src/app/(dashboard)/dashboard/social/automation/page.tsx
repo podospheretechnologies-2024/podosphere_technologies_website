@@ -1,10 +1,19 @@
 import type { Metadata } from 'next';
-import { ComingSoonSection } from '@/modules/social/components/coming-soon-section';
+import { AutomationPanel } from '@/modules/social/components/automation/automation-panel';
+import { socialSections } from '@/modules/social/config/navigation';
+import { PageHeader } from '@/shared/components/ui/page-header';
 
 export const metadata: Metadata = {
   title: 'Automation',
 };
 
 export default function AutomationPage() {
-  return <ComingSoonSection section="automation" />;
+  const { label, description } = socialSections.automation;
+
+  return (
+    <>
+      <PageHeader title={label} description={description} />
+      <AutomationPanel />
+    </>
+  );
 }

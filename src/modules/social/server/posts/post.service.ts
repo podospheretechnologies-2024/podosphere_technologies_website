@@ -1,6 +1,6 @@
 import 'server-only';
 import { randomUUID } from 'node:crypto';
-import type { Prisma, SocialPostState } from '@/generated/prisma/client';
+import type { Prisma, SocialCreationMethod, SocialPostState } from '@/generated/prisma/client';
 import { HttpError } from '@/shared/server/http-error';
 import { CALENDAR_MAX_RANGE_DAYS } from '../../config/calendar';
 import { POST_CONTENT_MAX_LENGTH, POSTS_PAGE_SIZE } from '../../config/posts';
@@ -13,10 +13,13 @@ import type {
   PostState,
   PostThreadItem,
 } from '../../types/post';
+import type { TagItem } from '../../types/settings';
 import { integrationRegistry } from '../integrations/core/integration.registry';
 import { integrationRepository } from '../integrations/integration.repository';
 import { mediaRepository } from '../media/media.repository';
 import { publishQueue } from '../publishing/publish.queue';
+import { tagRepository } from '../tags/tag.repository';
+import { toTagItem } from '../tags/tag.service';
 import { postRepository, type CreateGroupData } from './post.repository';
 import type {
   CalendarQuery,
@@ -27,6 +30,19 @@ import type {
 
 // Small tolerance so a post scheduled for "right now" is not rejected by clock drift.
 const PAST_DATE_TOLERANCE_MS = 60 * 1000;
+const DAY_MS = 24 * 60 * 60 * 1000;
+const FREE_SLOT_SEARCH_DAYS = 30;
+const DEFAULT_POSTING_TIMES = [120, 400, 700];
+
+function readPostingTimes(value: Prisma.JsonValue): number[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.flatMap((entry) => {
+    const time = (entry as { time?: unknown } | null)?.time;
+    return typeof time === 'number' && time >= 0 && time < 24 * 60 ? [time] : [];
+  });
+}
 
 type PostRow = Awaited<ReturnType<typeof postRepository.findGroup>>[number];
 
@@ -44,6 +60,10 @@ function toChannel(integration: PostRow['integration']): PostChannel {
       integrationRegistry.get(integration.providerIdentifier)?.name ??
       integration.providerIdentifier,
   };
+}
+
+function toTags(row: PostRow): TagItem[] {
+  return row.tags.map(({ tag }) => toTagItem(tag));
 }
 
 export function readMedia(value: Prisma.JsonValue): PostMedia[] {
@@ -65,6 +85,7 @@ function toPostGroup(group: string, rows: PostRow[]): PostGroup {
     group,
     state: toPostState(roots[0].state),
     publishDate: roots[0].publishDate.toISOString(),
+    tags: toTags(roots[0]),
     posts: roots.map((root) => {
       const values: PostThreadItem[] = [];
       for (let row: PostRow | undefined = root; row; row = childByParent.get(row.id)) {
@@ -78,7 +99,8 @@ function toPostGroup(group: string, rows: PostRow[]): PostGroup {
 async function buildGroupData(
   organizationId: string,
   group: string,
-  body: SavePostBody
+  body: SavePostBody,
+  creationMethod: SocialCreationMethod
 ): Promise<CreateGroupData> {
   const isDraft = body.type === 'draft';
   const publishDate = body.type === 'now' ? new Date() : new Date(body.date);
@@ -110,6 +132,12 @@ async function buildGroupData(
   );
   if (mediaById.size !== mediaIds.length) {
     throw new HttpError(400, 'Some attached media files no longer exist');
+  }
+
+  const tagIds = [...new Set(body.tagIds)];
+  const tags = tagIds.length ? await tagRepository.findManyByIds(organizationId, tagIds) : [];
+  if (tags.length !== tagIds.length) {
+    throw new HttpError(400, 'Some selected tags no longer exist');
   }
 
   const threads = body.posts.map((post) => {
@@ -157,6 +185,8 @@ async function buildGroupData(
     group,
     state: isDraft ? 'DRAFT' : 'QUEUE',
     publishDate,
+    tagIds,
+    creationMethod,
     threads,
   };
 }
@@ -201,6 +231,7 @@ async function toListItems(organizationId: string, posts: PostRow[]): Promise<Po
     releaseUrl: post.releaseUrl,
     error: post.error,
     channel: toChannel(post.integration),
+    tags: toTags(post),
   }));
 }
 
@@ -247,15 +278,53 @@ export const postService = {
     await queueForPublishing(organizationId, group);
   },
 
+  // First posting time of the channels (minutes after midnight UTC) that none
+  // of them already uses, so automatic posts do not pile up at the same moment.
+  async nextFreeSlot(organizationId: string, integrationIds: string[]): Promise<Date> {
+    const integrations = await integrationRepository.findManyByIds(organizationId, integrationIds);
+    const configured = integrations.flatMap((integration) =>
+      readPostingTimes(integration.postingTimes)
+    );
+    const times = [...new Set(configured.length ? configured : DEFAULT_POSTING_TIMES)].sort(
+      (a, b) => a - b
+    );
+
+    const now = Date.now();
+    const end = new Date(now + FREE_SLOT_SEARCH_DAYS * DAY_MS);
+    const taken = new Set(
+      (await postRepository.findTakenDates(organizationId, integrationIds, new Date(now), end)).map(
+        (date) => date.getTime()
+      )
+    );
+
+    const today = new Date(now);
+    const startOfDay = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate());
+    for (let day = 0; day <= FREE_SLOT_SEARCH_DAYS; day++) {
+      for (const time of times) {
+        const slot = startOfDay + day * DAY_MS + time * 60 * 1000;
+        if (slot > now && !taken.has(slot)) {
+          return new Date(slot);
+        }
+      }
+    }
+    return end;
+  },
+
   async getGroup(organizationId: string, group: string): Promise<PostGroup> {
     return toPostGroup(group, await findGroupOrThrow(organizationId, group));
   },
 
   // All channels picked in one composer submission share a group id, so they
   // can be edited, moved and deleted together.
-  async create(organizationId: string, body: SavePostBody): Promise<{ group: string }> {
+  async create(
+    organizationId: string,
+    body: SavePostBody,
+    creationMethod: SocialCreationMethod = 'WEB'
+  ): Promise<{ group: string }> {
     const group = randomUUID();
-    await postRepository.createGroup(await buildGroupData(organizationId, group, body));
+    await postRepository.createGroup(
+      await buildGroupData(organizationId, group, body, creationMethod)
+    );
     await queueForPublishing(organizationId, group);
     return { group };
   },
@@ -269,7 +338,9 @@ export const postService = {
     if (rows.some((row) => row.state === 'PUBLISHED')) {
       throw new HttpError(409, 'Published posts cannot be edited');
     }
-    await postRepository.replaceGroup(await buildGroupData(organizationId, group, body));
+    await postRepository.replaceGroup(
+      await buildGroupData(organizationId, group, body, rows[0].creationMethod)
+    );
     await queueForPublishing(organizationId, group);
     return { group };
   },

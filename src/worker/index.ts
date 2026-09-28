@@ -1,10 +1,11 @@
 import 'dotenv/config';
+import { startAutomationWorker } from '@/modules/social/server/automation/automation.worker';
 import { startPublishWorker } from '@/modules/social/server/publishing/publish.worker';
 
 // Background process for queued jobs. Every module that needs background work
 // starts its workers here.
 async function main() {
-  const workers = [await startPublishWorker()];
+  const workers = [await startPublishWorker(), await startAutomationWorker()];
   console.log('[worker] started');
 
   let stopping = false;

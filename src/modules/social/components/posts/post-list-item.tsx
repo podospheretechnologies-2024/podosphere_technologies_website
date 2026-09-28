@@ -5,6 +5,7 @@ import { cn } from '@/shared/lib/cn';
 import { formatPostDate } from '../../lib/posts.client';
 import type { PostListItem as PostListItemData, PostState } from '../../types/post';
 import { ChannelAvatar } from '../channels/channel-avatar';
+import { TagChip } from '../settings/tag-chip';
 
 const stateStyles: Record<PostState, { label: string; className: string }> = {
   draft: { label: 'Draft', className: 'bg-surface-muted text-muted-foreground' },
@@ -45,6 +46,13 @@ export function PostListItem({ post, busy, onEdit, onDelete }: PostListItemProps
         <p className="line-clamp-2 text-sm break-words whitespace-pre-line">
           {post.content || <span className="text-muted-foreground italic">Media only</span>}
         </p>
+        {post.tags.length > 0 && (
+          <div className="flex flex-wrap gap-1">
+            {post.tags.map((tag) => (
+              <TagChip key={tag.id} tag={tag} />
+            ))}
+          </div>
+        )}
         {extras.length > 0 && <p className="text-muted-foreground text-xs">{extras.join(' · ')}</p>}
         {post.error && <p className="text-danger text-xs">{post.error}</p>}
         {post.releaseUrl && (

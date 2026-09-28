@@ -1,5 +1,6 @@
 import type { PostSaveType } from '../config/posts';
 import type { MediaKind } from './media';
+import type { TagItem } from './settings';
 
 export type PostState = 'draft' | 'queue' | 'published' | 'error';
 
@@ -29,6 +30,7 @@ export interface PostListItem {
   releaseUrl: string | null;
   error: string | null;
   channel: PostChannel;
+  tags: TagItem[];
 }
 
 export interface PostListPage {
@@ -48,6 +50,7 @@ export interface PostGroup {
   group: string;
   state: PostState;
   publishDate: string;
+  tags: TagItem[];
   posts: { channel: PostChannel; values: PostThreadItem[] }[];
 }
 
@@ -55,6 +58,7 @@ export interface PostGroup {
 export interface SavePostInput {
   type: PostSaveType;
   date: string;
+  tagIds: string[];
   posts: {
     integrationId: string;
     values: { content: string; mediaIds: string[]; delay: number }[];

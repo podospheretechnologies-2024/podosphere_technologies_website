@@ -36,7 +36,7 @@ export const socialSections = {
   settings: {
     label: 'Settings',
     href: `${SOCIAL_BASE_PATH}/settings`,
-    description: 'Signatures, post templates, tags and posting time slots.',
+    description: 'Signatures, post templates and tags.',
   },
 } satisfies Record<string, NavItem>;
 

@@ -7,6 +7,7 @@ import {
   POST_MAX_THREAD_ITEMS,
   POST_SAVE_TYPES,
 } from '../../config/posts';
+import { POST_MAX_TAGS } from '../../config/settings';
 
 const threadItemSchema = z.object({
   content: z.string().max(POST_CONTENT_MAX_LENGTH, 'Post is too long'),
@@ -25,6 +26,7 @@ const channelPostSchema = z.object({
 export const savePostSchema = z.object({
   type: z.enum(POST_SAVE_TYPES),
   date: z.iso.datetime({ offset: true }),
+  tagIds: z.array(z.string().min(1)).max(POST_MAX_TAGS, 'Too many tags').default([]),
   posts: z
     .array(channelPostSchema)
     .min(1, 'Select at least one channel')
