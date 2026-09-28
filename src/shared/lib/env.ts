@@ -3,8 +3,11 @@ import { z } from 'zod';
 
 const serverEnvSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+  APP_URL: z.url().default('http://localhost:3000'),
   DATABASE_URL: z.url(),
   REDIS_URL: z.url(),
+  STORAGE_PROVIDER: z.enum(['local']).default('local'),
+  UPLOAD_DIRECTORY: z.string().min(1).default('uploads'),
 });
 
 export type ServerEnv = z.infer<typeof serverEnvSchema>;

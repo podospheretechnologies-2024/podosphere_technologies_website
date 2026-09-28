@@ -1,7 +1,7 @@
 import type { ButtonHTMLAttributes } from 'react';
 import { cn } from '@/shared/lib/cn';
 
-type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'ai';
+type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'danger-ghost' | 'ai';
 type ButtonSize = 'sm' | 'md';
 
 const variantClasses: Record<ButtonVariant, string> = {
@@ -9,6 +9,7 @@ const variantClasses: Record<ButtonVariant, string> = {
   secondary: 'border border-border bg-surface text-foreground hover:bg-surface-muted',
   ghost: 'text-foreground hover:bg-surface-muted',
   danger: 'bg-danger text-white hover:opacity-90',
+  'danger-ghost': 'text-danger hover:bg-danger/10',
   ai: 'bg-ai text-white hover:opacity-90',
 };
 
