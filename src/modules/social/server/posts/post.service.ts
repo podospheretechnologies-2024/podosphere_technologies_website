@@ -2,10 +2,12 @@ import 'server-only';
 import { randomUUID } from 'node:crypto';
 import type { Prisma, SocialPostState } from '@/generated/prisma/client';
 import { HttpError } from '@/shared/server/http-error';
+import { CALENDAR_MAX_RANGE_DAYS } from '../../config/calendar';
 import { POST_CONTENT_MAX_LENGTH, POSTS_PAGE_SIZE } from '../../config/posts';
 import type {
   PostChannel,
   PostGroup,
+  PostListItem,
   PostListPage,
   PostMedia,
   PostState,
@@ -15,7 +17,12 @@ import { integrationRegistry } from '../integrations/core/integration.registry';
 import { integrationRepository } from '../integrations/integration.repository';
 import { mediaRepository } from '../media/media.repository';
 import { postRepository, type CreateGroupData } from './post.repository';
-import type { ListPostsQuery, SavePostBody } from './post.schema';
+import type {
+  CalendarQuery,
+  ListPostsQuery,
+  ReschedulePostBody,
+  SavePostBody,
+} from './post.schema';
 
 // Small tolerance so a post scheduled for "right now" is not rejected by clock drift.
 const PAST_DATE_TOLERANCE_MS = 60 * 1000;
@@ -161,30 +168,65 @@ async function findGroupOrThrow(organizationId: string, group: string) {
   return rows;
 }
 
+async function toListItems(organizationId: string, posts: PostRow[]): Promise<PostListItem[]> {
+  const comments = await postRepository.countComments(organizationId, [
+    ...new Set(posts.map((post) => post.group)),
+  ]);
+
+  return posts.map((post) => ({
+    id: post.id,
+    group: post.group,
+    state: toPostState(post.state),
+    publishDate: post.publishDate.toISOString(),
+    content: post.content,
+    media: readMedia(post.media),
+    commentsCount: comments.get(`${post.group}:${post.integrationId}`) ?? 0,
+    releaseUrl: post.releaseUrl,
+    error: post.error,
+    channel: toChannel(post.integration),
+  }));
+}
+
 export const postService = {
   async list(organizationId: string, query: ListPostsQuery): Promise<PostListPage> {
     const { total, results } = await postRepository.list(organizationId, query.page, query.state);
-    const comments = await postRepository.countComments(organizationId, [
-      ...new Set(results.map((post) => post.group)),
-    ]);
 
     return {
       page: query.page,
       pages: Math.ceil(total / POSTS_PAGE_SIZE),
       total,
-      results: results.map((post) => ({
-        id: post.id,
-        group: post.group,
-        state: toPostState(post.state),
-        publishDate: post.publishDate.toISOString(),
-        content: post.content,
-        media: readMedia(post.media),
-        commentsCount: comments.get(`${post.group}:${post.integrationId}`) ?? 0,
-        releaseUrl: post.releaseUrl,
-        error: post.error,
-        channel: toChannel(post.integration),
-      })),
+      results: await toListItems(organizationId, results),
     };
+  },
+
+  async listRange(organizationId: string, query: CalendarQuery): Promise<PostListItem[]> {
+    const start = new Date(query.startDate);
+    const end = new Date(query.endDate);
+    if (end <= start) {
+      throw new HttpError(400, 'endDate must be after startDate');
+    }
+    if (end.getTime() - start.getTime() > CALENDAR_MAX_RANGE_DAYS * 24 * 60 * 60 * 1000) {
+      throw new HttpError(400, `The date range can be at most ${CALENDAR_MAX_RANGE_DAYS} days`);
+    }
+
+    return toListItems(organizationId, await postRepository.listRange(organizationId, start, end));
+  },
+
+  // Moves every channel of the group to the new date. A failed post is queued
+  // again; drafts stay drafts.
+  async reschedule(organizationId: string, group: string, body: ReschedulePostBody): Promise<void> {
+    const rows = await findGroupOrThrow(organizationId, group);
+    if (rows.some((row) => row.state === 'PUBLISHED')) {
+      throw new HttpError(409, 'Published posts cannot be moved');
+    }
+
+    const date = new Date(body.date);
+    const isDraft = rows.every((row) => row.state === 'DRAFT');
+    if (!isDraft && date.getTime() < Date.now() - PAST_DATE_TOLERANCE_MS) {
+      throw new HttpError(400, 'Posts can only be moved to a future date');
+    }
+
+    await postRepository.reschedule(organizationId, group, date);
   },
 
   async getGroup(organizationId: string, group: string): Promise<PostGroup> {

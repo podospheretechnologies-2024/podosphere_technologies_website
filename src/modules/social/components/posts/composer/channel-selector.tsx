@@ -41,11 +41,7 @@ export function ChannelSelector({ channels, selectedIds, onToggle }: ChannelSele
                 : 'border-border hover:bg-surface-muted opacity-70 hover:opacity-100'
             )}
           >
-            <ChannelAvatar
-              name={channel.name}
-              picture={channel.picture}
-              className="size-7 text-xs"
-            />
+            <ChannelAvatar name={channel.name} picture={channel.picture} size="sm" />
             <span className="max-w-40 truncate">{channel.name}</span>
           </button>
         );

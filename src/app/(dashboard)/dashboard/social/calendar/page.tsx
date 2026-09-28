@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { PostsList } from '@/modules/social/components/posts/posts-list';
+import { SocialCalendar } from '@/modules/social/components/calendar/social-calendar';
 import { socialSections } from '@/modules/social/config/navigation';
 import { PageHeader } from '@/shared/components/ui/page-header';
 
@@ -13,7 +13,7 @@ export default function CalendarPage() {
   return (
     <>
       <PageHeader title={label} description={description} />
-      <PostsList />
+      <SocialCalendar />
     </>
   );
 }

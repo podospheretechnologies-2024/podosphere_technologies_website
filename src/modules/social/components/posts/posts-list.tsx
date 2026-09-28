@@ -10,12 +10,13 @@ import {
   type PostListFilter,
 } from '../../config/posts';
 import { usePostsList } from '../../hooks/use-posts';
-import { deletePostGroup } from '../../lib/posts.client';
+import { deletePostGroup, revalidatePosts } from '../../lib/posts.client';
 import type { PostListItem as PostListItemData } from '../../types/post';
-import { PostComposer } from './composer/post-composer';
 import { PostListItem } from './post-list-item';
 
-type ComposerState = { open: false } | { open: true; group: string | null };
+interface PostsListProps {
+  onEdit: (group: string) => void;
+}
 
 const emptyMessages: Record<PostListFilter, string> = {
   all: 'No upcoming posts. Create one to fill your calendar.',
@@ -25,10 +26,9 @@ const emptyMessages: Record<PostListFilter, string> = {
   error: 'No failed posts. Nice!',
 };
 
-export function PostsList() {
+export function PostsList({ onEdit }: PostsListProps) {
   const [filter, setFilter] = useState<PostListFilter>('all');
   const [page, setPage] = useState(1);
-  const [composer, setComposer] = useState<ComposerState>({ open: false });
   const [busyGroup, setBusyGroup] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
@@ -51,17 +51,12 @@ export function PostsList() {
     setBusyGroup(post.group);
     try {
       await deletePostGroup(post.group);
-      await mutate();
+      await revalidatePosts();
     } catch (deleteError) {
       setActionError(deleteError instanceof Error ? deleteError.message : 'Delete failed');
     } finally {
       setBusyGroup(null);
     }
-  }
-
-  function handleSaved() {
-    setComposer({ open: false });
-    void mutate();
   }
 
   return (
@@ -86,9 +81,6 @@ export function PostsList() {
             </button>
           ))}
         </div>
-        <Button className="ml-auto" onClick={() => setComposer({ open: true, group: null })}>
-          Create post
-        </Button>
       </div>
 
       {actionError && (
@@ -117,7 +109,7 @@ export function PostsList() {
               key={post.id}
               post={post}
               busy={busyGroup === post.group}
-              onEdit={(group) => setComposer({ open: true, group })}
+              onEdit={onEdit}
               onDelete={handleDelete}
             />
           ))}
@@ -147,13 +139,6 @@ export function PostsList() {
           </Button>
         </div>
       )}
-
-      <PostComposer
-        open={composer.open}
-        group={composer.open ? composer.group : null}
-        onClose={() => setComposer({ open: false })}
-        onSaved={handleSaved}
-      />
     </div>
   );
 }

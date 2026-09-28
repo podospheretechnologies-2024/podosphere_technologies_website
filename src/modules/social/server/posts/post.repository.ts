@@ -92,6 +92,33 @@ export const postRepository = {
     return { total, results };
   },
 
+  listRange(organizationId: string, start: Date, end: Date) {
+    return prisma.socialPost.findMany({
+      where: {
+        organizationId,
+        deletedAt: null,
+        parentPostId: null,
+        integration: { deletedAt: null },
+        publishDate: { gte: start, lt: end },
+      },
+      include: { integration: { select: channelSelect } },
+      orderBy: [{ publishDate: 'asc' }, { createdAt: 'asc' }],
+    });
+  },
+
+  // Failed posts go back to the queue; the error is cleared because it belongs
+  // to the previous attempt.
+  async reschedule(organizationId: string, group: string, publishDate: Date): Promise<void> {
+    const where = { organizationId, group, deletedAt: null };
+    await prisma.$transaction([
+      prisma.socialPost.updateMany({ where, data: { publishDate } }),
+      prisma.socialPost.updateMany({
+        where: { ...where, state: 'ERROR' },
+        data: { state: 'QUEUE', error: null },
+      }),
+    ]);
+  },
+
   // Number of comments (non-root posts) per group + channel.
   async countComments(organizationId: string, groups: string[]) {
     const counts = await prisma.socialPost.groupBy({

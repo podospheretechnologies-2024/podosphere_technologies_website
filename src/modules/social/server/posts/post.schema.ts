@@ -42,3 +42,16 @@ export const listPostsQuerySchema = z.object({
 });
 
 export type ListPostsQuery = z.infer<typeof listPostsQuerySchema>;
+
+export const calendarQuerySchema = z.object({
+  startDate: z.iso.datetime({ offset: true }),
+  endDate: z.iso.datetime({ offset: true }),
+});
+
+export type CalendarQuery = z.infer<typeof calendarQuerySchema>;
+
+export const reschedulePostSchema = z.object({
+  date: z.iso.datetime({ offset: true }),
+});
+
+export type ReschedulePostBody = z.infer<typeof reschedulePostSchema>;

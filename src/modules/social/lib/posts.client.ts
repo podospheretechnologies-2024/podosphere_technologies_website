@@ -1,4 +1,5 @@
 import dayjs from 'dayjs';
+import { mutate } from 'swr';
 import { apiFetch } from '@/shared/lib/fetcher';
 import { POSTS_API_ROUTE } from '../hooks/use-posts';
 import type { SavePostInput } from '../types/post';
@@ -15,6 +16,19 @@ export function savePost(input: SavePostInput, group?: string): Promise<{ group:
 
 export function deletePostGroup(group: string): Promise<void> {
   return apiFetch<void>(`${POSTS_API_ROUTE}/${group}`, { method: 'DELETE' });
+}
+
+export function reschedulePost(group: string, date: Date): Promise<void> {
+  return apiFetch<void>(`${POSTS_API_ROUTE}/${group}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ date: date.toISOString() }),
+  });
+}
+
+/** Refreshes every cached posts request (list, calendar ranges, groups). */
+export function revalidatePosts(): Promise<unknown> {
+  return mutate((key) => typeof key === 'string' && key.startsWith(POSTS_API_ROUTE));
 }
 
 /** Value for an <input type="datetime-local"> in the user's timezone. */

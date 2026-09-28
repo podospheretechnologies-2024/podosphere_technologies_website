@@ -1,5 +1,5 @@
 import type { NextRequest } from 'next/server';
-import { savePostSchema } from '@/modules/social/server/posts/post.schema';
+import { reschedulePostSchema, savePostSchema } from '@/modules/social/server/posts/post.schema';
 import { postService } from '@/modules/social/server/posts/post.service';
 import { getCurrentOrganization } from '@/shared/server/current-organization';
 import { errorResponse } from '@/shared/server/http-error';
@@ -22,6 +22,19 @@ export async function PUT(request: NextRequest, ctx: Context) {
     const organization = await getCurrentOrganization();
     const body = savePostSchema.parse(await request.json());
     return Response.json(await postService.update(organization.id, group, body));
+  } catch (error) {
+    return errorResponse(error);
+  }
+}
+
+// Partial update: only moves the post to a new date (calendar drag and drop).
+export async function PATCH(request: NextRequest, ctx: Context) {
+  try {
+    const { group } = await ctx.params;
+    const organization = await getCurrentOrganization();
+    const body = reschedulePostSchema.parse(await request.json());
+    await postService.reschedule(organization.id, group, body);
+    return new Response(null, { status: 204 });
   } catch (error) {
     return errorResponse(error);
   }

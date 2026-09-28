@@ -17,6 +17,8 @@ interface PostComposerProps {
   open: boolean;
   /** Group id of the post being edited, or null to create a new post. */
   group: string | null;
+  /** Pre-filled publish date for new posts (datetime-local value). */
+  defaultDate?: string;
   onClose: () => void;
   onSaved: () => void;
 }
@@ -25,7 +27,7 @@ function emptyItem(): ThreadItemDraft {
   return { key: crypto.randomUUID(), content: '', media: [], delay: 0 };
 }
 
-export function PostComposer({ open, group, onClose, onSaved }: PostComposerProps) {
+export function PostComposer({ open, group, defaultDate, onClose, onSaved }: PostComposerProps) {
   const { data: channelsData, error: channelsError } = useChannels();
   const { data: groupData, error: groupError } = usePostGroup(open ? group : null);
   const loadError = channelsError ?? groupError;
@@ -43,6 +45,7 @@ export function PostComposer({ open, group, onClose, onSaved }: PostComposerProp
           key={group ?? 'new'}
           group={group}
           initial={groupData}
+          defaultDate={defaultDate}
           channels={channelsData.channels}
           providers={channelsData.providers}
           onCancel={onClose}
@@ -56,6 +59,7 @@ export function PostComposer({ open, group, onClose, onSaved }: PostComposerProp
 interface ComposerFormProps {
   group: string | null;
   initial?: PostGroup;
+  defaultDate?: string;
   channels: ChannelItem[];
   providers: AvailableProvider[];
   onCancel: () => void;
@@ -65,6 +69,7 @@ interface ComposerFormProps {
 function ComposerForm({
   group,
   initial,
+  defaultDate,
   channels,
   providers,
   onCancel,
@@ -82,7 +87,7 @@ function ComposerForm({
       : [emptyItem()]
   );
   const [date, setDate] = useState(() =>
-    initial ? toDateTimeLocal(initial.publishDate) : nextPostSlot()
+    initial ? toDateTimeLocal(initial.publishDate) : (defaultDate ?? nextPostSlot())
   );
   const [saving, setSaving] = useState<PostSaveType | null>(null);
   const [error, setError] = useState<string | null>(null);
