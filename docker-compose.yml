@@ -1,23 +1,43 @@
 services:
-  postgres:
-    image: postgres:17-alpine
-    container_name: podosphere-postgres
+  mysql:
+    image: mysql:8.4
+    container_name: podosphere-mysql
     restart: unless-stopped
     environment:
-      POSTGRES_USER: podosphere
-      POSTGRES_PASSWORD: podosphere
-      POSTGRES_DB: podosphere
+      MYSQL_DATABASE: podo_social
+      MYSQL_USER: podo
+      MYSQL_PASSWORD: podo
+      MYSQL_ROOT_PASSWORD: root
     ports:
-      - '5433:5432'
+      - '3307:3306'
     volumes:
-      - podosphere_postgres_data:/var/lib/postgresql/data
+      - podosphere_mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ['CMD', 'mysqladmin', 'ping', '-h', 'localhost', '-uroot', '-proot']
+      interval: 5s
+      retries: 30
 
+  # Database admin UI: http://localhost:8086 (user: podo / podo, or root / root)
+  phpmyadmin:
+    image: phpmyadmin:5
+    container_name: podosphere-phpmyadmin
+    restart: unless-stopped
+    environment:
+      PMA_HOST: mysql
+      PMA_PORT: 3306
+    ports:
+      - '8086:80'
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  # Queues (BullMQ) for scheduled posts and background AI jobs
   redis:
     image: redis:7-alpine
     container_name: podosphere-redis
     restart: unless-stopped
     ports:
-      - '6380:6379'
+      - '6381:6379'
 
 volumes:
-  podosphere_postgres_data:
+  podosphere_mysql_data:

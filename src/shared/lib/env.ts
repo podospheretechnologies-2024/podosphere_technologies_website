@@ -4,15 +4,28 @@ import { z } from 'zod';
 const serverEnvSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   APP_URL: z.url().default('http://localhost:3000'),
-  DATABASE_URL: z.url(),
+  // MySQL 8.4 (docker-compose). phpMyAdmin: http://localhost:8086
+  DATABASE_URL: z.string().startsWith('mysql://', 'must be a mysql:// URL'),
   REDIS_URL: z.url(),
   STORAGE_PROVIDER: z.enum(['local']).default('local'),
   UPLOAD_DIRECTORY: z.string().min(1).default('uploads'),
   ENCRYPTION_KEY: z.string().min(32, 'must be at least 32 characters'),
-  // AI features are switched off while no key is set.
+  // Signs the login session cookie (HS256).
+  SESSION_SECRET: z.string().min(32, 'must be at least 32 characters'),
+  // Podo AI (text) runs on Claude and is switched off while no key is set.
+  ANTHROPIC_API_KEY: z.string().optional(),
+  ANTHROPIC_MODEL: z.string().min(1).default('claude-opus-5'),
+  AI_DEFAULT_MONTHLY_BUDGET_USD: z.coerce.number().positive().default(50),
+  // Image generation only (Claude doesn't generate images). Optional.
   OPENAI_API_KEY: z.string().optional(),
-  OPENAI_MODEL: z.string().min(1).default('gpt-4.1'),
   OPENAI_IMAGE_MODEL: z.string().min(1).default('gpt-image-1'),
+  // Meta (Facebook / Instagram). See PODO_SOCIAL.md sections 8–10.
+  META_GRAPH_VERSION: z.string().default('v26.0'),
+  META_APP_SECRET: z.string().optional(),
+  META_PAGE_ID: z.string().optional(),
+  META_AD_ACCOUNT_ID: z.string().optional(),
+  // Dev only: Graph API Explorer user token for quick testing. Ignored in production.
+  META_TEST_USER_TOKEN: z.string().optional(),
 });
 
 export type ServerEnv = z.infer<typeof serverEnvSchema>;

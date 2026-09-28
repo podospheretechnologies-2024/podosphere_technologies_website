@@ -1,15 +1,15 @@
 import 'server-only';
-import { cache } from 'react';
 import type { Organization } from '@/generated/prisma/client';
-import { DEFAULT_ORGANIZATION } from '@/shared/config/organization';
-import { prisma } from '@/shared/lib/prisma';
+import { getCurrentUser } from '@/modules/auth/server/session';
+import { HttpError } from './http-error';
 
-// Until authentication exists every request belongs to the default organization.
-// When login is added, resolve the organization from the session here instead.
-export const getCurrentOrganization = cache(async (): Promise<Organization> => {
-  return prisma.organization.upsert({
-    where: { slug: DEFAULT_ORGANIZATION.slug },
-    update: {},
-    create: { name: DEFAULT_ORGANIZATION.name, slug: DEFAULT_ORGANIZATION.slug },
-  });
-});
+// Every request belongs to the signed-in user's organization. Route handlers and
+// pages call this; without a valid session it throws 401 (API) / the dashboard
+// layout redirects to /login first (pages).
+export async function getCurrentOrganization(): Promise<Organization> {
+  const user = await getCurrentUser();
+  if (!user) {
+    throw new HttpError(401, 'Please log in');
+  }
+  return user.organization;
+}

@@ -36,9 +36,9 @@ model SocialIntegration {
   rootInternalId        String?
   name                  String
   username              String?
-  picture               String?
-  accessToken           String
-  refreshToken          String?
+  picture               String?   @db.VarChar(2048)
+  accessToken           String    @db.Text
+  refreshToken          String?   @db.Text
   tokenExpiration       DateTime?
   disabled              Boolean   @default(false)
   // Waiting for a second connect step (e.g. choosing a page after OAuth).
@@ -48,7 +48,7 @@ model SocialIntegration {
   // Preferred posting times, in minutes after midnight (UTC).
   postingTimes          Json      @default("[{\"time\":120},{\"time\":400},{\"time\":700}]")
   additionalSettings    Json      @default("[]")
-  customInstanceDetails String?
+  customInstanceDetails String?   @db.Text
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
   deletedAt             DateTime?
@@ -92,16 +92,16 @@ model SocialPost {
   parentPostId   String?
   state          SocialPostState      @default(QUEUE)
   publishDate    DateTime
-  content        String
+  content        String               @db.Text
   // Minutes to wait after the previous item of a thread.
   delay          Int                  @default(0)
   settings       Json                 @default("{}")
   media          Json                 @default("[]")
-  title          String?
-  description    String?
+  title          String?              @db.Text
+  description    String?              @db.Text
   releaseId      String?
-  releaseUrl     String?
-  error          String?
+  releaseUrl     String?              @db.VarChar(2048)
+  error          String?              @db.Text
   intervalInDays Int?
   creationMethod SocialCreationMethod @default(WEB)
   createdAt      DateTime             @default(now())
@@ -129,16 +129,16 @@ model SocialMedia {
   id                 String            @id @default(uuid())
   organizationId     String
   name               String
-  originalName       String?
-  path               String
+  originalName       String?           @db.VarChar(512)
+  path               String            @db.VarChar(1024)
   type               SocialMediaType   @default(IMAGE)
   mimeType           String?
   fileSize           Int               @default(0)
-  thumbnail          String?
+  thumbnail          String?           @db.VarChar(1024)
   thumbnailTimestamp Int?
-  alt                String?
+  alt                String?           @db.Text
   status             SocialMediaStatus @default(READY)
-  processingError    String?
+  processingError    String?           @db.Text
   createdAt          DateTime          @default(now())
   updatedAt          DateTime          @updatedAt
   deletedAt          DateTime?
@@ -183,7 +183,7 @@ model SocialTagsOnPosts {
 model SocialSignature {
   id             String    @id @default(uuid())
   organizationId String
-  content        String
+  content        String    @db.Text
   autoAdd        Boolean   @default(false)
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
@@ -215,10 +215,10 @@ model SocialAutoPost {
   id              String    @id @default(uuid())
   organizationId  String
   title           String
-  url             String
-  lastUrl         String?
-  content         String?
-  integrationIds  String[]
+  url             String    @db.VarChar(2048)
+  lastUrl         String?   @db.VarChar(2048)
+  content         String?   @db.Text
+  integrationIds  Json // string[] (MySQL has no list columns)
   onSlot          Boolean   @default(true)
   syncLast        Boolean   @default(false)
   addPicture      Boolean   @default(false)
@@ -239,7 +239,7 @@ model SocialWebhook {
   id             String    @id @default(uuid())
   organizationId String
   name           String
-  url            String
+  url            String    @db.VarChar(2048)
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
   deletedAt      DateTime?
@@ -265,8 +265,8 @@ model SocialWebhookIntegration {
 model SocialNotification {
   id             String    @id @default(uuid())
   organizationId String
-  content        String
-  link           String?
+  content        String    @db.Text
+  link           String?   @db.VarChar(2048)
   createdAt      DateTime  @default(now())
   deletedAt      DateTime?
 
@@ -283,7 +283,7 @@ model SocialPostError {
   organizationId String
   postId         String
   platform       String
-  message        String
+  message        String   @db.Text
   body           Json     @default("{}")
   createdAt      DateTime @default(now())
 
@@ -293,4 +293,35 @@ model SocialPostError {
   @@index([organizationId])
   @@index([postId])
   @@map("social_post_errors")
+}
+
+// Podo AI brand kit: voice, audience, words to use/avoid, FAQs. Read into every AI prompt.
+model SocialBrandKit {
+  id             String   @id @default(uuid())
+  organizationId String   @unique
+  data           Json
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@map("social_brand_kits")
+}
+
+// Tokens used per Claude call; drives the monthly AI budget.
+model SocialAiUsage {
+  id               String   @id @default(uuid())
+  organizationId   String
+  feature          String
+  model            String
+  inputTokens      Int      @default(0)
+  outputTokens     Int      @default(0)
+  cacheReadTokens  Int      @default(0)
+  cacheWriteTokens Int      @default(0)
+  createdAt        DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId, createdAt])
+  @@map("social_ai_usages")
 }

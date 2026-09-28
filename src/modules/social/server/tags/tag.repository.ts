@@ -23,7 +23,7 @@ export const tagRepository = {
 
   findByName(organizationId: string, name: string): Promise<SocialTag | null> {
     return prisma.socialTag.findFirst({
-      where: { organizationId, deletedAt: null, name: { equals: name, mode: 'insensitive' } },
+      where: { organizationId, deletedAt: null, name: { equals: name } }, // MySQL collation is case-insensitive
     });
   },
 

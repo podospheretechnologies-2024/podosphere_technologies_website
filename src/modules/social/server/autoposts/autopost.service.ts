@@ -14,6 +14,12 @@ import { autopostRepository } from './autopost.repository';
 import type { SaveAutopostBody } from './autopost.schema';
 import { fetchFeed, type FeedItem } from './rss-feed';
 
+// integrationIds is a JSON column (MySQL has no list columns); always read it through here.
+function integrationIdsOf(autopost: SocialAutoPost): string[] {
+  const value = autopost.integrationIds;
+  return Array.isArray(value) ? value.filter((id): id is string => typeof id === 'string') : [];
+}
+
 function toAutopostItem(autopost: SocialAutoPost): AutopostItem {
   return {
     id: autopost.id,
@@ -21,7 +27,7 @@ function toAutopostItem(autopost: SocialAutoPost): AutopostItem {
     url: autopost.url,
     lastUrl: autopost.lastUrl,
     content: autopost.content,
-    integrationIds: autopost.integrationIds,
+    integrationIds: integrationIdsOf(autopost),
     onSlot: autopost.onSlot,
     syncLast: autopost.syncLast,
     addPicture: autopost.addPicture,
@@ -104,7 +110,7 @@ async function writeContent(autopost: SocialAutoPost, item: FeedItem, maxLength:
   }
 
   try {
-    const { variations } = await aiService.generatePosts({
+    const { variations } = await aiService.generatePosts(autopost.organizationId, {
       content: [`Title: ${item.title}`, item.description].filter(Boolean).join('\n\n'),
       format: 'post',
       maxLength: aiLength,
@@ -144,7 +150,7 @@ async function runFeed(autopost: SocialAutoPost): Promise<AutopostRunResult> {
 
   const items = newItems(autopost, feed.items);
   const integrations = (
-    await integrationRepository.findManyByIds(autopost.organizationId, autopost.integrationIds)
+    await integrationRepository.findManyByIds(autopost.organizationId, integrationIdsOf(autopost))
   ).filter((integration) => !integration.disabled && !integration.refreshNeeded);
 
   // Without usable channels the feed still moves on, so old items are not posted later.

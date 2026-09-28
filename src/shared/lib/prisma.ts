@@ -1,12 +1,13 @@
 import 'server-only';
-import { PrismaPg } from '@prisma/adapter-pg';
+import { PrismaMariaDb } from '@prisma/adapter-mariadb';
 import { PrismaClient } from '@/generated/prisma/client';
 import { getServerEnv } from './env';
+import { mysqlDriverUrl } from './mysql-url';
 
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 
 function createPrismaClient(): PrismaClient {
-  const adapter = new PrismaPg({ connectionString: getServerEnv().DATABASE_URL });
+  const adapter = new PrismaMariaDb(mysqlDriverUrl(getServerEnv().DATABASE_URL));
   return new PrismaClient({ adapter });
 }
 

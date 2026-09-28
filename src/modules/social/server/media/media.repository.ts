@@ -15,7 +15,7 @@ export const mediaRepository = {
       organizationId,
       deletedAt: null,
       status: 'READY',
-      ...(search ? { originalName: { contains: search, mode: 'insensitive' } } : {}),
+      ...(search ? { originalName: { contains: search } } : {}),
     };
 
     const [total, results] = await prisma.$transaction([

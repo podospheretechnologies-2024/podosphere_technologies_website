@@ -1,5 +1,7 @@
 export interface AiStatus {
   configured: boolean;
+  /** Image generation (OpenAI) is set up; text AI (Claude) can work without it. */
+  imageConfigured: boolean;
 }
 
 export interface AiPostSource {
