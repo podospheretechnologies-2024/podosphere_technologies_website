@@ -1,18 +1,27 @@
 'use client';
 
 import { useEffect, useRef, type ReactNode } from 'react';
+import { cn } from '@/shared/lib/cn';
 import { Button } from './button';
+
+type ModalSize = 'md' | 'lg';
+
+const sizeClasses: Record<ModalSize, string> = {
+  md: 'max-w-lg',
+  lg: 'max-w-3xl',
+};
 
 interface ModalProps {
   open: boolean;
   title: string;
   description?: string;
+  size?: ModalSize;
   onClose: () => void;
   children: ReactNode;
 }
 
 // Native <dialog>: focus trapping, Escape to close and the backdrop come for free.
-export function Modal({ open, title, description, onClose, children }: ModalProps) {
+export function Modal({ open, title, description, size = 'md', onClose, children }: ModalProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
 
   useEffect(() => {
@@ -30,13 +39,21 @@ export function Modal({ open, title, description, onClose, children }: ModalProp
   return (
     <dialog
       ref={dialogRef}
-      onClose={onClose}
+      onClose={(event) => {
+        // React re-dispatches a nested dialog's close event to its parents.
+        if (event.target === event.currentTarget) {
+          onClose();
+        }
+      }}
       onClick={(event) => {
         if (event.target === event.currentTarget) {
           onClose();
         }
       }}
-      className="border-border bg-surface text-foreground m-auto w-full max-w-lg rounded-xl border p-0 backdrop:bg-black/50"
+      className={cn(
+        'border-border bg-surface text-foreground m-auto max-h-[90vh] w-full rounded-xl border p-0 backdrop:bg-black/50',
+        sizeClasses[size]
+      )}
     >
       <div className="p-6">
         <div className="mb-5 flex items-start justify-between gap-4">

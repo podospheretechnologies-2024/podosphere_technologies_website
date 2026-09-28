@@ -39,6 +39,12 @@ export const mediaRepository = {
     return prisma.socialMedia.findFirst({ where: { id, organizationId, deletedAt: null } });
   },
 
+  findManyByIds(organizationId: string, ids: string[]): Promise<SocialMedia[]> {
+    return prisma.socialMedia.findMany({
+      where: { id: { in: ids }, organizationId, deletedAt: null, status: 'READY' },
+    });
+  },
+
   softDelete(id: string): Promise<SocialMedia> {
     return prisma.socialMedia.update({ where: { id }, data: { deletedAt: new Date() } });
   },

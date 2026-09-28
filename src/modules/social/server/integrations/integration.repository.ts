@@ -34,6 +34,12 @@ export const integrationRepository = {
     return prisma.socialIntegration.findFirst({ where: { id, organizationId, deletedAt: null } });
   },
 
+  findManyByIds(organizationId: string, ids: string[]): Promise<SocialIntegration[]> {
+    return prisma.socialIntegration.findMany({
+      where: { id: { in: ids }, organizationId, deletedAt: null },
+    });
+  },
+
   // Reconnecting an account (even a previously deleted one) reuses the same row,
   // so existing posts keep pointing at it.
   upsert(data: UpsertIntegrationData): Promise<SocialIntegration> {

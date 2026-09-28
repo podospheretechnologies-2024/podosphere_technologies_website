@@ -1,0 +1,222 @@
+'use client';
+
+import { useState } from 'react';
+import { Button } from '@/shared/components/ui/button';
+import { Input } from '@/shared/components/ui/input';
+import { Modal } from '@/shared/components/ui/modal';
+import { POST_MAX_THREAD_ITEMS, type PostSaveType } from '../../../config/posts';
+import { useChannels } from '../../../hooks/use-channels';
+import { usePostGroup } from '../../../hooks/use-posts';
+import { nextPostSlot, savePost, toDateTimeLocal } from '../../../lib/posts.client';
+import type { AvailableProvider, ChannelItem } from '../../../types/integration';
+import type { PostGroup } from '../../../types/post';
+import { ChannelSelector } from './channel-selector';
+import { ThreadItemEditor, type ThreadItemDraft } from './thread-item-editor';
+
+interface PostComposerProps {
+  open: boolean;
+  /** Group id of the post being edited, or null to create a new post. */
+  group: string | null;
+  onClose: () => void;
+  onSaved: () => void;
+}
+
+function emptyItem(): ThreadItemDraft {
+  return { key: crypto.randomUUID(), content: '', media: [], delay: 0 };
+}
+
+export function PostComposer({ open, group, onClose, onSaved }: PostComposerProps) {
+  const { data: channelsData, error: channelsError } = useChannels();
+  const { data: groupData, error: groupError } = usePostGroup(open ? group : null);
+  const loadError = channelsError ?? groupError;
+
+  return (
+    <Modal open={open} size="lg" title={group ? 'Edit post' : 'Create post'} onClose={onClose}>
+      {!open ? null : loadError ? (
+        <p className="text-danger text-sm">
+          {loadError instanceof Error ? loadError.message : 'Could not load the post'}
+        </p>
+      ) : !channelsData || (group && !groupData) ? (
+        <p className="text-muted-foreground text-sm">Loading…</p>
+      ) : (
+        <ComposerForm
+          key={group ?? 'new'}
+          group={group}
+          initial={groupData}
+          channels={channelsData.channels}
+          providers={channelsData.providers}
+          onCancel={onClose}
+          onSaved={onSaved}
+        />
+      )}
+    </Modal>
+  );
+}
+
+interface ComposerFormProps {
+  group: string | null;
+  initial?: PostGroup;
+  channels: ChannelItem[];
+  providers: AvailableProvider[];
+  onCancel: () => void;
+  onSaved: () => void;
+}
+
+function ComposerForm({
+  group,
+  initial,
+  channels,
+  providers,
+  onCancel,
+  onSaved,
+}: ComposerFormProps) {
+  const [selectedIds, setSelectedIds] = useState<string[]>(() =>
+    (initial?.posts ?? [])
+      .map((post) => post.channel.id)
+      .filter((id) => channels.some((channel) => channel.id === id))
+  );
+  // The composer edits one shared thread for every selected channel.
+  const [items, setItems] = useState<ThreadItemDraft[]>(() =>
+    initial?.posts[0]
+      ? initial.posts[0].values.map((value) => ({ ...value, key: crypto.randomUUID() }))
+      : [emptyItem()]
+  );
+  const [date, setDate] = useState(() =>
+    initial ? toDateTimeLocal(initial.publishDate) : nextPostSlot()
+  );
+  const [saving, setSaving] = useState<PostSaveType | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const maxLengthByProvider = new Map(
+    providers.map((provider) => [provider.identifier, provider.maxLength])
+  );
+  const selectedLimits = channels
+    .filter((channel) => selectedIds.includes(channel.id))
+    .map((channel) => maxLengthByProvider.get(channel.providerIdentifier))
+    .filter((limit): limit is number => limit !== undefined);
+  const maxLength = selectedLimits.length ? Math.min(...selectedLimits) : null;
+
+  function toggleChannel(id: string) {
+    setSelectedIds((current) =>
+      current.includes(id) ? current.filter((entry) => entry !== id) : [...current, id]
+    );
+  }
+
+  function updateItem(updated: ThreadItemDraft) {
+    setItems((current) => current.map((item) => (item.key === updated.key ? updated : item)));
+  }
+
+  async function submit(type: PostSaveType) {
+    if (selectedIds.length === 0) {
+      setError('Select at least one channel');
+      return;
+    }
+    if (type !== 'now' && !date) {
+      setError('Pick a date and time');
+      return;
+    }
+
+    setError(null);
+    setSaving(type);
+    try {
+      await savePost(
+        {
+          type,
+          date: new Date(date || Date.now()).toISOString(),
+          posts: selectedIds.map((integrationId) => ({
+            integrationId,
+            values: items.map((item) => ({
+              content: item.content,
+              mediaIds: item.media.map((media) => media.id),
+              delay: item.delay,
+            })),
+          })),
+        },
+        group ?? undefined
+      );
+      onSaved();
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : 'Could not save the post');
+      setSaving(null);
+    }
+  }
+
+  if (channels.length === 0) {
+    return (
+      <p className="text-muted-foreground text-sm">
+        Connect a channel on the Channels page before creating posts.
+      </p>
+    );
+  }
+
+  return (
+    <div className="space-y-5">
+      <section className="space-y-2">
+        <h3 className="text-sm font-medium">Channels</h3>
+        <ChannelSelector channels={channels} selectedIds={selectedIds} onToggle={toggleChannel} />
+      </section>
+
+      <section className="space-y-3">
+        {items.map((item, index) => (
+          <ThreadItemEditor
+            key={item.key}
+            item={item}
+            index={index}
+            maxLength={maxLength}
+            onChange={updateItem}
+            onRemove={
+              index === 0
+                ? undefined
+                : () => setItems((current) => current.filter((entry) => entry.key !== item.key))
+            }
+          />
+        ))}
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={() => setItems((current) => [...current, emptyItem()])}
+          disabled={items.length >= POST_MAX_THREAD_ITEMS}
+        >
+          Add comment
+        </Button>
+      </section>
+
+      <section className="space-y-2">
+        <label htmlFor="post-date" className="text-sm font-medium">
+          Publish date
+        </label>
+        <Input
+          id="post-date"
+          type="datetime-local"
+          value={date}
+          onChange={(event) => setDate(event.target.value)}
+          className="max-w-xs"
+        />
+      </section>
+
+      {error && (
+        <div
+          role="alert"
+          className="border-danger/40 bg-danger/10 text-danger rounded-lg border p-3 text-sm"
+        >
+          {error}
+        </div>
+      )}
+
+      <div className="border-border flex flex-wrap items-center justify-end gap-2 border-t pt-4">
+        <Button variant="ghost" onClick={onCancel} disabled={saving !== null} className="mr-auto">
+          Cancel
+        </Button>
+        <Button variant="secondary" onClick={() => submit('draft')} disabled={saving !== null}>
+          {saving === 'draft' ? 'Saving…' : 'Save as draft'}
+        </Button>
+        <Button variant="secondary" onClick={() => submit('now')} disabled={saving !== null}>
+          {saving === 'now' ? 'Queuing…' : 'Post now'}
+        </Button>
+        <Button onClick={() => submit('schedule')} disabled={saving !== null}>
+          {saving === 'schedule' ? 'Scheduling…' : group ? 'Update schedule' : 'Schedule'}
+        </Button>
+      </div>
+    </div>
+  );
+}

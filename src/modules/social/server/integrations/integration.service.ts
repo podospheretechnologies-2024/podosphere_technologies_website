@@ -66,6 +66,7 @@ function toAvailableProvider(provider: SocialProvider): AvailableProvider {
     name: provider.name,
     configured: provider.isConfigured(),
     requiredEnv: [...provider.requiredEnv],
+    maxLength: provider.maxLength(),
   };
 }
 

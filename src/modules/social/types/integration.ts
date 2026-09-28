@@ -17,6 +17,7 @@ export interface AvailableProvider {
   name: string;
   configured: boolean;
   requiredEnv: string[];
+  maxLength: number;
 }
 
 export interface ChannelsResponse {

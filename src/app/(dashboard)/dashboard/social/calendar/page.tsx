@@ -1,10 +1,19 @@
 import type { Metadata } from 'next';
-import { ComingSoonSection } from '@/modules/social/components/coming-soon-section';
+import { PostsList } from '@/modules/social/components/posts/posts-list';
+import { socialSections } from '@/modules/social/config/navigation';
+import { PageHeader } from '@/shared/components/ui/page-header';
 
 export const metadata: Metadata = {
   title: 'Calendar',
 };
 
 export default function CalendarPage() {
-  return <ComingSoonSection section="calendar" />;
+  const { label, description } = socialSections.calendar;
+
+  return (
+    <>
+      <PageHeader title={label} description={description} />
+      <PostsList />
+    </>
+  );
 }
