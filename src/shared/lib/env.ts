@@ -8,6 +8,7 @@ const serverEnvSchema = z.object({
   REDIS_URL: z.url(),
   STORAGE_PROVIDER: z.enum(['local']).default('local'),
   UPLOAD_DIRECTORY: z.string().min(1).default('uploads'),
+  ENCRYPTION_KEY: z.string().min(32, 'must be at least 32 characters'),
 });
 
 export type ServerEnv = z.infer<typeof serverEnvSchema>;
