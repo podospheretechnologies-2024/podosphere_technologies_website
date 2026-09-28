@@ -1,3 +1,4 @@
+import { mutate } from 'swr';
 import { apiFetch } from '@/shared/lib/fetcher';
 import { getMediaMaxSize, MEDIA_ALLOWED_MIME_TYPES, type MediaMimeType } from '../config/media';
 import { MEDIA_API_ROUTE } from '../hooks/use-media-library';
@@ -31,6 +32,11 @@ export function uploadMediaFile(file: File): Promise<MediaItem> {
 
 export function deleteMediaItem(id: string): Promise<void> {
   return apiFetch<void>(`${MEDIA_API_ROUTE}/${id}`, { method: 'DELETE' });
+}
+
+// Refreshes every cached media page, e.g. after a file was added outside the library.
+export function revalidateMediaLibrary(): Promise<unknown> {
+  return mutate((key) => typeof key === 'string' && key.startsWith(MEDIA_API_ROUTE));
 }
 
 export function formatFileSize(bytes: number): string {

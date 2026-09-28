@@ -9,6 +9,10 @@ const serverEnvSchema = z.object({
   STORAGE_PROVIDER: z.enum(['local']).default('local'),
   UPLOAD_DIRECTORY: z.string().min(1).default('uploads'),
   ENCRYPTION_KEY: z.string().min(32, 'must be at least 32 characters'),
+  // AI features are switched off while no key is set.
+  OPENAI_API_KEY: z.string().optional(),
+  OPENAI_MODEL: z.string().min(1).default('gpt-4.1'),
+  OPENAI_IMAGE_MODEL: z.string().min(1).default('gpt-image-1'),
 });
 
 export type ServerEnv = z.infer<typeof serverEnvSchema>;

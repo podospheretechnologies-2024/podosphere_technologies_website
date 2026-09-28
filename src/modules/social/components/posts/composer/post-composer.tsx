@@ -5,13 +5,20 @@ import { Button } from '@/shared/components/ui/button';
 import { Input } from '@/shared/components/ui/input';
 import { Modal } from '@/shared/components/ui/modal';
 import { POST_MAX_THREAD_ITEMS, type PostSaveType } from '../../../config/posts';
+import { useAiStatus } from '../../../hooks/use-ai-status';
 import { useChannels } from '../../../hooks/use-channels';
 import { usePostGroup } from '../../../hooks/use-posts';
+import { splitIntoThread } from '../../../lib/ai.client';
 import { nextPostSlot, savePost, toDateTimeLocal } from '../../../lib/posts.client';
 import type { AvailableProvider, ChannelItem } from '../../../types/integration';
-import type { PostGroup } from '../../../types/post';
+import type { PostGroup, PostMedia } from '../../../types/post';
 import { ChannelSelector } from './channel-selector';
 import { ThreadItemEditor, type ThreadItemDraft } from './thread-item-editor';
+
+export interface ComposerInitialItem {
+  content: string;
+  media: PostMedia[];
+}
 
 interface PostComposerProps {
   open: boolean;
@@ -19,6 +26,8 @@ interface PostComposerProps {
   group: string | null;
   /** Pre-filled publish date for new posts (datetime-local value). */
   defaultDate?: string;
+  /** Pre-filled thread for new posts, e.g. a variation from the AI Studio. */
+  initialItems?: ComposerInitialItem[];
   onClose: () => void;
   onSaved: () => void;
 }
@@ -27,7 +36,18 @@ function emptyItem(): ThreadItemDraft {
   return { key: crypto.randomUUID(), content: '', media: [], delay: 0 };
 }
 
-export function PostComposer({ open, group, defaultDate, onClose, onSaved }: PostComposerProps) {
+function toDraft(item: ComposerInitialItem): ThreadItemDraft {
+  return { ...item, key: crypto.randomUUID(), delay: 0 };
+}
+
+export function PostComposer({
+  open,
+  group,
+  defaultDate,
+  initialItems,
+  onClose,
+  onSaved,
+}: PostComposerProps) {
   const { data: channelsData, error: channelsError } = useChannels();
   const { data: groupData, error: groupError } = usePostGroup(open ? group : null);
   const loadError = channelsError ?? groupError;
@@ -46,6 +66,7 @@ export function PostComposer({ open, group, defaultDate, onClose, onSaved }: Pos
           group={group}
           initial={groupData}
           defaultDate={defaultDate}
+          initialItems={initialItems}
           channels={channelsData.channels}
           providers={channelsData.providers}
           onCancel={onClose}
@@ -60,6 +81,7 @@ interface ComposerFormProps {
   group: string | null;
   initial?: PostGroup;
   defaultDate?: string;
+  initialItems?: ComposerInitialItem[];
   channels: ChannelItem[];
   providers: AvailableProvider[];
   onCancel: () => void;
@@ -70,6 +92,7 @@ function ComposerForm({
   group,
   initial,
   defaultDate,
+  initialItems,
   channels,
   providers,
   onCancel,
@@ -81,16 +104,20 @@ function ComposerForm({
       .filter((id) => channels.some((channel) => channel.id === id))
   );
   // The composer edits one shared thread for every selected channel.
-  const [items, setItems] = useState<ThreadItemDraft[]>(() =>
-    initial?.posts[0]
-      ? initial.posts[0].values.map((value) => ({ ...value, key: crypto.randomUUID() }))
-      : [emptyItem()]
-  );
+  const [items, setItems] = useState<ThreadItemDraft[]>(() => {
+    if (initial?.posts[0]) {
+      return initial.posts[0].values.map((value) => ({ ...value, key: crypto.randomUUID() }));
+    }
+    return initialItems?.length ? initialItems.map(toDraft) : [emptyItem()];
+  });
   const [date, setDate] = useState(() =>
     initial ? toDateTimeLocal(initial.publishDate) : (defaultDate ?? nextPostSlot())
   );
   const [saving, setSaving] = useState<PostSaveType | null>(null);
+  const [splitting, setSplitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { data: aiStatus } = useAiStatus();
+  const busy = saving !== null || splitting;
 
   const maxLengthByProvider = new Map(
     providers.map((provider) => [provider.identifier, provider.maxLength])
@@ -109,6 +136,28 @@ function ComposerForm({
 
   function updateItem(updated: ThreadItemDraft) {
     setItems((current) => current.map((item) => (item.key === updated.key ? updated : item)));
+  }
+
+  // The media of the original post stays on the first item of the thread.
+  async function splitWithAi() {
+    if (maxLength === null) {
+      setError('Select a channel first so the AI knows the length limit');
+      return;
+    }
+
+    const [first] = items;
+    setError(null);
+    setSplitting(true);
+    try {
+      const { posts } = await splitIntoThread({ content: first.content, maxLength });
+      setItems(
+        posts.map((content, index) => toDraft({ content, media: index === 0 ? first.media : [] }))
+      );
+    } catch (splitError) {
+      setError(splitError instanceof Error ? splitError.message : 'Could not split the post');
+    } finally {
+      setSplitting(false);
+    }
   }
 
   async function submit(type: PostSaveType) {
@@ -176,14 +225,26 @@ function ComposerForm({
             }
           />
         ))}
-        <Button
-          variant="secondary"
-          size="sm"
-          onClick={() => setItems((current) => [...current, emptyItem()])}
-          disabled={items.length >= POST_MAX_THREAD_ITEMS}
-        >
-          Add comment
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => setItems((current) => [...current, emptyItem()])}
+            disabled={items.length >= POST_MAX_THREAD_ITEMS || splitting}
+          >
+            Add comment
+          </Button>
+          {aiStatus?.configured && items.length === 1 && (
+            <Button
+              variant="ai"
+              size="sm"
+              onClick={splitWithAi}
+              disabled={busy || !items[0].content.trim()}
+            >
+              {splitting ? 'Splitting…' : 'Split into thread with AI'}
+            </Button>
+          )}
+        </div>
       </section>
 
       <section className="space-y-2">
@@ -212,13 +273,13 @@ function ComposerForm({
         <Button variant="ghost" onClick={onCancel} disabled={saving !== null} className="mr-auto">
           Cancel
         </Button>
-        <Button variant="secondary" onClick={() => submit('draft')} disabled={saving !== null}>
+        <Button variant="secondary" onClick={() => submit('draft')} disabled={busy}>
           {saving === 'draft' ? 'Saving…' : 'Save as draft'}
         </Button>
-        <Button variant="secondary" onClick={() => submit('now')} disabled={saving !== null}>
+        <Button variant="secondary" onClick={() => submit('now')} disabled={busy}>
           {saving === 'now' ? 'Queuing…' : 'Post now'}
         </Button>
-        <Button onClick={() => submit('schedule')} disabled={saving !== null}>
+        <Button onClick={() => submit('schedule')} disabled={busy}>
           {saving === 'schedule' ? 'Scheduling…' : group ? 'Update schedule' : 'Schedule'}
         </Button>
       </div>

@@ -1,10 +1,19 @@
 import type { Metadata } from 'next';
-import { ComingSoonSection } from '@/modules/social/components/coming-soon-section';
+import { AiStudio } from '@/modules/social/components/ai/ai-studio';
+import { socialSections } from '@/modules/social/config/navigation';
+import { PageHeader } from '@/shared/components/ui/page-header';
 
 export const metadata: Metadata = {
   title: 'AI Studio',
 };
 
 export default function AiStudioPage() {
-  return <ComingSoonSection section="ai" />;
+  const { label, description } = socialSections.ai;
+
+  return (
+    <>
+      <PageHeader title={label} description={description} />
+      <AiStudio />
+    </>
+  );
 }
