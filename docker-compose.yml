@@ -1,0 +1,23 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: podosphere-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: podosphere
+      POSTGRES_PASSWORD: podosphere
+      POSTGRES_DB: podosphere
+    ports:
+      - '5433:5432'
+    volumes:
+      - podosphere_postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    container_name: podosphere-redis
+    restart: unless-stopped
+    ports:
+      - '6380:6379'
+
+volumes:
+  podosphere_postgres_data:
