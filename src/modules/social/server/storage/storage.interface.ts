@@ -14,5 +14,6 @@ export interface StoredFile {
 
 export interface StorageProvider {
   save(body: ReadableStream<Uint8Array>, options: SaveFileOptions): Promise<StoredFile>;
+  read(key: string): Promise<Buffer>;
   remove(key: string): Promise<void>;
 }

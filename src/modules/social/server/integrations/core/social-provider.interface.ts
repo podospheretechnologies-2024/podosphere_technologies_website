@@ -23,9 +23,39 @@ export interface AuthTokenDetails {
   expiresIn?: number;
 }
 
+export interface PublishMedia {
+  type: 'image' | 'video';
+  mimeType: string;
+  alt: string | null;
+  /** Loads the file lazily so nothing is read for items that fail validation. */
+  read(): Promise<Buffer>;
+}
+
+export interface PublishItem {
+  content: string;
+  media: PublishMedia[];
+}
+
+/** The connected account a post is published as. */
+export interface PublishTarget {
+  internalId: string;
+  accessToken: string;
+}
+
+export interface PublishThread {
+  /** Release id of the first post of the thread. */
+  rootReleaseId: string;
+  /** Release id of the item this comment follows. */
+  parentReleaseId: string;
+}
+
+export interface PublishResult {
+  releaseId: string;
+  releaseUrl: string;
+}
+
 // Every channel (LinkedIn, X, Facebook, ...) implements this contract so the
-// integration service can stay platform agnostic. Publishing methods are added
-// together with the publishing worker.
+// integration and publishing services can stay platform agnostic.
 export interface SocialProvider {
   readonly identifier: string;
   readonly name: string;
@@ -42,4 +72,8 @@ export interface SocialProvider {
   generateAuthUrl(redirectUri: string): Promise<GeneratedAuthUrl>;
   authenticate(params: AuthenticateParams): Promise<AuthTokenDetails>;
   refreshToken(refreshToken: string): Promise<AuthTokenDetails>;
+  /** Publishes the first item of a thread. */
+  post(target: PublishTarget, item: PublishItem): Promise<PublishResult>;
+  /** Publishes a follow-up item (comment / reply) of an already published thread. */
+  comment(target: PublishTarget, thread: PublishThread, item: PublishItem): Promise<PublishResult>;
 }

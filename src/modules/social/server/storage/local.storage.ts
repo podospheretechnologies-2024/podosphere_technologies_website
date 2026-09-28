@@ -1,7 +1,7 @@
 import 'server-only';
 import { randomUUID } from 'node:crypto';
 import { createWriteStream } from 'node:fs';
-import { mkdir, rm } from 'node:fs/promises';
+import { mkdir, readFile, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
@@ -50,6 +50,15 @@ export class LocalStorage implements StorageProvider {
     }
 
     return { key, url: `${LOCAL_FILES_ROUTE}/${key}` };
+  }
+
+  async read(key: string): Promise<Buffer> {
+    const filePath = resolveLocalFilePath(this.uploadDirectory, key);
+    if (!filePath) {
+      throw new Error(`Invalid storage key: ${key}`);
+    }
+    // Uploads are runtime data, not part of the build output.
+    return readFile(/* turbopackIgnore: true */ filePath);
   }
 
   async remove(key: string): Promise<void> {

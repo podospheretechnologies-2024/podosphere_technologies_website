@@ -16,6 +16,7 @@ import type {
 import { integrationRegistry } from '../integrations/core/integration.registry';
 import { integrationRepository } from '../integrations/integration.repository';
 import { mediaRepository } from '../media/media.repository';
+import { publishQueue } from '../publishing/publish.queue';
 import { postRepository, type CreateGroupData } from './post.repository';
 import type {
   CalendarQuery,
@@ -45,7 +46,7 @@ function toChannel(integration: PostRow['integration']): PostChannel {
   };
 }
 
-function readMedia(value: Prisma.JsonValue): PostMedia[] {
+export function readMedia(value: Prisma.JsonValue): PostMedia[] {
   return Array.isArray(value) ? (value as unknown as PostMedia[]) : [];
 }
 
@@ -168,6 +169,22 @@ async function findGroupOrThrow(organizationId: string, group: string) {
   return rows;
 }
 
+// Queues the first post of every channel; comments are queued by the worker
+// once the item before them is published. The save itself already succeeded,
+// so a queue outage is only logged: the worker's sweep picks the posts up later.
+async function queueForPublishing(organizationId: string, group: string) {
+  const rows = await postRepository.findGroup(organizationId, group);
+  const jobs = rows
+    .filter((row) => !row.parentPostId && row.state === 'QUEUE')
+    .map((row) => ({ postId: row.id, publishDate: row.publishDate, runAt: row.publishDate }));
+
+  try {
+    await publishQueue.schedule(jobs);
+  } catch (error) {
+    console.error(`[social] could not queue post group ${group}`, error);
+  }
+}
+
 async function toListItems(organizationId: string, posts: PostRow[]): Promise<PostListItem[]> {
   const comments = await postRepository.countComments(organizationId, [
     ...new Set(posts.map((post) => post.group)),
@@ -227,6 +244,7 @@ export const postService = {
     }
 
     await postRepository.reschedule(organizationId, group, date);
+    await queueForPublishing(organizationId, group);
   },
 
   async getGroup(organizationId: string, group: string): Promise<PostGroup> {
@@ -238,6 +256,7 @@ export const postService = {
   async create(organizationId: string, body: SavePostBody): Promise<{ group: string }> {
     const group = randomUUID();
     await postRepository.createGroup(await buildGroupData(organizationId, group, body));
+    await queueForPublishing(organizationId, group);
     return { group };
   },
 
@@ -251,6 +270,7 @@ export const postService = {
       throw new HttpError(409, 'Published posts cannot be edited');
     }
     await postRepository.replaceGroup(await buildGroupData(organizationId, group, body));
+    await queueForPublishing(organizationId, group);
     return { group };
   },
 

@@ -11,6 +11,10 @@ import type {
   AuthenticateParams,
   AuthTokenDetails,
   GeneratedAuthUrl,
+  PublishItem,
+  PublishResult,
+  PublishTarget,
+  PublishThread,
   SocialProvider,
 } from './social-provider.interface';
 
@@ -30,7 +34,7 @@ export interface ProviderFetchOptions extends RequestInit {
 }
 
 function sleep(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+  return new Promise<void>((resolve) => setTimeout(resolve, ms));
 }
 
 export abstract class SocialProviderBase implements SocialProvider {
@@ -45,6 +49,12 @@ export abstract class SocialProviderBase implements SocialProvider {
   abstract generateAuthUrl(redirectUri: string): Promise<GeneratedAuthUrl>;
   abstract authenticate(params: AuthenticateParams): Promise<AuthTokenDetails>;
   abstract refreshToken(refreshToken: string): Promise<AuthTokenDetails>;
+  abstract post(target: PublishTarget, item: PublishItem): Promise<PublishResult>;
+  abstract comment(
+    target: PublishTarget,
+    thread: PublishThread,
+    item: PublishItem
+  ): Promise<PublishResult>;
 
   isConfigured(): boolean {
     return this.requiredEnv.every((name) => Boolean(process.env[name]));
@@ -60,6 +70,10 @@ export abstract class SocialProviderBase implements SocialProvider {
 
   protected createState(): string {
     return randomToken(24);
+  }
+
+  protected wait(ms: number): Promise<void> {
+    return sleep(ms);
   }
 
   // Lets a provider recognise platform specific error payloads. Returning

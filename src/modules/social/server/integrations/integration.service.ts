@@ -18,6 +18,8 @@ import { oauthStateStore } from './oauth-state';
 
 // Refresh tokens this long before they expire so a scheduled post never uses a stale one.
 const REFRESH_BUFFER_MS = 10 * 60 * 1000;
+// The refresh job renews every token that expires within this window.
+const TOKEN_REFRESH_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 type ChannelRow = Awaited<ReturnType<typeof integrationRepository.list>>[number];
 
@@ -183,7 +185,6 @@ export const integrationService = {
   // Returns a usable access token, refreshing it first when it is about to expire.
   // If the refresh fails the channel is flagged so the user is asked to reconnect.
   async getAccessToken(integration: SocialIntegration): Promise<string> {
-    const provider = getProviderOrThrow(integration.providerIdentifier);
     const expiresSoon =
       integration.tokenExpiration !== null &&
       integration.tokenExpiration.getTime() - Date.now() < REFRESH_BUFFER_MS;
@@ -191,21 +192,51 @@ export const integrationService = {
     if (!expiresSoon) {
       return decrypt(integration.accessToken);
     }
+    return refreshAccessToken(integration);
+  },
 
-    if (!integration.refreshToken) {
-      await integrationRepository.markRefreshNeeded(integration.id);
-      throw new RefreshTokenError(provider.identifier, `${integration.name} must be reconnected`);
-    }
+  // Background job: renews tokens before they expire so channels stay usable
+  // even when nothing is scheduled for a while.
+  async refreshExpiringTokens(): Promise<{ refreshed: number; failed: number }> {
+    const integrations = await integrationRepository.findExpiring(
+      new Date(Date.now() + TOKEN_REFRESH_WINDOW_MS)
+    );
 
-    try {
-      const details = await provider.refreshToken(decrypt(integration.refreshToken));
-      await integrationRepository.updateTokens(integration.id, toTokenFields(details));
-      return details.accessToken;
-    } catch (error) {
-      if (error instanceof ProviderError) {
-        await integrationRepository.markRefreshNeeded(integration.id);
+    let refreshed = 0;
+    let failed = 0;
+    for (const integration of integrations) {
+      // Without a refresh token the current one keeps working until it expires.
+      if (!integration.refreshToken && integration.tokenExpiration! > new Date()) {
+        continue;
       }
-      throw error;
+      try {
+        await refreshAccessToken(integration);
+        refreshed += 1;
+      } catch (error) {
+        failed += 1;
+        console.error(`[social] could not refresh the token of ${integration.id}`, error);
+      }
     }
+    return { refreshed, failed };
   },
 };
+
+async function refreshAccessToken(integration: SocialIntegration): Promise<string> {
+  const provider = getProviderOrThrow(integration.providerIdentifier);
+
+  if (!integration.refreshToken) {
+    await integrationRepository.markRefreshNeeded(integration.id);
+    throw new RefreshTokenError(provider.identifier, `${integration.name} must be reconnected`);
+  }
+
+  try {
+    const details = await provider.refreshToken(decrypt(integration.refreshToken));
+    await integrationRepository.updateTokens(integration.id, toTokenFields(details));
+    return details.accessToken;
+  } catch (error) {
+    if (error instanceof ProviderError) {
+      await integrationRepository.markRefreshNeeded(integration.id);
+    }
+    throw error;
+  }
+}

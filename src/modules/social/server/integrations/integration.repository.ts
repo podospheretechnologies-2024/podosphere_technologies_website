@@ -40,6 +40,19 @@ export const integrationRepository = {
     });
   },
 
+  // Active channels whose token expires before `before`; channels that already
+  // wait for a reconnect are skipped.
+  findExpiring(before: Date): Promise<SocialIntegration[]> {
+    return prisma.socialIntegration.findMany({
+      where: {
+        deletedAt: null,
+        disabled: false,
+        refreshNeeded: false,
+        tokenExpiration: { not: null, lt: before },
+      },
+    });
+  },
+
   // Reconnecting an account (even a previously deleted one) reuses the same row,
   // so existing posts keep pointing at it.
   upsert(data: UpsertIntegrationData): Promise<SocialIntegration> {
