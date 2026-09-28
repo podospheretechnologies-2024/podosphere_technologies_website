@@ -1,0 +1,11 @@
+// Schema is split per module: core.prisma is shared by every module,
+// each business module (e.g. social.prisma) owns its own models.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}

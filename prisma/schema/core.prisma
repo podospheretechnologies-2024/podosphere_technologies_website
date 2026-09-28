@@ -1,0 +1,22 @@
+model Organization {
+  id        String    @id @default(uuid())
+  name      String
+  slug      String    @unique
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  socialIntegrations  SocialIntegration[]
+  socialCustomers     SocialCustomer[]
+  socialPosts         SocialPost[]
+  socialMedia         SocialMedia[]
+  socialTags          SocialTag[]
+  socialSignatures    SocialSignature[]
+  socialSets          SocialSet[]
+  socialAutoPosts     SocialAutoPost[]
+  socialWebhooks      SocialWebhook[]
+  socialNotifications SocialNotification[]
+  socialPostErrors    SocialPostError[]
+
+  @@map("organizations")
+}

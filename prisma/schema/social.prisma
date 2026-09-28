@@ -1,0 +1,296 @@
+// Social media module: channels, posts, media library and automation.
+
+enum SocialPostState {
+  DRAFT
+  QUEUE
+  PUBLISHED
+  ERROR
+}
+
+enum SocialCreationMethod {
+  WEB
+  API
+  AI
+  AUTOPOST
+  UNKNOWN
+}
+
+enum SocialMediaType {
+  IMAGE
+  VIDEO
+}
+
+enum SocialMediaStatus {
+  PROCESSING
+  READY
+  FAILED
+}
+
+// A connected social account (a "channel").
+model SocialIntegration {
+  id                    String    @id @default(cuid())
+  organizationId        String
+  customerId            String?
+  providerIdentifier    String
+  internalId            String
+  rootInternalId        String?
+  name                  String
+  username              String?
+  picture               String?
+  accessToken           String
+  refreshToken          String?
+  tokenExpiration       DateTime?
+  disabled              Boolean   @default(false)
+  // Waiting for a second connect step (e.g. choosing a page after OAuth).
+  inBetweenSteps        Boolean   @default(false)
+  // Token could not be refreshed; the user must reconnect the channel.
+  refreshNeeded         Boolean   @default(false)
+  // Preferred posting times, in minutes after midnight (UTC).
+  postingTimes          Json      @default("[{\"time\":120},{\"time\":400},{\"time\":700}]")
+  additionalSettings    Json      @default("[]")
+  customInstanceDetails String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  deletedAt             DateTime?
+
+  organization Organization               @relation(fields: [organizationId], references: [id])
+  customer     SocialCustomer?            @relation(fields: [customerId], references: [id])
+  posts        SocialPost[]
+  webhooks     SocialWebhookIntegration[]
+
+  @@unique([organizationId, providerIdentifier, internalId])
+  @@index([organizationId])
+  @@index([providerIdentifier])
+  @@index([customerId])
+  @@index([deletedAt])
+  @@map("social_integrations")
+}
+
+// Groups channels that belong to the same client.
+model SocialCustomer {
+  id             String    @id @default(uuid())
+  organizationId String
+  name           String
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+
+  organization Organization        @relation(fields: [organizationId], references: [id])
+  integrations SocialIntegration[]
+
+  @@index([organizationId])
+  @@map("social_customers")
+}
+
+// One row per channel. Posts created together share the same `group`;
+// thread replies point to their parent through `parentPostId`.
+model SocialPost {
+  id             String               @id @default(cuid())
+  organizationId String
+  integrationId  String
+  group          String
+  parentPostId   String?
+  state          SocialPostState      @default(QUEUE)
+  publishDate    DateTime
+  content        String
+  // Minutes to wait after the previous item of a thread.
+  delay          Int                  @default(0)
+  settings       Json                 @default("{}")
+  media          Json                 @default("[]")
+  title          String?
+  description    String?
+  releaseId      String?
+  releaseUrl     String?
+  error          String?
+  intervalInDays Int?
+  creationMethod SocialCreationMethod @default(WEB)
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+  deletedAt      DateTime?
+
+  organization Organization        @relation(fields: [organizationId], references: [id])
+  integration  SocialIntegration   @relation(fields: [integrationId], references: [id])
+  parentPost   SocialPost?         @relation("SocialPostThread", fields: [parentPostId], references: [id])
+  children     SocialPost[]        @relation("SocialPostThread")
+  tags         SocialTagsOnPosts[]
+  errors       SocialPostError[]
+
+  @@index([organizationId])
+  @@index([integrationId])
+  @@index([group])
+  @@index([parentPostId])
+  @@index([state])
+  @@index([publishDate])
+  @@index([deletedAt])
+  @@map("social_posts")
+}
+
+model SocialMedia {
+  id                 String            @id @default(uuid())
+  organizationId     String
+  name               String
+  originalName       String?
+  path               String
+  type               SocialMediaType   @default(IMAGE)
+  mimeType           String?
+  fileSize           Int               @default(0)
+  thumbnail          String?
+  thumbnailTimestamp Int?
+  alt                String?
+  status             SocialMediaStatus @default(READY)
+  processingError    String?
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+  deletedAt          DateTime?
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId])
+  @@index([type])
+  @@index([deletedAt])
+  @@map("social_media")
+}
+
+model SocialTag {
+  id             String    @id @default(uuid())
+  organizationId String
+  name           String
+  color          String
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+
+  organization Organization        @relation(fields: [organizationId], references: [id])
+  posts        SocialTagsOnPosts[]
+
+  @@index([organizationId])
+  @@map("social_tags")
+}
+
+model SocialTagsOnPosts {
+  postId    String
+  tagId     String
+  createdAt DateTime @default(now())
+
+  post SocialPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  tag  SocialTag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([postId, tagId])
+  @@map("social_tags_on_posts")
+}
+
+// Text automatically (or manually) appended to posts.
+model SocialSignature {
+  id             String    @id @default(uuid())
+  organizationId String
+  content        String
+  autoAdd        Boolean   @default(false)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId])
+  @@map("social_signatures")
+}
+
+// Reusable post templates (selected channels + content + settings).
+model SocialSet {
+  id             String   @id @default(uuid())
+  organizationId String
+  name           String
+  content        Json
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId])
+  @@map("social_sets")
+}
+
+// RSS feed that is turned into posts automatically.
+model SocialAutoPost {
+  id              String    @id @default(uuid())
+  organizationId  String
+  title           String
+  url             String
+  lastUrl         String?
+  content         String?
+  integrationIds  String[]
+  onSlot          Boolean   @default(true)
+  syncLast        Boolean   @default(false)
+  addPicture      Boolean   @default(false)
+  generateContent Boolean   @default(false)
+  active          Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId])
+  @@map("social_auto_posts")
+}
+
+// Called after a post from one of the linked channels is published.
+model SocialWebhook {
+  id             String    @id @default(uuid())
+  organizationId String
+  name           String
+  url            String
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+
+  organization Organization               @relation(fields: [organizationId], references: [id])
+  integrations SocialWebhookIntegration[]
+
+  @@index([organizationId])
+  @@map("social_webhooks")
+}
+
+model SocialWebhookIntegration {
+  webhookId     String
+  integrationId String
+
+  webhook     SocialWebhook     @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+  integration SocialIntegration @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+
+  @@id([webhookId, integrationId])
+  @@map("social_webhook_integrations")
+}
+
+model SocialNotification {
+  id             String    @id @default(uuid())
+  organizationId String
+  content        String
+  link           String?
+  createdAt      DateTime  @default(now())
+  deletedAt      DateTime?
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId])
+  @@index([createdAt])
+  @@map("social_notifications")
+}
+
+// Raw provider error captured when publishing fails.
+model SocialPostError {
+  id             String   @id @default(uuid())
+  organizationId String
+  postId         String
+  platform       String
+  message        String
+  body           Json     @default("{}")
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  post         SocialPost   @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([postId])
+  @@map("social_post_errors")
+}
