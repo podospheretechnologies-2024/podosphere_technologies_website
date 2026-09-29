@@ -47,7 +47,7 @@ export abstract class SocialProviderBase implements SocialProvider {
 
   abstract maxLength(): number;
   abstract generateAuthUrl(redirectUri: string): Promise<GeneratedAuthUrl>;
-  abstract authenticate(params: AuthenticateParams): Promise<AuthTokenDetails>;
+  abstract authenticate(params: AuthenticateParams): Promise<AuthTokenDetails | AuthTokenDetails[]>;
   abstract refreshToken(refreshToken: string): Promise<AuthTokenDetails>;
   abstract post(target: PublishTarget, item: PublishItem): Promise<PublishResult>;
   abstract comment(

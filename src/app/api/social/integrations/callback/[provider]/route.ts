@@ -30,12 +30,15 @@ export async function GET(
       throw new HttpError(400, 'Invalid response from the provider');
     }
 
-    const integration = await integrationService.completeConnect(
+    const integrations = await integrationService.completeConnect(
       organization.id,
       provider,
       query.data
     );
-    redirectUrl.searchParams.set('connected', integration.name);
+    redirectUrl.searchParams.set(
+      'connected',
+      integrations.map((integration) => integration.name).join(', ')
+    );
   } catch (error) {
     redirectUrl.searchParams.set('error', toUserMessage(error));
   }

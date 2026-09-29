@@ -116,7 +116,7 @@ export const integrationService = {
     organizationId: string,
     identifier: string,
     query: CallbackQuery
-  ): Promise<SocialIntegration> {
+  ): Promise<SocialIntegration[]> {
     if ('error' in query) {
       throw new HttpError(400, query.error_description || 'The connection was cancelled');
     }
@@ -131,12 +131,14 @@ export const integrationService = {
       throw new HttpError(400, 'The connection link expired. Please try again.');
     }
 
-    const details = await provider.authenticate({
+    const authenticated = await provider.authenticate({
       code: query.code,
       codeVerifier: state.codeVerifier,
       redirectUri: getRedirectUri(identifier),
     });
+    let accounts = Array.isArray(authenticated) ? authenticated : [authenticated];
 
+    // Reconnecting renews only the channel it was started from.
     if (state.refreshIntegrationId) {
       const existing = await integrationRepository.findById(
         organizationId,
@@ -145,7 +147,8 @@ export const integrationService = {
       if (!existing) {
         throw new HttpError(404, 'Channel not found');
       }
-      if (existing.internalId !== details.internalId) {
+      accounts = accounts.filter((details) => details.internalId === existing.internalId);
+      if (accounts.length === 0) {
         throw new HttpError(
           400,
           'You signed in with a different account. Reconnect using the original account.'
@@ -153,16 +156,22 @@ export const integrationService = {
       }
     }
 
-    return integrationRepository.upsert({
-      organizationId,
-      providerIdentifier: identifier,
-      internalId: details.internalId,
-      name: details.name,
-      username: details.username ?? null,
-      picture: details.picture ?? null,
-      inBetweenSteps: provider.isBetweenSteps,
-      ...toTokenFields(details),
-    });
+    const integrations: SocialIntegration[] = [];
+    for (const details of accounts) {
+      integrations.push(
+        await integrationRepository.upsert({
+          organizationId,
+          providerIdentifier: identifier,
+          internalId: details.internalId,
+          name: details.name,
+          username: details.username ?? null,
+          picture: details.picture ?? null,
+          inBetweenSteps: provider.isBetweenSteps,
+          ...toTokenFields(details),
+        })
+      );
+    }
+    return integrations;
   },
 
   async setDisabled(organizationId: string, id: string, disabled: boolean): Promise<void> {

@@ -1,4 +1,6 @@
 import 'server-only';
+import { getServerEnv } from '@/shared/lib/env';
+import type { MediaFormat } from '../../config/media';
 import { integrationRegistry } from '../integrations/core/integration.registry';
 import {
   BadBodyError,
@@ -40,6 +42,7 @@ async function loadMedia(provider: SocialProvider, post: PublishablePost): Promi
   );
   const rowById = new Map(rows.map((row) => [row.id, row]));
   const storage = getStorage();
+  const appUrl = getServerEnv().APP_URL;
 
   return items.map((item) => {
     const row = rowById.get(item.id);
@@ -48,8 +51,10 @@ async function loadMedia(provider: SocialProvider, post: PublishablePost): Promi
     }
     return {
       type: item.type,
+      format: row.format.toLowerCase() as MediaFormat,
       mimeType: row.mimeType ?? 'application/octet-stream',
       alt: item.alt,
+      url: new URL(row.path, appUrl).toString(),
       read: () => storage.read(row.name),
     };
   });

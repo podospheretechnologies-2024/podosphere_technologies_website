@@ -25,8 +25,12 @@ export interface AuthTokenDetails {
 
 export interface PublishMedia {
   type: 'image' | 'video';
+  /** Where the file was meant to go, e.g. an Instagram story or reel. */
+  format: 'post' | 'reel' | 'story';
   mimeType: string;
   alt: string | null;
+  /** Absolute URL of the file, for platforms that download media themselves. */
+  url: string;
   /** Loads the file lazily so nothing is read for items that fail validation. */
   read(): Promise<Buffer>;
 }
@@ -70,7 +74,11 @@ export interface SocialProvider {
   isConfigured(): boolean;
   maxLength(): number;
   generateAuthUrl(redirectUri: string): Promise<GeneratedAuthUrl>;
-  authenticate(params: AuthenticateParams): Promise<AuthTokenDetails>;
+  /**
+   * Returns one entry per account the login grants access to. Most platforms grant a single
+   * account; Facebook grants every Page the user picked in the login dialog.
+   */
+  authenticate(params: AuthenticateParams): Promise<AuthTokenDetails | AuthTokenDetails[]>;
   refreshToken(refreshToken: string): Promise<AuthTokenDetails>;
   /** Publishes the first item of a thread. */
   post(target: PublishTarget, item: PublishItem): Promise<PublishResult>;
