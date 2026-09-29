@@ -4,7 +4,10 @@ import { legal } from '@/modules/marketing/config/legal';
 
 export const metadata: Metadata = { title: 'Data Deletion' };
 
-/** Meta App settings → "Data deletion instructions URL" points here. */
+/**
+ * Meta App settings → "Data deletion instructions URL" can point here. The callback
+ * (/api/meta/data-deletion) also links users here with their confirmation code.
+ */
 export default function DataDeletionPage() {
   return (
     <LegalPage
@@ -27,6 +30,16 @@ export default function DataDeletionPage() {
           <li>Find <strong>{legal.product}</strong> and click <strong>Remove</strong>.</li>
           <li>Optionally tick the box to delete posts, photos or videos the app published on your behalf.</li>
         </ol>
+      </section>
+
+      <section>
+        <h2>Requests made from Facebook</h2>
+        <p>
+          When you remove {legal.product} from Facebook, Facebook sends us a deletion request and shows you a
+          confirmation code linking to this page. That code means we received your request: we delete the data we
+          hold for your Facebook account within <strong>30 days</strong>. Email <strong>{legal.contactEmail}</strong>{' '}
+          with the code if you have questions about its status.
+        </p>
       </section>
 
       <section>
