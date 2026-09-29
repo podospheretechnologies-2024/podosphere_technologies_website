@@ -24,6 +24,8 @@ const serverEnvSchema = z.object({
   META_APP_SECRET: z.string().optional(),
   META_PAGE_ID: z.string().optional(),
   META_AD_ACCOUNT_ID: z.string().optional(),
+  // Business Manager system user token with ads_read: reads ad accounts, campaigns and insights.
+  META_SYSTEM_USER_TOKEN: z.string().optional(),
   // Dev only: Graph API Explorer user token for quick testing. Ignored in production.
   META_TEST_USER_TOKEN: z.string().optional(),
 });

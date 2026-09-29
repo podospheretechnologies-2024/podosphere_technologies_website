@@ -33,6 +33,11 @@ export const socialSections = {
     href: `${SOCIAL_BASE_PATH}/analytics`,
     description: 'Track channel and post performance.',
   },
+  ads: {
+    label: 'Ads',
+    href: `${SOCIAL_BASE_PATH}/ads`,
+    description: 'Spend, results and campaigns from your Meta ad accounts (read-only).',
+  },
   settings: {
     label: 'Settings',
     href: `${SOCIAL_BASE_PATH}/settings`,
