@@ -16,6 +16,7 @@ module.exports = {
       env: { NODE_ENV: 'production' },
       max_memory_restart: '700M',
       time: true,
+      merge_logs: true,
       out_file: `${process.env.HOME}/.pm2/logs/podo-social-web.out.log`,
       error_file: `${process.env.HOME}/.pm2/logs/podo-social-web.error.log`,
     },
@@ -33,6 +34,7 @@ module.exports = {
       // Lets the worker finish its current job on restart (it closes queues on SIGINT).
       kill_timeout: 15000,
       time: true,
+      merge_logs: true,
       out_file: `${process.env.HOME}/.pm2/logs/podo-social-worker.out.log`,
       error_file: `${process.env.HOME}/.pm2/logs/podo-social-worker.error.log`,
     },
