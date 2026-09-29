@@ -1,5 +1,5 @@
 import 'server-only';
-import type { Prisma, SocialMedia } from '@/generated/prisma/client';
+import type { Prisma, SocialMedia, SocialMediaFormat } from '@/generated/prisma/client';
 import { prisma } from '@/shared/lib/prisma';
 import { MEDIA_PAGE_SIZE } from '../../config/media';
 
@@ -7,15 +7,17 @@ interface ListMediaParams {
   organizationId: string;
   page: number;
   search?: string;
+  format?: SocialMediaFormat;
 }
 
 export const mediaRepository = {
-  async list({ organizationId, page, search }: ListMediaParams) {
+  async list({ organizationId, page, search, format }: ListMediaParams) {
     const where: Prisma.SocialMediaWhereInput = {
       organizationId,
       deletedAt: null,
       status: 'READY',
       ...(search ? { originalName: { contains: search } } : {}),
+      ...(format ? { format } : {}),
     };
 
     const [total, results] = await prisma.$transaction([

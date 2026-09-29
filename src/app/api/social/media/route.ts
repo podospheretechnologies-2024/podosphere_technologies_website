@@ -2,6 +2,7 @@ import type { NextRequest } from 'next/server';
 import {
   listMediaQuerySchema,
   uploadFileNameSchema,
+  uploadFormatSchema,
 } from '@/modules/social/server/media/media.schema';
 import { mediaService } from '@/modules/social/server/media/media.service';
 import { getCurrentOrganization } from '@/shared/server/current-organization';
@@ -25,6 +26,7 @@ export async function POST(request: NextRequest) {
     const fileName = uploadFileNameSchema.parse(
       decodeURIComponent(request.headers.get('x-file-name') ?? '')
     );
+    const format = uploadFormatSchema.parse(request.headers.get('x-media-format') ?? undefined);
     const declaredSize = Number(request.headers.get('content-length')) || undefined;
 
     const media = await mediaService.upload({
@@ -32,6 +34,7 @@ export async function POST(request: NextRequest) {
       fileName,
       body: request.body,
       declaredSize,
+      format,
     });
 
     return Response.json(media, { status: 201 });

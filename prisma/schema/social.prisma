@@ -26,6 +26,13 @@ enum SocialMediaStatus {
   FAILED
 }
 
+// Where the file is meant to be published, e.g. an Instagram feed post, reel or story.
+enum SocialMediaFormat {
+  POST
+  REEL
+  STORY
+}
+
 // A connected social account (a "channel").
 model SocialIntegration {
   id                    String    @id @default(cuid())
@@ -132,6 +139,7 @@ model SocialMedia {
   originalName       String?           @db.VarChar(512)
   path               String            @db.VarChar(1024)
   type               SocialMediaType   @default(IMAGE)
+  format             SocialMediaFormat @default(POST)
   mimeType           String?
   fileSize           Int               @default(0)
   thumbnail          String?           @db.VarChar(1024)
@@ -147,6 +155,7 @@ model SocialMedia {
 
   @@index([organizationId])
   @@index([type])
+  @@index([format])
   @@index([deletedAt])
   @@map("social_media")
 }

@@ -1,7 +1,13 @@
 import 'server-only';
-import type { SocialMedia } from '@/generated/prisma/client';
+import type { SocialMedia, SocialMediaFormat } from '@/generated/prisma/client';
 import { HttpError } from '@/shared/server/http-error';
-import { getMediaMaxSize, MEDIA_PAGE_SIZE } from '../../config/media';
+import {
+  DEFAULT_MEDIA_FORMAT,
+  getMediaMaxSize,
+  MEDIA_FORMAT_VIDEO_ONLY,
+  MEDIA_PAGE_SIZE,
+  type MediaFormat,
+} from '../../config/media';
 import type { MediaItem, MediaPage } from '../../types/media';
 import { getStorage } from '../storage/storage.factory';
 import { detectFileType, FILE_SIGNATURE_LENGTH } from './detect-file-type';
@@ -13,7 +19,20 @@ interface UploadMediaInput {
   fileName: string;
   body: ReadableStream<Uint8Array> | null;
   declaredSize?: number;
+  format?: MediaFormat;
 }
+
+const formatToDb: Record<MediaFormat, SocialMediaFormat> = {
+  post: 'POST',
+  reel: 'REEL',
+  story: 'STORY',
+};
+
+const formatFromDb: Record<SocialMediaFormat, MediaFormat> = {
+  POST: 'post',
+  REEL: 'reel',
+  STORY: 'story',
+};
 
 function toMediaItem(media: SocialMedia): MediaItem {
   return {
@@ -21,6 +40,7 @@ function toMediaItem(media: SocialMedia): MediaItem {
     name: media.originalName ?? media.name,
     url: media.path,
     type: media.type === 'VIDEO' ? 'video' : 'image',
+    format: formatFromDb[media.format],
     mimeType: media.mimeType,
     fileSize: media.fileSize,
     thumbnail: media.thumbnail,
@@ -68,6 +88,7 @@ export const mediaService = {
       organizationId,
       page: query.page,
       search: query.search || undefined,
+      format: query.format ? formatToDb[query.format] : undefined,
     });
 
     return {
@@ -83,6 +104,7 @@ export const mediaService = {
     fileName,
     body,
     declaredSize,
+    format = DEFAULT_MEDIA_FORMAT,
   }: UploadMediaInput): Promise<MediaItem> {
     if (!body) {
       throw new HttpError(400, 'No file was uploaded');
@@ -98,6 +120,12 @@ export const mediaService = {
         415,
         'Unsupported file type. Upload JPEG, PNG, GIF, WebP, AVIF, BMP, TIFF images or MP4 videos.'
       );
+    }
+
+    const isVideo = detected.mimeType.startsWith('video/');
+    if (MEDIA_FORMAT_VIDEO_ONLY[format] && !isVideo) {
+      await reader.cancel();
+      throw new HttpError(415, 'Reels must be MP4 videos.');
     }
 
     const maxSize = getMediaMaxSize(detected.mimeType);
@@ -146,7 +174,8 @@ export const mediaService = {
       name: stored.key,
       originalName: fileName,
       path: stored.url,
-      type: detected.mimeType.startsWith('video/') ? 'VIDEO' : 'IMAGE',
+      type: isVideo ? 'VIDEO' : 'IMAGE',
+      format: formatToDb[format],
       mimeType: detected.mimeType,
       fileSize: size,
       status: 'READY',

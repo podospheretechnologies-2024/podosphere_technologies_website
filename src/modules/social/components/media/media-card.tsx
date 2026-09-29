@@ -1,51 +1,46 @@
 'use client';
 
-import Image from 'next/image';
+import { useState } from 'react';
 import { Button } from '@/shared/components/ui/button';
+import { MEDIA_FORMAT_OPTIONS } from '../../config/media';
 import { formatFileSize } from '../../lib/media.client';
 import type { MediaItem } from '../../types/media';
+import { InstagramFrame } from './instagram-frames';
 
 interface MediaCardProps {
   media: MediaItem;
+  accountName: string;
   deleting: boolean;
+  onPreview: (media: MediaItem) => void;
   onDelete: (media: MediaItem) => void;
 }
 
-export function MediaCard({ media, deleting, onDelete }: MediaCardProps) {
+export function MediaCard({ media, accountName, deleting, onPreview, onDelete }: MediaCardProps) {
+  const [hovered, setHovered] = useState(false);
+  const formatLabel = MEDIA_FORMAT_OPTIONS.find((option) => option.value === media.format)?.label;
+
   return (
-    <div className="group border-border bg-surface overflow-hidden rounded-xl border">
-      <div className="bg-surface-muted relative aspect-square">
-        {media.type === 'video' ? (
-          <video
-            src={media.url}
-            className="h-full w-full object-cover"
-            preload="metadata"
-            muted
-            playsInline
-            controls
-          />
-        ) : (
-          <Image
-            src={media.url}
-            alt={media.alt ?? media.name}
-            fill
-            unoptimized
-            sizes="(min-width: 1280px) 16vw, (min-width: 640px) 33vw, 50vw"
-            className="object-cover"
-          />
-        )}
-        {media.type === 'video' && (
-          <span className="absolute top-2 left-2 rounded-md bg-black/70 px-2 py-0.5 text-xs font-medium text-white">
-            Video
-          </span>
-        )}
-      </div>
-      <div className="flex items-center justify-between gap-2 p-3">
+    <div className="space-y-2">
+      <button
+        type="button"
+        onClick={() => onPreview(media)}
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+        onFocus={() => setHovered(true)}
+        onBlur={() => setHovered(false)}
+        aria-label={`Preview ${media.name}`}
+        className="focus-visible:outline-primary block w-full rounded-xl text-left focus-visible:outline-2 focus-visible:outline-offset-2"
+      >
+        <InstagramFrame media={media} accountName={accountName} active={hovered} />
+      </button>
+      <div className="flex items-center justify-between gap-2 px-1">
         <div className="min-w-0">
           <p className="truncate text-sm font-medium" title={media.name}>
             {media.name}
           </p>
-          <p className="text-muted-foreground text-xs">{formatFileSize(media.fileSize)}</p>
+          <p className="text-muted-foreground text-xs">
+            {formatLabel} · {formatFileSize(media.fileSize)}
+          </p>
         </div>
         <Button
           variant="danger-ghost"
