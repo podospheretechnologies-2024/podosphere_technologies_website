@@ -27,7 +27,9 @@ export class FacebookProvider extends MetaProviderBase {
     'pages_show_list',
     'business_management',
     'pages_manage_posts',
-    'pages_manage_engagement',
+    // pages_manage_engagement (needed to post thread follow-ups as comments) is not enabled
+    // on the Meta app yet; requesting it makes Facebook Login fail with "Invalid Scopes".
+    // Add it back once it is added under Use cases → Manage everything on your Page.
     'pages_read_engagement',
   ] as const;
   protected readonly noAccountsMessage =
