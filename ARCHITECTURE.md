@@ -5,7 +5,7 @@ plus a separate **worker** process for background jobs. There is no separate API
 the backend is the `src/app/api/**` route handlers and the `server/` folders they call.
 
 ```
-Browser ──▶ Next.js app (pm2: podo-social, port 3100)
+Browser ──▶ Next.js app (pm2: podo-social-web, port 3100)
               ├── pages + React components        ← FRONTEND
               └── /api/* route handlers           ← BACKEND
                      │
@@ -94,6 +94,24 @@ pnpm dev                    # app on http://localhost:3000
 pnpm worker                 # in a second terminal, for scheduled posts
 ```
 
+## Production processes (pm2)
+
+Both processes are defined in `ecosystem.config.cjs` under the pm2 namespace `podo-social`:
+
+| pm2 name | What it is | Logs |
+|---|---|---|
+| `podo-social-web` | Next.js: frontend pages + backend API (`/api/*`) on port 3100 | `~/.pm2/logs/podo-social-web.{out,error}.log` |
+| `podo-social-worker` | Background jobs: scheduled publishing, token refresh, RSS autoposts | `~/.pm2/logs/podo-social-worker.{out,error}.log` |
+
+```bash
+pm2 start ecosystem.config.cjs && pm2 save   # first time
+pm2 list                                     # status of everything
+pm2 logs podo-social                         # live logs of web + worker together
+pm2 logs podo-social-web --lines 100         # only frontend/API
+pm2 logs podo-social-worker --err            # only worker errors
+pm2 monit                                    # live CPU / memory dashboard
+```
+
 ## Update production (Lightsail, `/var/www/podo-social`)
 
 ```bash
@@ -102,8 +120,10 @@ git pull
 pnpm install
 pnpm db:deploy                                   # apply new migrations (safe to run every time)
 NODE_OPTIONS="--max-old-space-size=1536" pnpm build
-pm2 restart podo-social podo-social-worker
+pm2 reload ecosystem.config.cjs                  # restarts web + worker with the new code
 ```
+
+After changing `.env`, restart with `pm2 restart podo-social --update-env`.
 
 Production runs behind nginx at `https://social.podospheretechnologies.com` → `127.0.0.1:3100`.
 Secrets live only in `/var/www/podo-social/.env` on the server and are never committed.
