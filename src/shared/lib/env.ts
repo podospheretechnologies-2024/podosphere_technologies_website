@@ -28,6 +28,11 @@ const serverEnvSchema = z.object({
   META_SYSTEM_USER_TOKEN: z.string().optional(),
   // Dev only: Graph API Explorer user token for quick testing. Ignored in production.
   META_TEST_USER_TOKEN: z.string().optional(),
+  // WhatsApp Cloud API: system user token with whatsapp_business_messaging + whatsapp_business_management.
+  WHATSAPP_ACCESS_TOKEN: z.string().optional(),
+  WHATSAPP_PHONE_NUMBER_ID: z.string().optional(),
+  // Needed to list message templates; sending plain text works without it.
+  WHATSAPP_WABA_ID: z.string().optional(),
 });
 
 export type ServerEnv = z.infer<typeof serverEnvSchema>;

@@ -31,7 +31,12 @@ export class GraphApiError extends Error {
 
 type Params = Record<string, string | number | boolean | undefined>;
 
-export async function graphGet<T>(config: GraphConfig, path: string, token: string, params: Params = {}): Promise<T> {
+export async function graphGet<T>(
+  config: GraphConfig,
+  path: string,
+  token: string,
+  params: Params = {}
+): Promise<T> {
   const url = new URL(`https://graph.facebook.com/${config.version}/${path.replace(/^\//, '')}`);
   for (const [key, value] of Object.entries(params)) {
     if (value !== undefined) url.searchParams.set(key, String(value));
@@ -41,13 +46,41 @@ export async function graphGet<T>(config: GraphConfig, path: string, token: stri
 
   url.searchParams.set('access_token', token);
   if (config.appSecret) {
-    url.searchParams.set('appsecret_proof', createHmac('sha256', config.appSecret).update(token).digest('hex'));
+    url.searchParams.set(
+      'appsecret_proof',
+      createHmac('sha256', config.appSecret).update(token).digest('hex')
+    );
   }
   return fetchJson<T>(url);
 }
 
-async function fetchJson<T>(url: URL): Promise<T> {
-  const res = await fetch(url, { headers: { Accept: 'application/json' }, cache: 'no-store' });
+/** JSON POST (WhatsApp Cloud API). The token goes in the Authorization header, not the URL. */
+export async function graphPost<T>(
+  config: GraphConfig,
+  path: string,
+  token: string,
+  body: unknown
+): Promise<T> {
+  const url = new URL(`https://graph.facebook.com/${config.version}/${path.replace(/^\//, '')}`);
+  if (config.appSecret) {
+    url.searchParams.set(
+      'appsecret_proof',
+      createHmac('sha256', config.appSecret).update(token).digest('hex')
+    );
+  }
+  return fetchJson<T>(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify(body),
+  });
+}
+
+async function fetchJson<T>(url: URL, init: RequestInit = {}): Promise<T> {
+  const res = await fetch(url, {
+    ...init,
+    headers: { Accept: 'application/json', ...init.headers },
+    cache: 'no-store',
+  });
   const body = await res.json().catch(() => ({}));
 
   if (!res.ok || body.error) {
