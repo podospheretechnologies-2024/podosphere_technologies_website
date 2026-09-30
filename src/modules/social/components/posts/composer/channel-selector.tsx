@@ -1,8 +1,8 @@
 'use client';
 
-import { Globe, UserPlus } from 'lucide-react';
+import { Globe, Search, UserPlus, X } from 'lucide-react';
 import Link from 'next/link';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { cn } from '@/shared/lib/cn';
 import { SOCIAL_BASE_PATH } from '../../../config/navigation';
 import type { ChannelItem } from '../../../types/integration';
@@ -25,46 +25,93 @@ function unavailableReason(channel: ChannelItem): string | null {
   return null;
 }
 
+function matchesQuery(channel: ChannelItem, query: string): boolean {
+  const q = query.trim().toLowerCase();
+  if (!q) {
+    return true;
+  }
+  return (
+    channel.name.toLowerCase().includes(q) ||
+    (channel.username?.toLowerCase().includes(q) ?? false) ||
+    channel.providerName.toLowerCase().includes(q) ||
+    channel.providerIdentifier.toLowerCase().includes(q)
+  );
+}
+
 export function ChannelSelector({ channels, selectedIds, onToggle }: ChannelSelectorProps) {
   const [providerFilter, setProviderFilter] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
+
+  const filtered = useMemo(
+    () => channels.filter((channel) => matchesQuery(channel, search)),
+    [channels, search]
+  );
 
   const visible = providerFilter
-    ? channels.filter((channel) => channel.providerIdentifier === providerFilter)
-    : channels;
+    ? filtered.filter((channel) => channel.providerIdentifier === providerFilter)
+    : filtered;
 
   const selectedChannels = channels.filter((channel) => selectedIds.includes(channel.id));
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-center gap-3">
-        {visible.map((channel) => {
-          const selected = selectedIds.includes(channel.id);
-          const reason = unavailableReason(channel);
-          return (
+      {channels.length > 0 && (
+        <label className="border-border bg-surface-muted/40 focus-within:border-primary relative flex h-9 items-center gap-2 rounded-lg border px-2.5 transition">
+          <Search className="text-muted-foreground size-3.5 shrink-0" />
+          <input
+            type="search"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Search channels…"
+            aria-label="Search channels"
+            className="placeholder:text-muted-foreground min-w-0 flex-1 bg-transparent text-sm outline-none"
+          />
+          {search && (
             <button
-              key={channel.id}
               type="button"
-              onClick={() => onToggle(channel.id)}
-              disabled={Boolean(reason) && !selected}
-              aria-pressed={selected}
-              title={reason ?? `${channel.name} (${channel.providerName})`}
-              className={cn(
-                'relative rounded-full transition disabled:cursor-not-allowed disabled:opacity-40',
-                selected
-                  ? 'ring-primary ring-offset-surface ring-2 ring-offset-2'
-                  : 'opacity-80 hover:opacity-100'
-              )}
+              onClick={() => setSearch('')}
+              aria-label="Clear search"
+              className="text-muted-foreground hover:text-foreground"
             >
-              <ChannelAvatar name={channel.name} picture={channel.picture} size="md" />
-              <ProviderMark
-                identifier={channel.providerIdentifier}
-                name={channel.providerName}
-                size="sm"
-                className="ring-surface absolute -right-0.5 -bottom-0.5 size-4 ring-2"
-              />
+              <X className="size-3.5" />
             </button>
-          );
-        })}
+          )}
+        </label>
+      )}
+
+      <div className="flex max-h-40 flex-wrap items-center gap-3 overflow-y-auto pr-1">
+        {visible.length === 0 ? (
+          <p className="text-muted-foreground text-sm">No channels match “{search}”.</p>
+        ) : (
+          visible.map((channel) => {
+            const selected = selectedIds.includes(channel.id);
+            const reason = unavailableReason(channel);
+            return (
+              <button
+                key={channel.id}
+                type="button"
+                onClick={() => onToggle(channel.id)}
+                disabled={Boolean(reason) && !selected}
+                aria-pressed={selected}
+                title={reason ?? `${channel.name} (${channel.providerName})`}
+                className={cn(
+                  'relative rounded-full transition disabled:cursor-not-allowed disabled:opacity-40',
+                  selected
+                    ? 'ring-primary ring-offset-surface ring-2 ring-offset-2'
+                    : 'opacity-80 hover:opacity-100'
+                )}
+              >
+                <ChannelAvatar name={channel.name} picture={channel.picture} size="md" />
+                <ProviderMark
+                  identifier={channel.providerIdentifier}
+                  name={channel.providerName}
+                  size="sm"
+                  className="ring-surface absolute -right-0.5 -bottom-0.5 size-4 ring-2"
+                />
+              </button>
+            );
+          })
+        )}
         <Link
           href={`${SOCIAL_BASE_PATH}/channels`}
           title="Add channel"

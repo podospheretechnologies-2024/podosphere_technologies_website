@@ -1,6 +1,6 @@
 'use client';
 
-import { ChevronDown, ChevronLeft, MoreVertical, Plus, Sparkles } from 'lucide-react';
+import { ChevronDown, ChevronLeft, MoreVertical, Plus, Search, Sparkles, X } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useMemo, useState } from 'react';
@@ -53,11 +53,25 @@ export function ChannelsPanel({ onCreatePost }: ChannelsPanelProps) {
   const [connecting, setConnecting] = useState<string | null>(null);
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
   const [menuId, setMenuId] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
 
   const channels = data?.channels ?? [];
   const providers = data?.providers ?? [];
   const selectedId = searchParams.get('channel');
-  const groups = useMemo(() => groupChannels(channels), [channels]);
+  const filteredChannels = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) {
+      return channels;
+    }
+    return channels.filter(
+      (channel) =>
+        channel.name.toLowerCase().includes(q) ||
+        (channel.username?.toLowerCase().includes(q) ?? false) ||
+        channel.providerName.toLowerCase().includes(q) ||
+        channel.providerIdentifier.toLowerCase().includes(q)
+    );
+  }, [channels, search]);
+  const groups = useMemo(() => groupChannels(filteredChannels), [filteredChannels]);
   const isAgent = pathname.includes('/ai') || pathname.includes('/agent');
 
   async function connect(provider: AvailableProvider) {
@@ -149,7 +163,36 @@ export function ChannelsPanel({ onCreatePost }: ChannelsPanelProps) {
             </div>
           ) : (
             <div className="flex flex-col gap-3">
-              {groups.map((group) => {
+              {!collapsed && channels.length > 0 && (
+                <label className="border-border bg-surface-muted/40 focus-within:border-primary relative flex h-9 items-center gap-2 rounded-lg border px-2.5 transition">
+                  <Search className="text-muted-foreground size-3.5 shrink-0" />
+                  <input
+                    type="search"
+                    value={search}
+                    onChange={(event) => setSearch(event.target.value)}
+                    placeholder="Search channels…"
+                    aria-label="Search channels"
+                    className="placeholder:text-muted-foreground min-w-0 flex-1 bg-transparent text-sm outline-none"
+                  />
+                  {search && (
+                    <button
+                      type="button"
+                      onClick={() => setSearch('')}
+                      aria-label="Clear search"
+                      className="text-muted-foreground hover:text-foreground"
+                    >
+                      <X className="size-3.5" />
+                    </button>
+                  )}
+                </label>
+              )}
+
+              {filteredChannels.length === 0 && !collapsed ? (
+                <p className="text-muted-foreground px-1 text-sm">
+                  No channels match “{search}”.
+                </p>
+              ) : (
+                groups.map((group) => {
                 const groupCollapsed = collapsedGroups[group.key];
                 return (
                   <div key={group.key}>
@@ -263,7 +306,8 @@ export function ChannelsPanel({ onCreatePost }: ChannelsPanelProps) {
                     )}
                   </div>
                 );
-              })}
+              })
+              )}
             </div>
           )}
         </div>

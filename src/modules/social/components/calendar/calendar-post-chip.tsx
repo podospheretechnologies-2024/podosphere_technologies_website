@@ -48,9 +48,9 @@ export function CalendarPostChip({ post, onOpen, onDelete }: CalendarPostChipPro
       onMouseLeave={() => setHover(false)}
     >
       {hover && (
-        <div className="bg-surface border-border absolute -top-8 left-1/2 z-20 flex -translate-x-1/2 items-center gap-0.5 rounded-md border px-1 py-0.5 shadow-lg">
+        <div className="border-border bg-surface absolute -top-9 left-1/2 z-30 flex -translate-x-1/2 items-center gap-0.5 rounded-lg border px-1 py-1 shadow-xl">
           <ChipAction
-            label="Edit"
+            label={post.state === 'published' ? 'View' : 'Edit'}
             onClick={() => onOpen(post)}
             icon={<CalendarClock className="size-3.5" />}
           />
@@ -70,13 +70,16 @@ export function CalendarPostChip({ post, onOpen, onDelete }: CalendarPostChipPro
             onClick={() => onOpen(post)}
             icon={<Copy className="size-3.5" />}
           />
-          {onDelete && post.state !== 'published' && (
-            <ChipAction
-              label="Delete"
-              onClick={() => onDelete(post)}
-              icon={<Trash2 className="size-3.5" />}
-              danger
-            />
+          {onDelete && (
+            <>
+              <span aria-hidden className="bg-border mx-0.5 h-4 w-px" />
+              <ChipAction
+                label="Delete"
+                onClick={() => onDelete(post)}
+                icon={<Trash2 className="size-3.5" />}
+                danger
+              />
+            </>
           )}
         </div>
       )}
@@ -92,13 +95,13 @@ export function CalendarPostChip({ post, onOpen, onDelete }: CalendarPostChipPro
         onClick={() => onOpen(post)}
         title={`${stateLabel[post.state]}${label ? ` · ${label}` : ''} · ${post.channel.name}\n${previewText}`}
         className={cn(
-          'bg-surface border-border flex w-full flex-col overflow-hidden rounded-md border text-left shadow-sm transition',
-          hover && 'border-primary ring-primary/40 ring-1',
+          'bg-surface border-border flex w-full flex-col overflow-hidden rounded-lg border text-left shadow-sm transition',
+          hover && 'border-primary ring-primary/30 shadow-md ring-1',
           movable ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'
         )}
       >
         <span className={cn('h-1.5 w-full shrink-0', topBarByState[post.state])} />
-        <span className="flex min-w-0 items-center gap-1.5 px-1.5 py-1">
+        <span className="flex min-w-0 items-center gap-1.5 px-2 py-1.5">
           <span className="relative shrink-0">
             <ChannelAvatar name={post.channel.name} picture={post.channel.picture} size="xs" />
             <ProviderMark
@@ -108,15 +111,26 @@ export function CalendarPostChip({ post, onOpen, onDelete }: CalendarPostChipPro
               className="ring-surface absolute -right-1 -bottom-1 size-3 ring-1"
             />
           </span>
-          <span className="min-w-0 flex-1 truncate text-[11px] leading-tight text-white">
-            {post.content.trim()
-              ? previewText
-              : label
-                ? label
-                : 'Media only'}
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-[11px] leading-tight font-medium text-white">
+              {previewText}
+            </span>
+            <span className="text-muted-foreground block truncate text-[10px] leading-tight">
+              {stateLabel[post.state]}
+              {label ? ` · ${label}` : ''}
+            </span>
           </span>
         </span>
       </button>
+
+      {hover && (
+        <div className="border-border bg-surface text-muted-foreground pointer-events-none absolute top-full right-0 z-20 mt-1 max-w-[200px] rounded-md border px-2 py-1 text-[10px] shadow-lg">
+          <p className="text-foreground font-medium">
+            {stateLabel[post.state]} · {post.channel.name}
+          </p>
+          <p className="mt-0.5 line-clamp-2">{previewText}</p>
+        </div>
+      )}
     </div>
   );
 }
@@ -142,7 +156,7 @@ function ChipAction({
         onClick();
       }}
       className={cn(
-        'rounded p-1 transition',
+        'rounded-md p-1.5 transition',
         danger
           ? 'text-danger hover:bg-danger/15'
           : 'text-primary hover:bg-primary/15'
