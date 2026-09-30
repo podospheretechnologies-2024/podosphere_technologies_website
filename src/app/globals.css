@@ -45,3 +45,21 @@ body {
   background: var(--background);
   color: var(--foreground);
 }
+
+/* Postiz-style dark social workspace; scoped so marketing/auth stay unchanged. */
+.theme-social {
+  --background: #0e0e0e;
+  --surface: #1a1919;
+  --surface-muted: #212121;
+  --border: #252525;
+  --foreground: #ffffff;
+  --muted-foreground: #a1a1aa;
+  --primary: #612bd3;
+  --primary-foreground: #ffffff;
+  --ai: #d82d7e;
+  --danger: #dc2626;
+  --success: #16a34a;
+  color-scheme: dark;
+  background: var(--background);
+  color: var(--foreground);
+}

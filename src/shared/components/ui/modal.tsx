@@ -4,11 +4,12 @@ import { useEffect, useRef, type ReactNode } from 'react';
 import { cn } from '@/shared/lib/cn';
 import { Button } from './button';
 
-type ModalSize = 'md' | 'lg';
+type ModalSize = 'md' | 'lg' | 'xl';
 
 const sizeClasses: Record<ModalSize, string> = {
   md: 'max-w-lg',
   lg: 'max-w-3xl',
+  xl: 'max-w-7xl',
 };
 
 interface ModalProps {

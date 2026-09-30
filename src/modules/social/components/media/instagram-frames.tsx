@@ -26,6 +26,8 @@ interface FrameProps {
   active: boolean;
   /** Shows the sound toggle; off in the grid where the whole card is one button. */
   controls?: boolean;
+  /** Caption shown under the media; defaults to the file name. */
+  caption?: string;
 }
 
 const ICON_STROKE = 1.75;
@@ -154,10 +156,11 @@ function SoundToggle({
   );
 }
 
-export function InstagramPostFrame({ media, accountName, active, controls }: FrameProps) {
+export function InstagramPostFrame({ media, accountName, active, controls, caption }: FrameProps) {
   const videoRef = useActiveVideo(active);
   const [muted, setMuted] = useState(true);
   const handle = toHandle(accountName);
+  const body = caption?.trim() || toCaption(media.name);
 
   return (
     <div className="overflow-hidden rounded-xl border border-neutral-200 bg-white text-neutral-900">
@@ -188,7 +191,7 @@ export function InstagramPostFrame({ media, accountName, active, controls }: Fra
       <div className="space-y-1 px-3 pt-2 pb-3 text-[13px]">
         <p className="font-semibold">Be the first to like this</p>
         <p className="line-clamp-2">
-          <span className="font-semibold">{handle}</span> {toCaption(media.name)}
+          <span className="font-semibold">{handle}</span> {body}
         </p>
         <p className="text-[11px] tracking-wide text-neutral-500 uppercase">
           {dayjs(media.createdAt).format('D MMMM')}
@@ -198,10 +201,11 @@ export function InstagramPostFrame({ media, accountName, active, controls }: Fra
   );
 }
 
-export function InstagramReelFrame({ media, accountName, active, controls }: FrameProps) {
+export function InstagramReelFrame({ media, accountName, active, controls, caption }: FrameProps) {
   const videoRef = useActiveVideo(active);
   const [muted, setMuted] = useState(true);
   const handle = toHandle(accountName);
+  const body = caption?.trim() || toCaption(media.name);
 
   return (
     <div className="relative aspect-[9/16] overflow-hidden rounded-xl bg-black text-white">
@@ -244,7 +248,7 @@ export function InstagramReelFrame({ media, accountName, active, controls }: Fra
             Follow
           </span>
         </div>
-        <p className="truncate text-[13px]">{toCaption(media.name)}</p>
+        <p className="truncate text-[13px]">{body}</p>
         <p className="flex items-center gap-1.5 text-xs">
           <Music className="size-3 shrink-0" />
           <span className="truncate">{handle} · Original audio</span>

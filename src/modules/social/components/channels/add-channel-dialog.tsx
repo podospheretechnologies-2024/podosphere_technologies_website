@@ -1,7 +1,9 @@
 'use client';
 
+import { ChevronRight, Loader2 } from 'lucide-react';
 import { Modal } from '@/shared/components/ui/modal';
 import type { AvailableProvider } from '../../types/integration';
+import { ProviderMark } from './provider-mark';
 
 interface AddChannelDialogProps {
   open: boolean;
@@ -32,16 +34,26 @@ export function AddChannelDialog({
             type="button"
             disabled={!provider.configured || connecting !== null}
             onClick={() => onSelect(provider)}
-            className="border-border hover:border-primary hover:bg-surface-muted disabled:hover:border-border flex flex-col items-start gap-1 rounded-lg border p-4 text-left transition disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-transparent"
+            className="group border-border hover:border-primary hover:bg-primary/5 disabled:hover:border-border flex items-center gap-3 rounded-xl border p-4 text-left transition disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-transparent"
           >
-            <span className="font-medium">
-              {connecting === provider.identifier ? 'Redirecting…' : provider.name}
+            <ProviderMark identifier={provider.identifier} name={provider.name} />
+            <span className="min-w-0 flex-1">
+              <span className="block font-semibold">
+                {connecting === provider.identifier ? 'Redirecting…' : provider.name}
+              </span>
+              <span className="text-muted-foreground block text-xs">
+                {provider.configured
+                  ? 'Connect your account'
+                  : `Not configured: set ${provider.requiredEnv.join(', ')}`}
+              </span>
             </span>
-            <span className="text-muted-foreground text-xs">
-              {provider.configured
-                ? 'Connect your account'
-                : `Not configured: set ${provider.requiredEnv.join(', ')}`}
-            </span>
+            {connecting === provider.identifier ? (
+              <Loader2 className="text-primary size-4 shrink-0 animate-spin" />
+            ) : (
+              provider.configured && (
+                <ChevronRight className="text-muted-foreground group-hover:text-primary size-4 shrink-0 transition" />
+              )
+            )}
           </button>
         ))}
       </div>

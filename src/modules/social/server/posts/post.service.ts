@@ -126,6 +126,7 @@ async function buildGroupData(
         id: item.id,
         url: item.path,
         type: item.type === 'VIDEO' ? 'video' : 'image',
+        format: item.format === 'REEL' ? 'reel' : item.format === 'STORY' ? 'story' : 'post',
         alt: item.alt,
       },
     ])

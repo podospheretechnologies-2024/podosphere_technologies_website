@@ -1,10 +1,10 @@
 import type { Metadata } from 'next';
-import { ComingSoonSection } from '@/modules/social/components/coming-soon-section';
+import { AnalyticsPanel } from '@/modules/social/components/analytics/analytics-panel';
 
 export const metadata: Metadata = {
   title: 'Analytics',
 };
 
 export default function AnalyticsPage() {
-  return <ComingSoonSection section="analytics" />;
+  return <AnalyticsPanel />;
 }

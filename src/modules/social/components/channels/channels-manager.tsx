@@ -1,8 +1,10 @@
 'use client';
 
+import { Plus, Share2 } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '@/shared/components/ui/button';
 import { EmptyState } from '@/shared/components/ui/empty-state';
+import { cn } from '@/shared/lib/cn';
 import { useChannels } from '../../hooks/use-channels';
 import {
   deleteChannel,
@@ -12,6 +14,7 @@ import {
 import type { AvailableProvider, ChannelItem } from '../../types/integration';
 import { AddChannelDialog } from './add-channel-dialog';
 import { ChannelCard, type ChannelAction } from './channel-card';
+import { ProviderMark } from './provider-mark';
 
 interface ChannelsManagerProps {
   connected?: string;
@@ -77,19 +80,41 @@ export function ChannelsManager({ connected, connectError }: ChannelsManagerProp
   }
 
   const channels = data?.channels ?? [];
+  const providers = data?.providers ?? [];
+  const stats = [
+    { label: 'Connected', value: channels.length, className: 'text-foreground' },
+    {
+      label: 'Active',
+      value: channels.filter((channel) => !channel.disabled && !channel.refreshNeeded).length,
+      className: 'text-success',
+    },
+    {
+      label: 'Need attention',
+      value: channels.filter((channel) => channel.refreshNeeded).length,
+      className: 'text-danger',
+    },
+  ];
   const addButton = (
     <Button onClick={() => setDialogOpen(true)} disabled={!data}>
+      <Plus className="size-4" />
       Add channel
     </Button>
   );
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-muted-foreground text-sm">
-          {data ? `${channels.length} connected` : ' '}
-        </p>
-        {addButton}
+      <div className="border-border bg-surface flex flex-wrap items-center gap-x-8 gap-y-3 rounded-xl border px-5 py-4 shadow-sm">
+        {stats.map((stat) => (
+          <div key={stat.label}>
+            <p className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+              {stat.label}
+            </p>
+            <p className={cn('text-xl font-semibold tabular-nums', stat.className)}>
+              {data ? stat.value : '—'}
+            </p>
+          </div>
+        ))}
+        <div className="ml-auto">{addButton}</div>
       </div>
 
       {notice && (
@@ -118,11 +143,29 @@ export function ChannelsManager({ connected, connectError }: ChannelsManagerProp
       ) : isLoading && !data ? (
         <p className="text-muted-foreground text-sm">Loading channels…</p>
       ) : channels.length === 0 ? (
-        <EmptyState
-          title="No channels connected yet"
-          description="Connect a social account to start scheduling and publishing posts to it."
-          action={addButton}
-        />
+        <div className="border-border bg-surface flex flex-col items-center justify-center rounded-xl border border-dashed px-6 py-16 text-center">
+          <div className="bg-primary/10 text-primary mb-5 flex size-14 items-center justify-center rounded-2xl">
+            <Share2 className="size-6" />
+          </div>
+          <h3 className="text-lg font-semibold">No channels connected yet</h3>
+          <p className="text-muted-foreground mt-2 max-w-md text-sm">
+            Connect a social account to start scheduling and publishing posts to it.
+          </p>
+          {providers.length > 0 && (
+            <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
+              {providers.map((provider) => (
+                <span
+                  key={provider.identifier}
+                  className="border-border flex items-center gap-2 rounded-full border py-1 pr-3 pl-1 text-xs font-medium"
+                >
+                  <ProviderMark identifier={provider.identifier} name={provider.name} size="sm" />
+                  {provider.name}
+                </span>
+              ))}
+            </div>
+          )}
+          <div className="mt-6">{addButton}</div>
+        </div>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {channels.map((channel) => (

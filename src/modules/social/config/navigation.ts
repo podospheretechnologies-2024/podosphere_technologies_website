@@ -19,7 +19,7 @@ export const socialSections = {
     description: 'Upload and organise images and videos for your posts.',
   },
   ai: {
-    label: 'AI Studio',
+    label: 'Agent',
     href: `${SOCIAL_BASE_PATH}/ai`,
     description: 'Generate post ideas, threads and images with AI.',
   },

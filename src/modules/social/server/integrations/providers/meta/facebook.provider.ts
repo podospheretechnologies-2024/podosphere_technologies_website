@@ -16,10 +16,12 @@ const MAX_IMAGES = 10;
 
 interface GraphCreated {
   id: string;
+  post_id?: string;
 }
 
 // Facebook Page. Photos are uploaded unpublished and attached to one feed post, so
-// a single photo and an album are published the same way.
+// a single photo and an album are published the same way. Story / reel formats map
+// to Page Stories and Page video posts so the same media can go to Instagram + Facebook.
 export class FacebookProvider extends MetaProviderBase {
   readonly identifier = 'facebook';
   readonly name = 'Facebook Page';
@@ -55,6 +57,14 @@ export class FacebookProvider extends MetaProviderBase {
   }
 
   async post(target: PublishTarget, item: PublishItem): Promise<PublishResult> {
+    const isStory = item.media.some((media) => media.format === 'story');
+    if (isStory) {
+      if (item.media.length !== 1) {
+        throw new BadBodyError(this.identifier, 'A Facebook story can have one image or video');
+      }
+      return this.publishStory(target, item.media[0]);
+    }
+
     const videos = item.media.filter((media) => media.type === 'video');
     if (videos.length > 0 && item.media.length > 1) {
       throw new BadBodyError(this.identifier, 'Facebook posts can have one video or only images');
@@ -63,6 +73,7 @@ export class FacebookProvider extends MetaProviderBase {
       throw new BadBodyError(this.identifier, `Facebook posts can have up to ${MAX_IMAGES} images`);
     }
 
+    // Reels and feed videos use the same Page video upload; Instagram still gets a reel.
     if (videos.length === 1) {
       const { id } = await this.graph<GraphCreated>(`${target.internalId}/videos`, {
         action: 'upload video',
@@ -110,6 +121,43 @@ export class FacebookProvider extends MetaProviderBase {
       params: { message: item.content },
     });
     return { releaseId: id, releaseUrl: `${POST_URL}/${id}` };
+  }
+
+  private async publishStory(target: PublishTarget, media: PublishMedia): Promise<PublishResult> {
+    if (media.type === 'video') {
+      const { id } = await this.graph<GraphCreated>(`${target.internalId}/videos`, {
+        action: 'upload story video',
+        token: target.accessToken,
+        method: 'POST',
+        host: 'graph-video.facebook.com',
+        form: await this.fileForm(media),
+        params: { published: false },
+      });
+      const published = await this.graph<GraphCreated>(`${target.internalId}/video_stories`, {
+        action: 'publish video story',
+        token: target.accessToken,
+        method: 'POST',
+        params: { video_id: id },
+      });
+      const releaseId = published.post_id ?? published.id ?? id;
+      return { releaseId, releaseUrl: `${POST_URL}/${releaseId}` };
+    }
+
+    const { id } = await this.graph<GraphCreated>(`${target.internalId}/photos`, {
+      action: 'upload story photo',
+      token: target.accessToken,
+      method: 'POST',
+      form: await this.fileForm(media),
+      params: { published: false, ...(media.alt ? { alt_text_custom: media.alt } : {}) },
+    });
+    const published = await this.graph<GraphCreated>(`${target.internalId}/photo_stories`, {
+      action: 'publish photo story',
+      token: target.accessToken,
+      method: 'POST',
+      params: { photo_id: id },
+    });
+    const releaseId = published.post_id ?? published.id ?? id;
+    return { releaseId, releaseUrl: `${POST_URL}/${releaseId}` };
   }
 
   private async fileForm(media: PublishMedia): Promise<FormData> {

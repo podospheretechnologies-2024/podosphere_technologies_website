@@ -1,5 +1,5 @@
 import type { PostSaveType } from '../config/posts';
-import type { MediaKind } from './media';
+import type { MediaFormat, MediaKind } from './media';
 import type { TagItem } from './settings';
 
 export type PostState = 'draft' | 'queue' | 'published' | 'error';
@@ -8,6 +8,7 @@ export interface PostMedia {
   id: string;
   url: string;
   type: MediaKind;
+  format?: MediaFormat;
   alt: string | null;
 }
 

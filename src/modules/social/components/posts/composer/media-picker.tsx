@@ -18,7 +18,7 @@ interface MediaPickerProps {
 }
 
 function toPostMedia(media: MediaItem): PostMedia {
-  return { id: media.id, url: media.url, type: media.type, alt: media.alt };
+  return { id: media.id, url: media.url, type: media.type, format: media.format, alt: media.alt };
 }
 
 export function MediaPicker({ open, alreadySelected, onClose, onInsert }: MediaPickerProps) {
@@ -27,13 +27,15 @@ export function MediaPicker({ open, alreadySelected, onClose, onInsert }: MediaP
   return (
     <Modal
       open={open}
-      title="Insert media"
-      description={`Pick up to ${remaining} file${remaining === 1 ? '' : 's'} from your media library.`}
+      size="lg"
+      title="Media Library"
+      description={`Select or upload pictures (maximum ${remaining} at a time). You can also drag & drop pictures.`}
       onClose={onClose}
     >
       {open && (
         <MediaPickerBody
           remaining={remaining}
+          onClose={onClose}
           onInsert={(media) => {
             onInsert(media);
             onClose();
@@ -48,9 +50,11 @@ export function MediaPicker({ open, alreadySelected, onClose, onInsert }: MediaP
 // and the selection starts empty every time.
 function MediaPickerBody({
   remaining,
+  onClose,
   onInsert,
 }: {
   remaining: number;
+  onClose: () => void;
   onInsert: (media: PostMedia[]) => void;
 }) {
   const [page, setPage] = useState(1);
@@ -68,6 +72,11 @@ function MediaPickerBody({
     );
   }
 
+  const pageNumbers =
+    pages <= 1
+      ? []
+      : Array.from({ length: Math.min(pages, 6) }, (_, index) => index + 1);
+
   return (
     <>
       {error && !data ? (
@@ -79,9 +88,10 @@ function MediaPickerBody({
           Your media library is empty. Upload files on the Media page first.
         </p>
       ) : (
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-6">
           {data?.results.map((media) => {
             const isSelected = selected.some((item) => item.id === media.id);
+            const order = selected.findIndex((item) => item.id === media.id) + 1;
             return (
               <button
                 key={media.id}
@@ -112,8 +122,8 @@ function MediaPickerBody({
                   />
                 )}
                 {isSelected && (
-                  <span className="bg-primary text-primary-foreground absolute top-1.5 right-1.5 flex size-6 items-center justify-center rounded-full text-xs font-semibold">
-                    {selected.findIndex((item) => item.id === media.id) + 1}
+                  <span className="bg-primary text-primary-foreground absolute right-1.5 bottom-1.5 flex size-6 items-center justify-center rounded-full text-xs font-semibold">
+                    {order}
                   </span>
                 )}
               </button>
@@ -122,34 +132,48 @@ function MediaPickerBody({
         </div>
       )}
 
-      <div className="mt-5 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          {pages > 1 && (
-            <>
-              <Button
-                variant="secondary"
-                size="sm"
-                disabled={page <= 1}
-                onClick={() => setPage(page - 1)}
-              >
-                Previous
-              </Button>
-              <Button
-                variant="secondary"
-                size="sm"
-                disabled={page >= pages}
-                onClick={() => setPage(page + 1)}
-              >
-                Next
-              </Button>
-            </>
-          )}
+      {pageNumbers.length > 0 && (
+        <div className="mt-5 flex flex-wrap items-center justify-center gap-2 text-sm">
+          <button
+            type="button"
+            disabled={page <= 1}
+            onClick={() => setPage(page - 1)}
+            className="text-muted-foreground hover:text-foreground disabled:opacity-40"
+          >
+            Previous
+          </button>
+          {pageNumbers.map((number) => (
+            <button
+              key={number}
+              type="button"
+              onClick={() => setPage(number)}
+              className={cn(
+                'flex size-8 items-center justify-center rounded-md font-medium transition',
+                page === number
+                  ? 'bg-primary text-primary-foreground'
+                  : 'text-muted-foreground hover:bg-surface-muted hover:text-foreground'
+              )}
+            >
+              {number}
+            </button>
+          ))}
+          <button
+            type="button"
+            disabled={page >= pages}
+            onClick={() => setPage(page + 1)}
+            className="text-muted-foreground hover:text-foreground disabled:opacity-40"
+          >
+            Next &gt;
+          </button>
         </div>
-        <Button
-          onClick={() => onInsert(selected.map(toPostMedia))}
-          disabled={selected.length === 0}
-        >
-          Insert {selected.length > 0 && `(${selected.length})`}
+      )}
+
+      <div className="mt-5 flex items-center justify-end gap-2">
+        <Button variant="secondary" onClick={onClose}>
+          Cancel
+        </Button>
+        <Button onClick={() => onInsert(selected.map(toPostMedia))} disabled={selected.length === 0}>
+          Add selected media
         </Button>
       </div>
     </>
