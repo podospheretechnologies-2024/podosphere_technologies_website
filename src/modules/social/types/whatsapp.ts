@@ -51,3 +51,30 @@ export interface SendWhatsAppResult {
   /** The recipient's WhatsApp id as Meta resolved it. */
   waId: string | null;
 }
+
+export interface WhatsAppConversationItem {
+  id: string;
+  waId: string;
+  contactName: string | null;
+  lastMessageAt: string;
+  lastInboundAt: string | null;
+  lastPreview: string | null;
+  unreadCount: number;
+  /** True when free-form text can still be sent (customer messaged within 24h). */
+  withinWindow: boolean;
+}
+
+export interface WhatsAppChatMessage {
+  id: string;
+  wamid: string | null;
+  direction: 'inbound' | 'outbound';
+  type: string;
+  body: string;
+  status: string | null;
+  timestamp: string;
+}
+
+export interface WhatsAppConversationDetail {
+  conversation: WhatsAppConversationItem;
+  messages: WhatsAppChatMessage[];
+}

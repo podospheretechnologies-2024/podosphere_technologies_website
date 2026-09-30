@@ -7,7 +7,7 @@ import { SegmentedControl } from '@/shared/components/ui/segmented-control';
 import { cn } from '@/shared/lib/cn';
 import { ADS_DATE_PRESETS, ADS_DEFAULT_DATE_PRESET, type AdsDatePreset } from '../../config/ads';
 import { useAdAccounts, useAdsOverview } from '../../hooks/use-ads';
-import type { AdAccountItem, AdsDailyPoint, AdsOverview } from '../../types/ads';
+import type { AdAccountItem, AdsDailyPoint, AdsLiveAd, AdsOverview } from '../../types/ads';
 
 const count = new Intl.NumberFormat('en-IN');
 
@@ -89,6 +89,7 @@ export function AdsDashboard() {
       {overview.data && (
         <div className={cn('space-y-6 transition', overview.isValidating && 'opacity-60')}>
           <Totals data={overview.data} />
+          <LiveAds ads={overview.data.liveAds} currency={overview.data.account.currency} />
           <DailySpend points={overview.data.daily} currency={overview.data.account.currency} />
           <Campaigns data={overview.data} />
         </div>
@@ -147,6 +148,83 @@ function DailySpend({ points, currency }: { points: AdsDailyPoint[]; currency: s
             />
           ))}
         </div>
+      )}
+    </Card>
+  );
+}
+
+function LiveAds({ ads, currency }: { ads: AdsLiveAd[]; currency: string }) {
+  return (
+    <Card>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h2 className="text-sm font-semibold">Live ads</h2>
+          <p className="text-muted-foreground text-xs">
+            Ads currently serving (effective status Active)
+          </p>
+        </div>
+        <span className="bg-success/15 text-success rounded-full px-2.5 py-0.5 text-xs font-medium">
+          {ads.length} live
+        </span>
+      </div>
+
+      {ads.length === 0 ? (
+        <p className="text-muted-foreground text-sm">No ads are live right now.</p>
+      ) : (
+        <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {ads.map((ad) => (
+            <li
+              key={ad.id}
+              className="border-border bg-surface-muted/30 flex flex-col overflow-hidden rounded-xl border"
+            >
+              <div className="bg-surface-muted relative aspect-[1.91/1] w-full overflow-hidden">
+                {ad.thumbnailUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={ad.thumbnailUrl}
+                    alt=""
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <div className="text-muted-foreground flex h-full items-center justify-center text-xs">
+                    No creative preview
+                  </div>
+                )}
+                <span className="bg-success absolute top-2 left-2 rounded-full px-2 py-0.5 text-[10px] font-semibold text-white">
+                  Live
+                </span>
+              </div>
+              <div className="flex flex-1 flex-col gap-2 p-3">
+                <div>
+                  <p className="line-clamp-2 text-sm font-semibold">{ad.name}</p>
+                  {(ad.campaignName || ad.adsetName) && (
+                    <p className="text-muted-foreground mt-0.5 line-clamp-1 text-xs">
+                      {[ad.campaignName, ad.adsetName].filter(Boolean).join(' · ')}
+                    </p>
+                  )}
+                  {ad.headline && (
+                    <p className="text-muted-foreground mt-1 line-clamp-2 text-xs">{ad.headline}</p>
+                  )}
+                </div>
+                <div className="text-muted-foreground mt-auto grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
+                  <span>
+                    Spend{' '}
+                    <strong className="text-foreground">{money(ad.spend, currency)}</strong>
+                  </span>
+                  <span>
+                    Clicks <strong className="text-foreground">{count.format(ad.clicks)}</strong>
+                  </span>
+                  <span>
+                    CTR <strong className="text-foreground">{ad.ctr.toFixed(2)}%</strong>
+                  </span>
+                  <span>
+                    Leads <strong className="text-foreground">{count.format(ad.leads)}</strong>
+                  </span>
+                </div>
+              </div>
+            </li>
+          ))}
+        </ul>
       )}
     </Card>
   );

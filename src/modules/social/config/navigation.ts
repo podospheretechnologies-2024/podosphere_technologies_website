@@ -36,12 +36,12 @@ export const socialSections = {
   ads: {
     label: 'Ads',
     href: `${SOCIAL_BASE_PATH}/ads`,
-    description: 'Spend, results and campaigns from your Meta ad accounts (read-only).',
+    description: 'Live ads, spend and campaigns from your Meta ad accounts (read-only).',
   },
   whatsapp: {
     label: 'WhatsApp',
     href: `${SOCIAL_BASE_PATH}/whatsapp`,
-    description: 'Send WhatsApp messages and templates from your business number.',
+    description: 'Chats, replies and templates from your WhatsApp business number.',
   },
   settings: {
     label: 'Settings',

@@ -6,6 +6,7 @@ import type {
   AdAccountItem,
   AdsCampaignItem,
   AdsDailyPoint,
+  AdsLiveAd,
   AdsOverview,
   AdsTotals,
 } from '../../types/ads';
@@ -26,6 +27,8 @@ interface GraphAction {
 interface GraphInsight {
   campaign_id?: string;
   campaign_name?: string;
+  ad_id?: string;
+  ad_name?: string;
   date_start?: string;
   spend?: string;
   impressions?: string;
@@ -49,6 +52,26 @@ interface GraphCampaign {
   name: string;
   effective_status: string;
   objective: string;
+}
+
+interface GraphAdCreative {
+  id?: string;
+  name?: string;
+  title?: string;
+  body?: string;
+  thumbnail_url?: string;
+  image_url?: string;
+}
+
+interface GraphAd {
+  id: string;
+  name: string;
+  effective_status: string;
+  campaign_id?: string;
+  adset_id?: string;
+  campaign?: { id: string; name: string };
+  adset?: { id: string; name: string };
+  creative?: GraphAdCreative;
 }
 
 function credentials(): { graph: GraphConfig; token: string } {
@@ -146,7 +169,7 @@ export const adsService = {
       throw new HttpError(404, 'Ad account not found or not shared with the system user');
     }
 
-    const [totals, daily, campaignInsights, campaigns] = await Promise.all([
+    const [totals, daily, campaignInsights, campaigns, liveAdsRaw, adInsights] = await Promise.all([
       get<GraphList<GraphInsight>>(`${accountId}/insights`, {
         fields: 'spend,impressions,reach,clicks,ctr,cpc,actions',
         date_preset: datePreset,
@@ -167,9 +190,29 @@ export const adsService = {
         fields: 'name,effective_status,objective',
         limit: 200,
       }),
+      get<GraphList<GraphAd>>(`${accountId}/ads`, {
+        fields:
+          'name,effective_status,campaign_id,adset_id,campaign{name},adset{name},creative{name,title,body,thumbnail_url,image_url}',
+        effective_status: JSON.stringify(['ACTIVE']),
+        limit: 100,
+      }),
+      get<GraphList<GraphInsight>>(`${accountId}/insights`, {
+        fields: 'ad_id,ad_name,spend,impressions,clicks,ctr,actions',
+        level: 'ad',
+        date_preset: datePreset,
+        filtering: JSON.stringify([
+          { field: 'ad.effective_status', operator: 'IN', value: ['ACTIVE'] },
+        ]),
+        limit: 100,
+      }).catch(() => ({ data: [] as GraphInsight[] })),
     ]);
 
     const insightByCampaign = new Map(campaignInsights.data.map((row) => [row.campaign_id, row]));
+    const insightByAd = new Map(
+      adInsights.data
+        .filter((row): row is GraphInsight & { ad_id: string } => Boolean(row.ad_id))
+        .map((row) => [row.ad_id, row])
+    );
 
     const campaignItems: AdsCampaignItem[] = campaigns.data.map((campaign) => {
       const stats = toTotals(insightByCampaign.get(campaign.id));
@@ -192,6 +235,29 @@ export const adsService = {
       (a, b) => Number(b.status === 'ACTIVE') - Number(a.status === 'ACTIVE') || b.spend - a.spend
     );
 
+    const liveAds: AdsLiveAd[] = liveAdsRaw.data.map((ad) => {
+      const stats = toTotals(insightByAd.get(ad.id));
+      return {
+        id: ad.id,
+        name: ad.name,
+        status: ad.effective_status,
+        campaignId: ad.campaign_id ?? ad.campaign?.id ?? null,
+        campaignName: ad.campaign?.name ?? null,
+        adsetId: ad.adset_id ?? ad.adset?.id ?? null,
+        adsetName: ad.adset?.name ?? null,
+        thumbnailUrl: ad.creative?.thumbnail_url ?? ad.creative?.image_url ?? null,
+        headline: ad.creative?.title ?? ad.creative?.name ?? null,
+        body: ad.creative?.body ?? null,
+        spend: stats.spend,
+        impressions: stats.impressions,
+        clicks: stats.clicks,
+        ctr: stats.ctr,
+        leads: stats.leads,
+        costPerLead: stats.costPerLead,
+      };
+    });
+    liveAds.sort((a, b) => b.spend - a.spend);
+
     const dailyPoints: AdsDailyPoint[] = daily.data.map((row) => ({
       date: row.date_start ?? '',
       spend: num(row.spend),
@@ -204,6 +270,7 @@ export const adsService = {
       totals: toTotals(totals.data[0]),
       daily: dailyPoints,
       campaigns: campaignItems,
+      liveAds,
     };
   },
 };

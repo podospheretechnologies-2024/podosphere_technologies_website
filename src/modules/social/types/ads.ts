@@ -42,10 +42,32 @@ export interface AdsCampaignItem {
   costPerLead: number | null;
 }
 
+/** A currently serving ad (effective_status ACTIVE). */
+export interface AdsLiveAd {
+  id: string;
+  name: string;
+  status: string;
+  campaignId: string | null;
+  campaignName: string | null;
+  adsetId: string | null;
+  adsetName: string | null;
+  thumbnailUrl: string | null;
+  headline: string | null;
+  body: string | null;
+  spend: number;
+  impressions: number;
+  clicks: number;
+  ctr: number;
+  leads: number;
+  costPerLead: number | null;
+}
+
 export interface AdsOverview {
   account: AdAccountItem;
   datePreset: AdsDatePreset;
   totals: AdsTotals;
   daily: AdsDailyPoint[];
   campaigns: AdsCampaignItem[];
+  /** Ads that are live / currently eligible to serve. */
+  liveAds: AdsLiveAd[];
 }

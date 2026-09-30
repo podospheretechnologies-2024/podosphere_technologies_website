@@ -16,6 +16,7 @@ import {
 import { useWhatsApp } from '../../hooks/use-whatsapp';
 import { sendWhatsAppMessage } from '../../lib/whatsapp.client';
 import type { WhatsAppNumber, WhatsAppOverview, WhatsAppTemplate } from '../../types/whatsapp';
+import { WhatsAppInbox } from './whatsapp-inbox';
 
 const templateKey = (template: WhatsAppTemplate) => `${template.name}:${template.language}`;
 
@@ -56,6 +57,7 @@ export function WhatsAppPanel() {
   return (
     <div className="space-y-6">
       <NumberCard number={data.number} />
+      <WhatsAppInbox number={data.number} />
       <SendCard data={data} />
       <TemplatesCard data={data} onRefresh={() => void mutate()} />
     </div>

@@ -334,3 +334,46 @@ model SocialAiUsage {
   @@index([organizationId, createdAt])
   @@map("social_ai_usages")
 }
+
+// WhatsApp Cloud API conversation (one contact chatting with the business number).
+model WhatsAppConversation {
+  id             String   @id @default(cuid())
+  organizationId String
+  /// WhatsApp id of the contact (usually E.164 without +).
+  waId           String
+  contactName    String?
+  lastMessageAt  DateTime
+  lastInboundAt  DateTime?
+  lastPreview    String?  @db.VarChar(500)
+  unreadCount    Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization      @relation(fields: [organizationId], references: [id])
+  messages     WhatsAppMessage[]
+
+  @@unique([organizationId, waId])
+  @@index([organizationId, lastMessageAt])
+  @@map("whatsapp_conversations")
+}
+
+model WhatsAppMessage {
+  id             String   @id @default(cuid())
+  organizationId String
+  conversationId String
+  /// Meta Cloud API message id (wamid.…); unique when present.
+  wamid          String?  @unique
+  direction      String // inbound | outbound
+  type           String   @default("text")
+  body           String   @db.Text
+  status         String? // sent | delivered | read | failed
+  timestamp      DateTime
+  createdAt      DateTime @default(now())
+
+  organization Organization         @relation(fields: [organizationId], references: [id])
+  conversation WhatsAppConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, timestamp])
+  @@index([organizationId, timestamp])
+  @@map("whatsapp_messages")
+}

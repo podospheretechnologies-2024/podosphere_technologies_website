@@ -4,10 +4,14 @@ import { HttpError } from '@/shared/server/http-error';
 import type {
   SendWhatsAppInput,
   SendWhatsAppResult,
+  WhatsAppChatMessage,
+  WhatsAppConversationDetail,
+  WhatsAppConversationItem,
   WhatsAppNumber,
   WhatsAppOverview,
   WhatsAppTemplate,
 } from '../../types/whatsapp';
+import { whatsappChatRepository } from './whatsapp-chat.repository';
 import {
   GraphApiError,
   graphGet,
@@ -190,6 +194,70 @@ async function listTemplates({ graph, token, wabaId }: Credentials): Promise<Wha
     );
 }
 
+function withinWindow(lastInboundAt: Date | null): boolean {
+  if (!lastInboundAt) {
+    return false;
+  }
+  return Date.now() - lastInboundAt.getTime() < 24 * 60 * 60 * 1000;
+}
+
+function toConversationItem(
+  row: Awaited<ReturnType<typeof whatsappChatRepository.listConversations>>[number]
+): WhatsAppConversationItem {
+  return {
+    id: row.id,
+    waId: row.waId,
+    contactName: row.contactName,
+    lastMessageAt: row.lastMessageAt.toISOString(),
+    lastInboundAt: row.lastInboundAt?.toISOString() ?? null,
+    lastPreview: row.lastPreview,
+    unreadCount: row.unreadCount,
+    withinWindow: withinWindow(row.lastInboundAt),
+  };
+}
+
+function toChatMessage(
+  row: Awaited<ReturnType<typeof whatsappChatRepository.listMessages>>[number]
+): WhatsAppChatMessage {
+  return {
+    id: row.id,
+    wamid: row.wamid,
+    direction: row.direction === 'inbound' ? 'inbound' : 'outbound',
+    type: row.type,
+    body: row.body,
+    status: row.status,
+    timestamp: row.timestamp.toISOString(),
+  };
+}
+
+async function recordOutbound(
+  organizationId: string,
+  to: string,
+  body: string,
+  messageId: string,
+  waId: string | null
+) {
+  const contactId = waId ?? to;
+  const timestamp = new Date();
+  const conversation = await whatsappChatRepository.upsertConversation({
+    organizationId,
+    waId: contactId,
+    preview: body,
+    timestamp,
+    inbound: false,
+  });
+  await whatsappChatRepository.createMessage({
+    organizationId,
+    conversationId: conversation.id,
+    wamid: messageId || null,
+    direction: 'outbound',
+    type: 'text',
+    body,
+    status: 'sent',
+    timestamp,
+  });
+}
+
 export const whatsappService = {
   isConfigured(): boolean {
     const env = getServerEnv();
@@ -214,7 +282,31 @@ export const whatsappService = {
     };
   },
 
-  async send(input: SendWhatsAppInput): Promise<SendWhatsAppResult> {
+  async listConversations(organizationId: string): Promise<WhatsAppConversationItem[]> {
+    const rows = await whatsappChatRepository.listConversations(organizationId);
+    return rows.map(toConversationItem);
+  },
+
+  async getConversation(
+    organizationId: string,
+    conversationId: string
+  ): Promise<WhatsAppConversationDetail> {
+    const conversation = await whatsappChatRepository.findConversationById(
+      organizationId,
+      conversationId
+    );
+    if (!conversation) {
+      throw new HttpError(404, 'Conversation not found');
+    }
+    await whatsappChatRepository.markRead(organizationId, conversationId);
+    const messages = await whatsappChatRepository.listMessages(organizationId, conversationId);
+    return {
+      conversation: toConversationItem({ ...conversation, unreadCount: 0 }),
+      messages: messages.map(toChatMessage),
+    };
+  },
+
+  async send(organizationId: string, input: SendWhatsAppInput): Promise<SendWhatsAppResult> {
     const creds = credentials();
     const message =
       input.type === 'text'
@@ -229,10 +321,18 @@ export const whatsappService = {
         ...message,
       })
     );
-    return {
+    const result = {
       messageId: response.messages[0]?.id ?? '',
       waId: response.contacts?.[0]?.wa_id ?? null,
     };
+
+    const preview =
+      input.type === 'text'
+        ? input.text
+        : `Template: ${input.templateName}${input.variables.length ? ` (${input.variables.join(', ')})` : ''}`;
+    await recordOutbound(organizationId, input.to, preview, result.messageId, result.waId);
+
+    return result;
   },
 };
 

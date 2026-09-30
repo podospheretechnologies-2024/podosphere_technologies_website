@@ -22,6 +22,8 @@ model Organization {
   socialPostErrors    SocialPostError[]
   socialBrandKit      SocialBrandKit?
   socialAiUsages      SocialAiUsage[]
+  whatsappConversations WhatsAppConversation[]
+  whatsappMessages      WhatsAppMessage[]
 
   @@map("organizations")
 }

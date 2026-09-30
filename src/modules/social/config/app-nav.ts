@@ -3,6 +3,8 @@ import {
   CalendarDays,
   ChartColumn,
   Image as ImageIcon,
+  Megaphone,
+  MessageCircle,
   Plug,
   Puzzle,
   Settings,
@@ -58,6 +60,18 @@ export const socialAppNav: SocialAppNavItem[] = [
     label: 'Integrations',
     href: `${SOCIAL_BASE_PATH}/channels`,
     icon: Puzzle,
+  },
+  {
+    key: 'whatsapp',
+    label: 'WhatsApp',
+    href: `${SOCIAL_BASE_PATH}/whatsapp`,
+    icon: MessageCircle,
+  },
+  {
+    key: 'ads',
+    label: 'Ads',
+    href: `${SOCIAL_BASE_PATH}/ads`,
+    icon: Megaphone,
   },
   {
     key: 'settings',
