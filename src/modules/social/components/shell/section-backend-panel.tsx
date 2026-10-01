@@ -84,7 +84,7 @@ export function SectionBackendPanel({ sectionKey, sectionLabel }: SectionBackend
     <div className="relative">
       <Button
         type="button"
-        variant={open ? 'default' : 'secondary'}
+        variant={open ? 'primary' : 'secondary'}
         size="sm"
         onClick={() => setOpen((value) => !value)}
         aria-expanded={open}
