@@ -10,6 +10,7 @@ import { revalidatePosts } from '../../lib/posts.client';
 import { PostComposer } from '../posts/composer/post-composer';
 import { ChannelsPanel } from './channels-panel';
 import { IconRail } from './icon-rail';
+import { SectionBackendPanel } from './section-backend-panel';
 import { SuccessToast } from './success-toast';
 
 interface SocialShellProps {
@@ -59,6 +60,10 @@ function SocialShellBody({ children, userName, organizationName }: SocialShellPr
             </Link>
             <h1 className="flex-1 text-xl font-semibold">{navItem?.label ?? 'Social'}</h1>
             <div className="flex items-center gap-3">
+              <SectionBackendPanel
+                sectionKey={navItem?.key}
+                sectionLabel={navItem?.label ?? 'Social'}
+              />
               <div className="text-right leading-tight">
                 <p className="text-sm font-medium">{userName}</p>
                 <p className="text-muted-foreground text-xs">{organizationName}</p>
