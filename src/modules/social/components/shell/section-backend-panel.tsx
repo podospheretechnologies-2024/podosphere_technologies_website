@@ -15,7 +15,9 @@ interface SectionBackendPanelProps {
   sectionLabel: string;
 }
 
-type Row = SectionBackendResult & { status: 'loading' | 'ok' | 'error' };
+type Row =
+  | (Omit<SectionBackendResult, 'status' | 'data' | 'error'> & { status: 'loading' })
+  | SectionBackendResult;
 
 export function SectionBackendPanel({ sectionKey, sectionLabel }: SectionBackendPanelProps) {
   const [open, setOpen] = useState(false);
@@ -34,7 +36,7 @@ export function SectionBackendPanel({ sectionKey, sectionLabel }: SectionBackend
       getSectionBackendEndpoints(sectionKey).map((endpoint) => ({
         label: endpoint.label,
         url: endpoint.url,
-        status: 'loading',
+        status: 'loading' as const,
       }))
     );
     try {
@@ -46,7 +48,7 @@ export function SectionBackendPanel({ sectionKey, sectionLabel }: SectionBackend
         {
           label: 'Section backend',
           url: sectionKey,
-          status: 'error',
+          status: 'error' as const,
           error: error instanceof Error ? error.message : 'Could not load backend data',
         },
       ]);
