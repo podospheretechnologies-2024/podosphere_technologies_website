@@ -140,8 +140,8 @@ const EMOJI_GROUPS: { label: string; emojis: string[] }[] = [
 function stripLegacyMarkup(text: string): string {
   return text
     .replace(/<\/?u>/gi, '')
-    .replace(/\*\*(.+?)\*\*/gs, '$1')
-    .replace(/__(.+?)__/gs, '$1');
+    .replace(/\*\*([\s\S]+?)\*\*/g, '$1')
+    .replace(/__([\s\S]+?)__/g, '$1');
 }
 
 function mapLatinToBold(char: string): string {
