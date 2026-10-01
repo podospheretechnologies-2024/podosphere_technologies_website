@@ -75,6 +75,14 @@ export function ChannelsPanel({ onCreatePost }: ChannelsPanelProps) {
   const isAgent = pathname.includes('/ai') || pathname.includes('/agent');
 
   async function connect(provider: AvailableProvider) {
+    if (provider.comingSoon) {
+      return;
+    }
+    if (provider.identifier === 'whatsapp') {
+      setDialogOpen(false);
+      router.push(`${SOCIAL_BASE_PATH}/whatsapp`);
+      return;
+    }
     setConnecting(provider.identifier);
     try {
       await startChannelConnect(provider.identifier);

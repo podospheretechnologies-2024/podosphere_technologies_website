@@ -1,11 +1,12 @@
 'use client';
 
 import dayjs, { type Dayjs } from 'dayjs';
-import { ChevronLeft, ChevronRight, Plus } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { ChevronLeft, ChevronRight, Plus, Search } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@/shared/components/ui/button';
 import { cn } from '@/shared/lib/cn';
 import { CALENDAR_VIEW_LABELS, CALENDAR_VIEWS, type CalendarView } from '../../config/calendar';
+import { useChannels } from '../../hooks/use-channels';
 import { useCalendarPosts } from '../../hooks/use-posts';
 import {
   daysInRange,
@@ -16,6 +17,8 @@ import {
 } from '../../lib/calendar';
 import { reschedulePost, revalidatePosts, deletePostGroup, toDateTimeLocal } from '../../lib/posts.client';
 import type { PostListItem } from '../../types/post';
+import { ChannelAvatar } from '../channels/channel-avatar';
+import { ProviderMark } from '../channels/provider-mark';
 import { PostComposer } from '../posts/composer/post-composer';
 import { PostsList } from '../posts/posts-list';
 import { SuccessToast } from '../shell/success-toast';
@@ -37,6 +40,10 @@ export function SocialCalendar() {
   const [composer, setComposer] = useState<ComposerState>({ open: false });
   const [actionError, setActionError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const [channelFilter, setChannelFilter] = useState<string>('all');
+  const [channelQuery, setChannelQuery] = useState('');
+  const [channelMenuOpen, setChannelMenuOpen] = useState(false);
+  const channelPickerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!toast) {
@@ -46,8 +53,96 @@ export function SocialCalendar() {
     return () => window.clearTimeout(timer);
   }, [toast]);
 
+  useEffect(() => {
+    if (!channelMenuOpen) {
+      return;
+    }
+    function onPointerDown(event: MouseEvent) {
+      if (
+        channelPickerRef.current &&
+        !channelPickerRef.current.contains(event.target as Node)
+      ) {
+        setChannelMenuOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', onPointerDown);
+    return () => document.removeEventListener('mousedown', onPointerDown);
+  }, [channelMenuOpen]);
+
   const range = getCalendarRange(view, cursor);
   const { data: posts, error, isLoading } = useCalendarPosts(view === 'list' ? null : range);
+  const { data: channelsData } = useChannels();
+  const channels = channelsData?.channels ?? [];
+
+  const channelOptions = useMemo(() => {
+    const q = channelQuery.trim().toLowerCase();
+    if (!q) {
+      return channels;
+    }
+    return channels.filter(
+      (channel) =>
+        channel.name.toLowerCase().includes(q) ||
+        (channel.username?.toLowerCase().includes(q) ?? false) ||
+        channel.providerName.toLowerCase().includes(q)
+    );
+  }, [channels, channelQuery]);
+
+  const selectedChannel =
+    channelFilter === 'all' ? null : channels.find((channel) => channel.id === channelFilter);
+
+  const visiblePosts = useMemo(() => {
+    const all = posts ?? [];
+    if (channelFilter === 'all') {
+      return all;
+    }
+    return all.filter((post) => post.channel.id === channelFilter);
+  }, [posts, channelFilter]);
+
+  const channelPostStats = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const post of visiblePosts) {
+      counts.set(post.channel.id, (counts.get(post.channel.id) ?? 0) + 1);
+    }
+
+    const source =
+      channelFilter === 'all'
+        ? channels
+        : channels.filter((channel) => channel.id === channelFilter);
+
+    if (source.length > 0) {
+      return source
+        .map((channel) => ({
+          id: channel.id,
+          name: channel.name,
+          picture: channel.picture,
+          providerIdentifier: channel.providerIdentifier,
+          providerName: channel.providerName,
+          count: counts.get(channel.id) ?? 0,
+        }))
+        .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+    }
+
+    const byId = new Map<string, PostListItem['channel']>();
+    for (const post of visiblePosts) {
+      byId.set(post.channel.id, post.channel);
+    }
+    return [...byId.values()]
+      .map((channel) => ({
+        id: channel.id,
+        name: channel.name,
+        picture: channel.picture,
+        providerIdentifier: channel.providerIdentifier,
+        providerName: channel.providerName,
+        count: counts.get(channel.id) ?? 0,
+      }))
+      .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+  }, [visiblePosts, channels, channelFilter]);
+
+  function pickChannel(id: string, label: string) {
+    setChannelFilter(id);
+    setChannelQuery(id === 'all' ? '' : label);
+    setChannelMenuOpen(false);
+  }
 
   function openPost(post: PostListItem) {
     if (post.state === 'published') {
@@ -102,7 +197,7 @@ export function SocialCalendar() {
   }
 
   const gridProps = {
-    posts: posts ?? [],
+    posts: visiblePosts,
     onOpen: openPost,
     onDelete: deletePost,
     onMove: movePost,
@@ -168,6 +263,87 @@ export function SocialCalendar() {
           </div>
         )}
 
+        {view !== 'list' && (
+          <div className="relative w-full min-w-[240px] sm:w-[280px] sm:flex-none" ref={channelPickerRef}>
+            <p className="text-muted-foreground mb-1 text-[10px] font-semibold tracking-wide uppercase">
+              Channel
+            </p>
+            <label className="border-primary/40 bg-surface focus-within:border-primary focus-within:ring-primary/30 flex h-10 items-center gap-2 rounded-lg border-2 px-3 shadow-sm transition focus-within:ring-2">
+              <Search className="text-primary size-4 shrink-0" />
+              <input
+                type="search"
+                value={
+                  channelMenuOpen
+                    ? channelQuery
+                    : channelFilter === 'all'
+                      ? 'All'
+                      : (selectedChannel?.name ?? channelQuery)
+                }
+                onChange={(event) => {
+                  setChannelQuery(event.target.value);
+                  setChannelMenuOpen(true);
+                }}
+                onFocus={() => {
+                  setChannelMenuOpen(true);
+                  if (channelFilter === 'all') {
+                    setChannelQuery('');
+                  } else if (!channelQuery) {
+                    setChannelQuery(selectedChannel?.name ?? '');
+                  }
+                }}
+                placeholder="Search channel…"
+                aria-label="Filter calendar by channel"
+                className="placeholder:text-muted-foreground min-w-0 flex-1 bg-transparent text-sm font-medium outline-none"
+              />
+            </label>
+            {channelMenuOpen && (
+              <ul className="border-border bg-surface absolute top-full right-0 left-0 z-30 mt-1 max-h-64 overflow-y-auto rounded-xl border py-1 shadow-lg">
+                <li>
+                  <button
+                    type="button"
+                    onClick={() => pickChannel('all', '')}
+                    className={cn(
+                      'hover:bg-surface-muted flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm',
+                      channelFilter === 'all' && 'bg-primary/10 text-primary font-semibold'
+                    )}
+                  >
+                    All
+                  </button>
+                </li>
+                {channelOptions.map((channel) => (
+                  <li key={channel.id}>
+                    <button
+                      type="button"
+                      onClick={() => pickChannel(channel.id, channel.name)}
+                      className={cn(
+                        'hover:bg-surface-muted flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm',
+                        channelFilter === channel.id && 'bg-primary/10 text-primary font-semibold'
+                      )}
+                    >
+                      <span className="relative shrink-0">
+                        <ChannelAvatar name={channel.name} picture={channel.picture} size="xs" />
+                        <ProviderMark
+                          identifier={channel.providerIdentifier}
+                          name={channel.providerName}
+                          size="sm"
+                          className="ring-surface absolute -right-0.5 -bottom-0.5 size-3 ring-1"
+                        />
+                      </span>
+                      <span className="min-w-0 flex-1 truncate">{channel.name}</span>
+                      <span className="text-muted-foreground shrink-0 text-xs">
+                        {channel.providerName}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+                {channelOptions.length === 0 && (
+                  <li className="text-muted-foreground px-3 py-2 text-sm">No channels match.</li>
+                )}
+              </ul>
+            )}
+          </div>
+        )}
+
         <div className="ml-auto flex flex-wrap items-center gap-4">
           <div className="text-muted-foreground hidden items-center gap-3 text-xs lg:flex">
             {STATE_LEGEND.map((item) => (
@@ -190,6 +366,45 @@ export function SocialCalendar() {
           className="border-danger/40 bg-danger/10 text-danger rounded-lg border p-3 text-sm"
         >
           {actionError ?? (error instanceof Error ? error.message : 'Could not load posts')}
+        </div>
+      )}
+
+      {view !== 'list' && channelPostStats.length > 0 && (
+        <div className="border-border bg-surface rounded-xl border p-3">
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+            <h3 className="text-sm font-semibold">Posts by channel</h3>
+            <p className="text-muted-foreground text-xs">
+              In this {view}: {visiblePosts.length} post{visiblePosts.length === 1 ? '' : 's'}
+            </p>
+          </div>
+          <ul className="flex flex-wrap gap-2">
+            {channelPostStats.map((channel) => (
+              <li
+                key={channel.id}
+                className="border-border bg-surface-muted/40 flex min-w-[160px] max-w-full items-center gap-2 rounded-lg border px-2.5 py-2"
+                title={`${channel.name} · ${channel.providerName}`}
+              >
+                <span className="relative shrink-0">
+                  <ChannelAvatar name={channel.name} picture={channel.picture} size="sm" />
+                  <ProviderMark
+                    identifier={channel.providerIdentifier}
+                    name={channel.providerName}
+                    size="sm"
+                    className="ring-surface absolute -right-1 -bottom-1 size-3.5 ring-1"
+                  />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-medium">{channel.name}</span>
+                  <span className="text-muted-foreground block truncate text-xs">
+                    {channel.providerName}
+                  </span>
+                </span>
+                <span className="bg-primary/15 text-primary shrink-0 rounded-md px-2 py-0.5 text-xs font-semibold tabular-nums">
+                  {channel.count} post{channel.count === 1 ? '' : 's'}
+                </span>
+              </li>
+            ))}
+          </ul>
         </div>
       )}
 

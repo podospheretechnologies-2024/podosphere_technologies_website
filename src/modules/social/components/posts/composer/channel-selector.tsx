@@ -38,6 +38,35 @@ function matchesQuery(channel: ChannelItem, query: string): boolean {
   );
 }
 
+function normalizeBrand(value: string): string {
+  return value.trim().toLowerCase();
+}
+
+/** Same client group, or same brand name/username across Instagram / Facebook / LinkedIn / etc. */
+export function relatedChannels(channels: ChannelItem[], channel: ChannelItem): ChannelItem[] {
+  if (channel.customer?.id) {
+    return channels.filter((entry) => entry.customer?.id === channel.customer?.id);
+  }
+
+  const keys = new Set<string>([normalizeBrand(channel.name)]);
+  if (channel.username) {
+    keys.add(normalizeBrand(channel.username));
+  }
+
+  return channels.filter((entry) => {
+    if (entry.customer?.id) {
+      return false;
+    }
+    if (keys.has(normalizeBrand(entry.name))) {
+      return true;
+    }
+    if (entry.username && keys.has(normalizeBrand(entry.username))) {
+      return true;
+    }
+    return false;
+  });
+}
+
 export function ChannelSelector({ channels, selectedIds, onToggle }: ChannelSelectorProps) {
   const [providerFilter, setProviderFilter] = useState<string | null>(null);
   const [search, setSearch] = useState('');
@@ -87,28 +116,40 @@ export function ChannelSelector({ channels, selectedIds, onToggle }: ChannelSele
             const selected = selectedIds.includes(channel.id);
             const reason = unavailableReason(channel);
             return (
-              <button
-                key={channel.id}
-                type="button"
-                onClick={() => onToggle(channel.id)}
-                disabled={Boolean(reason) && !selected}
-                aria-pressed={selected}
-                title={reason ?? `${channel.name} (${channel.providerName})`}
-                className={cn(
-                  'relative rounded-full transition disabled:cursor-not-allowed disabled:opacity-40',
-                  selected
-                    ? 'ring-primary ring-offset-surface ring-2 ring-offset-2'
-                    : 'opacity-80 hover:opacity-100'
+              <div key={channel.id} className="relative">
+                <button
+                  type="button"
+                  onClick={() => onToggle(channel.id)}
+                  disabled={Boolean(reason) && !selected}
+                  aria-pressed={selected}
+                  title={reason ?? `${channel.name} (${channel.providerName})`}
+                  className={cn(
+                    'relative rounded-full transition disabled:cursor-not-allowed disabled:opacity-40',
+                    selected
+                      ? 'ring-primary ring-offset-surface ring-2 ring-offset-2'
+                      : 'opacity-80 hover:opacity-100'
+                  )}
+                >
+                  <ChannelAvatar name={channel.name} picture={channel.picture} size="md" />
+                  <ProviderMark
+                    identifier={channel.providerIdentifier}
+                    name={channel.providerName}
+                    size="sm"
+                    className="ring-surface absolute -right-0.5 -bottom-0.5 size-4 ring-2"
+                  />
+                </button>
+                {selected && (
+                  <button
+                    type="button"
+                    aria-label={`Remove ${channel.name}`}
+                    title="Remove channel"
+                    onClick={() => onToggle(channel.id)}
+                    className="bg-danger text-danger-foreground hover:bg-danger/90 absolute -top-1 -left-1 z-10 flex size-4 items-center justify-center rounded-full shadow"
+                  >
+                    <X className="size-2.5" strokeWidth={3} />
+                  </button>
                 )}
-              >
-                <ChannelAvatar name={channel.name} picture={channel.picture} size="md" />
-                <ProviderMark
-                  identifier={channel.providerIdentifier}
-                  name={channel.providerName}
-                  size="sm"
-                  className="ring-surface absolute -right-0.5 -bottom-0.5 size-4 ring-2"
-                />
-              </button>
+              </div>
             );
           })
         )}
@@ -138,31 +179,41 @@ export function ChannelSelector({ channels, selectedIds, onToggle }: ChannelSele
             <Globe className="size-4" />
           </button>
           {selectedChannels.map((channel) => (
-            <button
-              key={`selected-${channel.id}`}
-              type="button"
-              onClick={() =>
-                setProviderFilter((current) =>
-                  current === channel.providerIdentifier ? null : channel.providerIdentifier
-                )
-              }
-              aria-pressed={providerFilter === channel.providerIdentifier}
-              title={channel.name}
-              className={cn(
-                'relative rounded-full border p-0.5 transition',
-                providerFilter === channel.providerIdentifier
-                  ? 'border-primary ring-primary ring-1'
-                  : 'border-border hover:bg-surface-muted opacity-90 hover:opacity-100'
-              )}
-            >
-              <ChannelAvatar name={channel.name} picture={channel.picture} size="sm" />
-              <ProviderMark
-                identifier={channel.providerIdentifier}
-                name={channel.providerName}
-                size="sm"
-                className="ring-surface absolute -right-0.5 -bottom-0.5 size-3.5 ring-1"
-              />
-            </button>
+            <div key={`selected-${channel.id}`} className="relative">
+              <button
+                type="button"
+                onClick={() =>
+                  setProviderFilter((current) =>
+                    current === channel.providerIdentifier ? null : channel.providerIdentifier
+                  )
+                }
+                aria-pressed={providerFilter === channel.providerIdentifier}
+                title={channel.name}
+                className={cn(
+                  'relative rounded-full border p-0.5 transition',
+                  providerFilter === channel.providerIdentifier
+                    ? 'border-primary ring-primary ring-1'
+                    : 'border-border hover:bg-surface-muted opacity-90 hover:opacity-100'
+                )}
+              >
+                <ChannelAvatar name={channel.name} picture={channel.picture} size="sm" />
+                <ProviderMark
+                  identifier={channel.providerIdentifier}
+                  name={channel.providerName}
+                  size="sm"
+                  className="ring-surface absolute -right-0.5 -bottom-0.5 size-3.5 ring-1"
+                />
+              </button>
+              <button
+                type="button"
+                aria-label={`Remove ${channel.name}`}
+                title="Remove channel"
+                onClick={() => onToggle(channel.id)}
+                className="bg-danger text-danger-foreground hover:bg-danger/90 absolute -top-1 -right-1 z-10 flex size-4 items-center justify-center rounded-full shadow"
+              >
+                <X className="size-2.5" strokeWidth={3} />
+              </button>
+            </div>
           ))}
         </div>
       )}

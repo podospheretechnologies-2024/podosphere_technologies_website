@@ -17,7 +17,7 @@ import type { AvailableProvider, ChannelItem } from '../../../types/integration'
 import type { PostGroup, PostMedia } from '../../../types/post';
 import type { SignatureItem, TemplateItem } from '../../../types/settings';
 import { ProviderMark } from '../../channels/provider-mark';
-import { ChannelSelector } from './channel-selector';
+import { ChannelSelector, relatedChannels } from './channel-selector';
 import { PostPreview } from './post-preview';
 import { SignatureSelect } from './signature-select';
 import { TagPicker } from './tag-picker';
@@ -172,7 +172,23 @@ function ComposerForm({
   const settingsChannel = selectedChannels.length === 1 ? selectedChannels[0] : null;
 
   function toggleChannel(id: string) {
-    setSelectedIds((current) => toggle(current, id));
+    setSelectedIds((current) => {
+      const channel = channels.find((entry) => entry.id === id);
+      if (!channel) {
+        return toggle(current, id);
+      }
+
+      // Already selected → remove only this channel (cross / second click).
+      if (current.includes(id)) {
+        return current.filter((entryId) => entryId !== id);
+      }
+
+      // Selecting one channel also selects its Instagram / Facebook / LinkedIn / etc.
+      const groupIds = relatedChannels(channels, channel)
+        .filter((entry) => !entry.disabled && !entry.refreshNeeded)
+        .map((entry) => entry.id);
+      return [...new Set([...current, ...groupIds])];
+    });
   }
 
   function updateItem(updated: ThreadItemDraft) {

@@ -4,6 +4,8 @@ import dayjs from 'dayjs';
 import {
   Bookmark,
   Camera,
+  ChevronLeft,
+  ChevronRight,
   Ellipsis,
   Heart,
   MessageCircle,
@@ -28,6 +30,8 @@ interface FrameProps {
   controls?: boolean;
   /** Caption shown under the media; defaults to the file name. */
   caption?: string;
+  /** Extra slides for Instagram carousel posts (composer preview). */
+  gallery?: MediaItem[];
 }
 
 const ICON_STROKE = 1.75;
@@ -156,11 +160,35 @@ function SoundToggle({
   );
 }
 
-export function InstagramPostFrame({ media, accountName, active, controls, caption }: FrameProps) {
-  const videoRef = useActiveVideo(active);
+export function InstagramPostFrame({
+  media,
+  accountName,
+  active,
+  controls,
+  caption,
+  gallery,
+}: FrameProps) {
+  const slides = gallery && gallery.length > 0 ? gallery : [media];
+  const slideKey = slides.map((slide) => slide.id).join('|');
+  const [index, setIndex] = useState(0);
+  const current = slides[Math.min(index, slides.length - 1)] ?? media;
+  const videoRef = useActiveVideo(active && current.type === 'video');
   const [muted, setMuted] = useState(true);
   const handle = toHandle(accountName);
-  const body = caption?.trim() || toCaption(media.name);
+  const body = caption?.trim() || toCaption(current.name);
+  const isCarousel = slides.length > 1;
+
+  useEffect(() => {
+    setIndex(0);
+  }, [slideKey]);
+
+  function go(delta: number) {
+    setIndex((currentIndex) => {
+      const next = currentIndex + delta;
+      if (next < 0 || next >= slides.length) return currentIndex;
+      return next;
+    });
+  }
 
   return (
     <div className="overflow-hidden rounded-xl border border-neutral-200 bg-white text-neutral-900">
@@ -171,13 +199,54 @@ export function InstagramPostFrame({ media, accountName, active, controls, capti
       </div>
 
       <div className="relative aspect-[4/5] bg-neutral-100">
-        <FrameMedia media={media} muted={muted} videoRef={videoRef} />
-        {media.type === 'video' && controls && (
+        <FrameMedia media={current} muted={muted} videoRef={videoRef} />
+        {current.type === 'video' && controls && (
           <SoundToggle
             muted={muted}
             onToggle={() => setMuted(!muted)}
-            className="absolute right-3 bottom-3"
+            className="absolute right-3 bottom-3 z-10"
           />
+        )}
+        {isCarousel && (
+          <>
+            {index > 0 && (
+              <button
+                type="button"
+                aria-label="Previous image"
+                onClick={() => go(-1)}
+                className="absolute top-1/2 left-2 z-10 flex size-7 -translate-y-1/2 items-center justify-center rounded-full bg-black/55 text-white transition hover:bg-black/70"
+              >
+                <ChevronLeft className="size-4" />
+              </button>
+            )}
+            {index < slides.length - 1 && (
+              <button
+                type="button"
+                aria-label="Next image"
+                onClick={() => go(1)}
+                className="absolute top-1/2 right-2 z-10 flex size-7 -translate-y-1/2 items-center justify-center rounded-full bg-black/55 text-white transition hover:bg-black/70"
+              >
+                <ChevronRight className="size-4" />
+              </button>
+            )}
+            <div className="absolute top-3 right-3 z-10 rounded-full bg-black/60 px-2 py-0.5 text-[11px] font-semibold text-white tabular-nums">
+              {index + 1}/{slides.length}
+            </div>
+            <div className="absolute inset-x-0 bottom-3 z-10 flex justify-center gap-1">
+              {slides.map((slide, slideIndex) => (
+                <button
+                  key={slide.id}
+                  type="button"
+                  aria-label={`Go to image ${slideIndex + 1}`}
+                  onClick={() => setIndex(slideIndex)}
+                  className={cn(
+                    'size-1.5 rounded-full transition',
+                    slideIndex === index ? 'bg-white' : 'bg-white/45'
+                  )}
+                />
+              ))}
+            </div>
+          </>
         )}
       </div>
 
@@ -194,7 +263,7 @@ export function InstagramPostFrame({ media, accountName, active, controls, capti
           <span className="font-semibold">{handle}</span> {body}
         </p>
         <p className="text-[11px] tracking-wide text-neutral-500 uppercase">
-          {dayjs(media.createdAt).format('D MMMM')}
+          {dayjs(current.createdAt).format('D MMMM')}
         </p>
       </div>
     </div>

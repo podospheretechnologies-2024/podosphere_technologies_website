@@ -47,6 +47,9 @@ export function PostPreview({ channels, selectedIds, items }: PostPreviewProps) 
 
   const previewChannel = selected.find((channel) => channel.id === activeId) ?? selected[0];
   const showGlobal = selected.length > 1 && (activeId === 'global' || !previewChannel);
+  const format = mediaFormat(main?.media ?? []);
+  // Story / Reel must use the platform frame preview even in Global Edit.
+  const useFormatPreview = Boolean(previewChannel) && (format === 'story' || format === 'reel' || !showGlobal);
 
   if (!previewChannel) {
     return (
@@ -72,7 +75,14 @@ export function PostPreview({ channels, selectedIds, items }: PostPreviewProps) 
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <h3 className="mb-3 shrink-0 text-lg font-semibold">Post Preview</h3>
+      <div className="mb-3 flex shrink-0 items-center justify-between gap-2">
+        <h3 className="text-lg font-semibold">Post Preview</h3>
+        {main.media.length > 0 && (
+          <span className="text-muted-foreground rounded-full border border-border px-2.5 py-0.5 text-[11px] font-semibold tracking-wide uppercase">
+            {format}
+          </span>
+        )}
+      </div>
 
       {selected.length > 1 && (
         <div className="mb-3 flex flex-wrap gap-1.5">
@@ -114,14 +124,29 @@ export function PostPreview({ channels, selectedIds, items }: PostPreviewProps) 
       )}
 
       <div className="min-h-0 flex-1 overflow-y-auto pr-1">
-        {showGlobal ? (
+        {!useFormatPreview ? (
           <GlobalEditPreview channel={previewChannel} items={items} />
         ) : previewChannel.providerIdentifier === 'instagram' ? (
-          <InstagramLivePreview channel={previewChannel} main={main} comments={comments} />
+          <InstagramLivePreview
+            key={`ig-${format}-${main.media[0]?.id ?? 'none'}`}
+            channel={previewChannel}
+            main={main}
+            comments={comments}
+          />
         ) : previewChannel.providerIdentifier === 'facebook' ? (
-          <FacebookLivePreview channel={previewChannel} main={main} comments={comments} />
+          <FacebookLivePreview
+            key={`fb-${format}-${main.media[0]?.id ?? 'none'}`}
+            channel={previewChannel}
+            main={main}
+            comments={comments}
+          />
         ) : previewChannel.providerIdentifier === 'linkedin' ? (
-          <LinkedInPreview channel={previewChannel} main={main} comments={comments} />
+          <LinkedInPreview
+            key={`li-${format}-${main.media[0]?.id ?? 'none'}`}
+            channel={previewChannel}
+            main={main}
+            comments={comments}
+          />
         ) : (
           <GlobalEditPreview channel={previewChannel} items={items} />
         )}
@@ -137,7 +162,7 @@ export function PostPreview({ channels, selectedIds, items }: PostPreviewProps) 
 }
 
 function mediaFormat(media: PostMedia[]): MediaFormat {
-  return media.find((item) => item.format)?.format ?? 'post';
+  return media[0]?.format ?? 'post';
 }
 
 function toFrameMedia(media: PostMedia, format: MediaFormat): MediaItem {
@@ -178,7 +203,13 @@ function InstagramLivePreview({
   return (
     <div className="mx-auto w-full max-w-sm space-y-3">
       <InstagramFrame
+        key={`frame-${format}-${main.media.map((entry) => entry.id).join('-')}`}
         media={toFrameMedia(main.media[0], format)}
+        gallery={
+          format === 'post' && main.media.length > 1
+            ? main.media.map((entry) => toFrameMedia(entry, format))
+            : undefined
+        }
         accountName={accountName}
         active
         controls
@@ -444,7 +475,18 @@ function LinkedInPreview({
   main: ThreadItemDraft;
   comments: ThreadItemDraft[];
 }) {
+  const format = mediaFormat(main.media);
   const commentCount = comments.filter((item) => item.content.trim() || item.media.length).length;
+
+  if (format === 'story' && main.media[0]) {
+    return <FacebookStoryFrame channel={channel} media={main.media[0]} />;
+  }
+
+  if (format === 'reel' && main.media[0]) {
+    return (
+      <FacebookReelFrame channel={channel} media={main.media[0]} caption={main.content} />
+    );
+  }
 
   return (
     <article className="border-border bg-surface overflow-hidden rounded-xl border">

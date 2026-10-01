@@ -18,6 +18,7 @@ import {
 import Image from 'next/image';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { cn } from '@/shared/lib/cn';
+import { MEDIA_FORMAT_OPTIONS, type MediaFormat } from '../../../config/media';
 import { POST_MAX_MEDIA } from '../../../config/posts';
 import type { PostMedia } from '../../../types/post';
 import { ProviderMark } from '../../channels/provider-mark';
@@ -61,6 +62,155 @@ const DELAY_PRESETS = [
   { label: '1h', minutes: 60 },
   { label: '2h', minutes: 120 },
 ] as const;
+
+const COMBINING_LOW_LINE = '\u0332';
+
+const EMOJI_GROUPS: { label: string; emojis: string[] }[] = [
+  {
+    label: 'Smileys',
+    emojis: [
+      '😀', '😃', '😄', '😁', '😆', '😅', '🤣', '😂', '🙂', '😉', '😊', '😇', '🥰', '😍', '🤩',
+      '😘', '😗', '😚', '😙', '🥲', '😋', '😛', '😜', '🤪', '😝', '🤑', '🤗', '🤭', '🤫', '🤔',
+      '🤐', '🤨', '😐', '😑', '😶', '😏', '😒', '🙄', '😬', '😮‍💨', '🤥', '😌', '😔', '😪', '😴',
+      '😷', '🤒', '🤕', '🤢', '🤮', '🥵', '🥶', '🥴', '😵', '🤯', '🤠', '🥳', '😎', '🤓', '🧐',
+    ],
+  },
+  {
+    label: 'Gestures',
+    emojis: [
+      '👍', '👎', '👌', '✌️', '🤞', '🤟', '🤘', '🤙', '👈', '👉', '👆', '👇', '☝️', '✋', '🤚',
+      '🖐', '🖖', '👋', '👏', '🙌', '👐', '🤲', '🤝', '🙏', '💪', '🦾', '💅', '🤳', '✍️', '🫶',
+    ],
+  },
+  {
+    label: 'Hearts',
+    emojis: [
+      '❤️', '🧡', '💛', '💚', '💙', '💜', '🖤', '🤍', '🤎', '💔', '❣️', '💕', '💞', '💓', '💗',
+      '💖', '💘', '💝', '💟', '♥️', '💌', '💋', '💯', '💥', '💫', '⭐', '🌟', '✨', '⚡', '🔥',
+    ],
+  },
+  {
+    label: 'People',
+    emojis: [
+      '👋', '🙋', '💁', '🙆', '🙅', '🤷', '🤦', '🙇', '🤰', '🤱', '👶', '👧', '👦', '👩', '👨',
+      '🧓', '👵', '👴', '👮', '👷', '💂', '🕵️', '👩‍💻', '👨‍💻', '👩‍🎨', '👨‍🎨', '🧑‍🚀', '🦸', '🦹', '🧙',
+    ],
+  },
+  {
+    label: 'Animals',
+    emojis: [
+      '🐶', '🐱', '🐭', '🐹', '🐰', '🦊', '🐻', '🐼', '🐨', '🐯', '🦁', '🐮', '🐷', '🐸', '🐵',
+      '🐔', '🐧', '🐦', '🐤', '🦆', '🦅', '🦉', '🦇', '🐺', '🐗', '🐴', '🦄', '🐝', '🐛', '🦋',
+    ],
+  },
+  {
+    label: 'Food',
+    emojis: [
+      '🍎', '🍐', '🍊', '🍋', '🍌', '🍉', '🍇', '🍓', '🫐', '🍈', '🍒', '🍑', '🥭', '🍍', '🥥',
+      '🥝', '🍅', '🍆', '🥑', '🥦', '🥬', '🍔', '🍟', '🍕', '🌭', '🥪', '🌮', '🌯', '🥗', '🍝',
+      '🍜', '🍣', '🍱', '🍦', '🍩', '🍪', '🎂', '🍰', '🧁', '🍫', '☕', '🍵', '🧃', '🥤', '🍺',
+    ],
+  },
+  {
+    label: 'Travel',
+    emojis: [
+      '🚗', '🚕', '🚙', '🚌', '🚎', '🏎', '🚓', '🚑', '🚒', '🚐', '🛻', '🚚', '🚛', '🚜', '🛵',
+      '🚲', '🛴', '✈️', '🛫', '🛬', '🛩', '🚁', '🚟', '🚠', '🚡', '🛥', '⛵️', '🚤', '🛳', '🚀',
+      '🏠', '🏡', '🏢', '🏣', '🏥', '🏦', '🏨', '🏫', '🏬', '🏭', '🗺', '🧭', '🏖', '🏔', '🗻',
+    ],
+  },
+  {
+    label: 'Objects',
+    emojis: [
+      '⌚', '📱', '💻', '⌨️', '🖥', '🖨', '🖱', '🖲', '🕹', '🗜', '💾', '💿', '📷', '📸', '📹',
+      '🎥', '📽', '🎞', '📞', '☎️', '📟', '📠', '📺', '📻', '🎙', '⏱', '⏲', '⏰', '🕰', '⌛',
+      '💡', '🔦', '🕯', '📔', '📕', '📖', '📚', '📝', '✏️', '📌', '📎', '🔑', '🗝', '💰', '💳',
+    ],
+  },
+  {
+    label: 'Symbols',
+    emojis: [
+      '✅', '❌', '⭕', '❗', '❓', '‼️', '⁉️', '💬', '💭', '🗯', '♠️', '♥️', '♦️', '♣️', '🃏',
+      '🎴', '🀄️', '🕐', '🕑', '🕒', '🕓', '🕔', '🕕', '♻️', '🔰', '🔱', '📛', '⭕', '🛑', '⛔️',
+      '🚫', '🔞', '📵', '🚭', '❗️', '❕', '❓', '❔', '™️', '©️', '®️', '〰️', '➰', '➿', '〽️',
+    ],
+  },
+];
+
+function stripLegacyMarkup(text: string): string {
+  return text
+    .replace(/<\/?u>/gi, '')
+    .replace(/\*\*(.+?)\*\*/gs, '$1')
+    .replace(/__(.+?)__/gs, '$1');
+}
+
+function mapLatinToBold(char: string): string {
+  const code = char.codePointAt(0);
+  if (code === undefined) return char;
+  if (code >= 65 && code <= 90) return String.fromCodePoint(0x1d5d4 + (code - 65));
+  if (code >= 97 && code <= 122) return String.fromCodePoint(0x1d5ee + (code - 97));
+  if (code >= 48 && code <= 57) return String.fromCodePoint(0x1d7ec + (code - 48));
+  return char;
+}
+
+function mapBoldToLatin(char: string): string {
+  const code = char.codePointAt(0);
+  if (code === undefined) return char;
+  if (code >= 0x1d5d4 && code <= 0x1d5ed) return String.fromCodePoint(65 + (code - 0x1d5d4));
+  if (code >= 0x1d5ee && code <= 0x1d607) return String.fromCodePoint(97 + (code - 0x1d5ee));
+  if (code >= 0x1d7ec && code <= 0x1d7f5) return String.fromCodePoint(48 + (code - 0x1d7ec));
+  return char;
+}
+
+function isBoldText(text: string): boolean {
+  const letters = [...text].filter((char) => /[A-Za-z0-9]/.test(mapBoldToLatin(char)));
+  if (letters.length === 0) return false;
+  return letters.every((char) => {
+    const code = char.codePointAt(0)!;
+    return (
+      (code >= 0x1d5d4 && code <= 0x1d5ed) ||
+      (code >= 0x1d5ee && code <= 0x1d607) ||
+      (code >= 0x1d7ec && code <= 0x1d7f5)
+    );
+  });
+}
+
+function toggleBold(text: string): string {
+  const cleaned = stripLegacyMarkup(text);
+  if (!cleaned) return cleaned;
+  if (isBoldText(cleaned)) {
+    return [...cleaned].map(mapBoldToLatin).join('');
+  }
+  return [...cleaned].map(mapLatinToBold).join('');
+}
+
+function isUnderlined(text: string): boolean {
+  const chars = [...text].filter((char) => char !== COMBINING_LOW_LINE && char.trim());
+  if (chars.length === 0) return false;
+  // Every visible char should be followed by a combining underline in the original string.
+  const withoutSpaces = text.replace(/\s/g, '');
+  if (!withoutSpaces) return false;
+  const pairs = withoutSpaces.match(/./gu) ?? [];
+  let underlined = 0;
+  let total = 0;
+  for (let i = 0; i < pairs.length; i += 1) {
+    if (pairs[i] === COMBINING_LOW_LINE) continue;
+    total += 1;
+    if (pairs[i + 1] === COMBINING_LOW_LINE) underlined += 1;
+  }
+  return total > 0 && underlined / total >= 0.6;
+}
+
+function toggleUnderline(text: string): string {
+  const cleaned = stripLegacyMarkup(text);
+  if (!cleaned) return cleaned;
+  if (isUnderlined(cleaned) || cleaned.includes(COMBINING_LOW_LINE)) {
+    return cleaned.replaceAll(COMBINING_LOW_LINE, '');
+  }
+  return [...cleaned]
+    .map((char) => (char === ' ' || char === '\n' ? char : `${char}${COMBINING_LOW_LINE}`))
+    .join('');
+}
 
 function ToolbarButton({
   label,
@@ -135,6 +285,19 @@ export function ThreadItemEditor({
   const length = item.content.trim().length;
   const overLimit = maxLength !== null && length > maxLength;
   const withinLimit = maxLength === null || length <= maxLength;
+  const mediaFormat: MediaFormat =
+    item.media.find((entry) => entry.format)?.format ?? 'post';
+  const hasVideo = item.media.some((entry) => entry.type === 'video');
+
+  function setMediaFormat(format: MediaFormat) {
+    if (format === 'reel' && !hasVideo) {
+      return;
+    }
+    onChange({
+      ...item,
+      media: item.media.map((entry) => ({ ...entry, format })),
+    });
+  }
 
   useEffect(() => {
     if (!delayOpen && !limitsOpen) {
@@ -205,44 +368,76 @@ export function ThreadItemEditor({
         />
 
         {item.media.length > 0 && (
-          <div className="flex flex-wrap gap-2 px-3 pb-3">
-            {item.media.map((media) => (
-              <div
-                key={media.id}
-                className="bg-surface-muted group relative size-16 overflow-hidden rounded-md"
-              >
-                {media.type === 'video' ? (
-                  <video
-                    src={media.url}
-                    className="h-full w-full object-cover"
-                    muted
-                    preload="metadata"
-                  />
-                ) : (
-                  <Image
-                    src={media.url}
-                    alt=""
-                    fill
-                    unoptimized
-                    sizes="64px"
-                    className="object-cover"
-                  />
-                )}
-                <button
-                  type="button"
-                  onClick={() =>
-                    onChange({
-                      ...item,
-                      media: item.media.filter((entry) => entry.id !== media.id),
-                    })
-                  }
-                  aria-label="Remove media"
-                  className="absolute top-0.5 right-0.5 flex size-5 items-center justify-center rounded-full bg-black/70 text-xs text-white"
+          <div className="space-y-2 px-3 pb-3">
+            <div
+              role="radiogroup"
+              aria-label="Media format"
+              className="bg-surface-muted/50 flex w-fit flex-wrap gap-1 rounded-lg p-1"
+            >
+              {MEDIA_FORMAT_OPTIONS.map((option) => {
+                const disabled = option.value === 'reel' && !hasVideo;
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    role="radio"
+                    aria-checked={mediaFormat === option.value}
+                    disabled={disabled}
+                    title={
+                      disabled ? 'Reels need a video. Add a video first.' : option.label
+                    }
+                    onClick={() => setMediaFormat(option.value)}
+                    className={cn(
+                      'rounded-md px-3 py-1.5 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-40',
+                      mediaFormat === option.value
+                        ? 'bg-primary text-primary-foreground shadow-sm'
+                        : 'text-muted-foreground hover:bg-surface-muted hover:text-foreground'
+                    )}
+                  >
+                    {option.label}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {item.media.map((media) => (
+                <div
+                  key={media.id}
+                  className="bg-surface-muted group relative size-16 overflow-hidden rounded-md"
                 >
-                  ✕
-                </button>
-              </div>
-            ))}
+                  {media.type === 'video' ? (
+                    <video
+                      src={media.url}
+                      className="h-full w-full object-cover"
+                      muted
+                      preload="metadata"
+                    />
+                  ) : (
+                    <Image
+                      src={media.url}
+                      alt=""
+                      fill
+                      unoptimized
+                      sizes="64px"
+                      className="object-cover"
+                    />
+                  )}
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onChange({
+                        ...item,
+                        media: item.media.filter((entry) => entry.id !== media.id),
+                      })
+                    }
+                    aria-label="Remove media"
+                    className="absolute top-0.5 right-0.5 flex size-5 items-center justify-center rounded-full bg-black/70 text-xs text-white"
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
@@ -440,15 +635,19 @@ export function ThreadItemEditor({
         open={pickerOpen}
         alreadySelected={item.media.length}
         onClose={() => setPickerOpen(false)}
-        onInsert={(media) =>
+        onInsert={(media) => {
+          const additions = media.filter(
+            (entry) => !item.media.some((existing) => existing.id === entry.id)
+          );
+          if (additions.length === 0) {
+            return;
+          }
+          const format = additions[0].format ?? mediaFormat;
           onChange({
             ...item,
-            media: [
-              ...item.media,
-              ...media.filter((entry) => !item.media.some((existing) => existing.id === entry.id)),
-            ],
-          })
-        }
+            media: [...item.media, ...additions].map((entry) => ({ ...entry, format })),
+          });
+        }}
       />
     </div>
   );

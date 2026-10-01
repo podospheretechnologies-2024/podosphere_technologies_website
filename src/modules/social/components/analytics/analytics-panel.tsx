@@ -1,19 +1,26 @@
 'use client';
 
 import dayjs from 'dayjs';
+import { Download } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Button } from '@/shared/components/ui/button';
 import { EmptyState } from '@/shared/components/ui/empty-state';
+import { Input } from '@/shared/components/ui/input';
 import { SegmentedControl } from '@/shared/components/ui/segmented-control';
 import { cn } from '@/shared/lib/cn';
 import {
   ANALYTICS_DEFAULT_RANGE,
+  ANALYTICS_MAX_RANGE_DAYS,
   ANALYTICS_RANGE_OPTIONS,
   type AnalyticsRange,
 } from '../../config/analytics';
 import { useAnalytics } from '../../hooks/use-analytics';
+import { downloadAnalyticsReport } from '../../lib/analytics-download';
 import type { AnalyticsActivity } from '../../types/analytics';
+import { ActivityChart } from './activity-chart';
 import { ChannelBreakdown } from './channel-breakdown';
+import { PostPerformance } from './post-performance';
+import { PostTimeline } from './post-timeline';
 
 interface SparklineCardProps {
   label: string;
@@ -110,13 +117,27 @@ function dailySeries(
 
 export function AnalyticsPanel() {
   const [rangeValue, setRangeValue] = useState<AnalyticsRange>(ANALYTICS_DEFAULT_RANGE);
-  const days = Number(rangeValue);
+  const [customStart, setCustomStart] = useState(() =>
+    dayjs().subtract(29, 'day').format('YYYY-MM-DD')
+  );
+  const [customEnd, setCustomEnd] = useState(() => dayjs().format('YYYY-MM-DD'));
 
   const range = useMemo(() => {
-    const end = dayjs().add(1, 'day').startOf('day');
-    return { start: end.subtract(days, 'day'), end };
-  }, [days]);
+    const endExclusive = dayjs().add(1, 'day').startOf('day');
+    if (rangeValue === 'custom') {
+      let start = dayjs(customStart).startOf('day');
+      let end = dayjs(customEnd).add(1, 'day').startOf('day');
+      if (!start.isValid()) start = endExclusive.subtract(30, 'day');
+      if (!end.isValid() || !end.isAfter(start)) end = start.add(1, 'day');
+      const maxEnd = start.add(ANALYTICS_MAX_RANGE_DAYS, 'day');
+      if (end.isAfter(maxEnd)) end = maxEnd;
+      return { start, end };
+    }
+    const days = Number(rangeValue);
+    return { start: endExclusive.subtract(days, 'day'), end: endExclusive };
+  }, [rangeValue, customStart, customEnd]);
 
+  const days = Math.max(1, range.end.diff(range.start, 'day'));
   const { data, error, isLoading, mutate } = useAnalytics(range);
 
   const publishedSeries = useMemo(
@@ -140,14 +161,65 @@ export function AnalyticsPanel() {
     [publishedSeries, failedSeries]
   );
 
+  const customInvalid =
+    rangeValue === 'custom' &&
+    (!dayjs(customStart).isValid() ||
+      !dayjs(customEnd).isValid() ||
+      !dayjs(customEnd).startOf('day').isAfter(dayjs(customStart).startOf('day').subtract(1, 'day')) ||
+      dayjs(customEnd).startOf('day').diff(dayjs(customStart).startOf('day'), 'day') + 1 >
+        ANALYTICS_MAX_RANGE_DAYS);
+
   return (
     <div className="space-y-6">
-      <SegmentedControl
-        label="Date range"
-        options={ANALYTICS_RANGE_OPTIONS}
-        value={rangeValue}
-        onChange={setRangeValue}
-      />
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
+        <div className="space-y-3">
+          <SegmentedControl
+            label="Date range"
+            options={ANALYTICS_RANGE_OPTIONS}
+            value={rangeValue}
+            onChange={setRangeValue}
+          />
+          {rangeValue === 'custom' && (
+            <div className="flex flex-wrap items-end gap-3">
+              <label className="space-y-1 text-xs">
+                <span className="text-muted-foreground font-medium">From</span>
+                <Input
+                  type="date"
+                  value={customStart}
+                  max={customEnd}
+                  onChange={(event) => setCustomStart(event.target.value)}
+                  className="h-9 w-auto"
+                />
+              </label>
+              <label className="space-y-1 text-xs">
+                <span className="text-muted-foreground font-medium">To</span>
+                <Input
+                  type="date"
+                  value={customEnd}
+                  min={customStart}
+                  max={dayjs().format('YYYY-MM-DD')}
+                  onChange={(event) => setCustomEnd(event.target.value)}
+                  className="h-9 w-auto"
+                />
+              </label>
+              {customInvalid && (
+                <p className="text-danger text-xs">
+                  Pick a valid range up to {ANALYTICS_MAX_RANGE_DAYS} days.
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+
+        <Button
+          variant="secondary"
+          disabled={!data || isLoading}
+          onClick={() => data && downloadAnalyticsReport(data, range)}
+        >
+          <Download className="size-4" />
+          Download report
+        </Button>
+      </div>
 
       {error && !data ? (
         <EmptyState
@@ -198,7 +270,13 @@ export function AnalyticsPanel() {
             />
           </div>
 
+          <ActivityChart start={range.start} days={days} activity={data.activity} />
+
           <ChannelBreakdown channels={data.channels} />
+
+          <PostTimeline posts={data.posts} />
+
+          <PostPerformance posts={data.posts} />
         </>
       ) : null}
     </div>

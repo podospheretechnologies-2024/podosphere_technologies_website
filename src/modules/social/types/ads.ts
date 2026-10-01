@@ -34,8 +34,54 @@ export interface AdsCampaignItem {
   /** Effective status from Meta, e.g. ACTIVE, PAUSED, CAMPAIGN_PAUSED, WITH_ISSUES. */
   status: string;
   objective: string;
+  /** Human-readable budget, e.g. "₹300.00 Daily" or null when set on ad sets. */
+  budgetLabel: string | null;
+  budgetAmount: number | null;
+  budgetType: 'daily' | 'lifetime' | null;
   spend: number;
   impressions: number;
+  clicks: number;
+  ctr: number;
+  cpc: number;
+  leads: number;
+  costPerLead: number | null;
+  landingPageViews: number;
+}
+
+export interface AdsAdSetTargeting {
+  ageMin: number | null;
+  ageMax: number | null;
+  locations: string[];
+  interests: string[];
+  behaviors: string[];
+}
+
+export interface AdsAdSetItem {
+  id: string;
+  name: string;
+  status: string;
+  campaignId: string | null;
+  campaignName: string | null;
+  targeting: AdsAdSetTargeting;
+  spend: number;
+  leads: number;
+  costPerLead: number | null;
+}
+
+export interface AdsAdItem {
+  id: string;
+  name: string;
+  status: string;
+  campaignId: string | null;
+  campaignName: string | null;
+  adsetId: string | null;
+  adsetName: string | null;
+  thumbnailUrl: string | null;
+  /** Primary text / body copy. */
+  primaryText: string | null;
+  headline: string | null;
+  description: string | null;
+  spend: number;
   clicks: number;
   ctr: number;
   leads: number;
@@ -62,12 +108,29 @@ export interface AdsLiveAd {
   costPerLead: number | null;
 }
 
+export interface AdsLeadItem {
+  id: string;
+  createdTime: string;
+  adId: string | null;
+  adName: string | null;
+  adsetId: string | null;
+  adsetName: string | null;
+  campaignId: string | null;
+  campaignName: string | null;
+  formId: string | null;
+  /** Flattened lead form answers, e.g. "email: a@b.com". */
+  fields: { name: string; values: string[] }[];
+}
+
 export interface AdsOverview {
   account: AdAccountItem;
   datePreset: AdsDatePreset;
   totals: AdsTotals;
   daily: AdsDailyPoint[];
   campaigns: AdsCampaignItem[];
+  adSets: AdsAdSetItem[];
+  ads: AdsAdItem[];
+  leads: AdsLeadItem[];
   /** Ads that are live / currently eligible to serve. */
   liveAds: AdsLiveAd[];
 }

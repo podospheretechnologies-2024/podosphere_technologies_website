@@ -1,12 +1,36 @@
 import 'server-only';
 import { HttpError } from '@/shared/server/http-error';
 import { ANALYTICS_MAX_RANGE_DAYS } from '../../config/analytics';
-import type { AnalyticsChannel, AnalyticsSummary } from '../../types/analytics';
+import type { AnalyticsChannel, AnalyticsPost, AnalyticsSummary } from '../../types/analytics';
+import type { PostMedia } from '../../types/post';
 import { integrationRegistry } from '../integrations/core/integration.registry';
 import { analyticsRepository } from './analytics.repository';
 import type { AnalyticsQuery } from './analytics.schema';
+import { fetchPostMetrics } from './post-metrics';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+const METRICS_CONCURRENCY = 6;
+
+async function mapPool<T, R>(items: T[], concurrency: number, mapper: (item: T) => Promise<R>) {
+  if (items.length === 0) return [] as R[];
+  const results: R[] = new Array(items.length);
+  let next = 0;
+  async function worker() {
+    while (next < items.length) {
+      const index = next;
+      next += 1;
+      results[index] = await mapper(items[index]);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, () => worker()));
+  return results;
+}
+
+function thumbnailFromMedia(media: unknown): string | null {
+  if (!Array.isArray(media) || media.length === 0) return null;
+  const first = media[0] as PostMedia;
+  return typeof first?.url === 'string' ? first.url : null;
+}
 
 export const analyticsService = {
   async summary(organizationId: string, query: AnalyticsQuery): Promise<AnalyticsSummary> {
@@ -19,11 +43,12 @@ export const analyticsService = {
       throw new HttpError(400, `Range cannot exceed ${ANALYTICS_MAX_RANGE_DAYS} days`);
     }
 
-    const [outcomes, scheduled, drafts, channelRows] = await Promise.all([
+    const [outcomes, scheduled, drafts, channelRows, publishedRows] = await Promise.all([
       analyticsRepository.listOutcomes(organizationId, start, end),
       analyticsRepository.countUpcoming(organizationId, new Date()),
       analyticsRepository.countDrafts(organizationId),
       analyticsRepository.listChannels(organizationId),
+      analyticsRepository.listPublishedPosts(organizationId, start, end),
     ]);
 
     const channels = new Map<string, AnalyticsChannel>(
@@ -54,6 +79,37 @@ export const analyticsService = {
       }
     }
 
+    const posts: AnalyticsPost[] = await mapPool(
+      publishedRows,
+      METRICS_CONCURRENCY,
+      async (row) => {
+        const providerName =
+          integrationRegistry.get(row.integration.providerIdentifier)?.name ??
+          row.integration.providerIdentifier;
+        const { metrics, unavailable } = await fetchPostMetrics(
+          row.integration.providerIdentifier,
+          row.releaseId,
+          row.integration.accessToken
+        );
+        return {
+          id: row.id,
+          content: row.content,
+          publishDate: row.publishDate.toISOString(),
+          releaseUrl: row.releaseUrl,
+          thumbnailUrl: thumbnailFromMedia(row.media),
+          channel: {
+            id: row.integration.id,
+            name: row.integration.name,
+            picture: row.integration.picture,
+            providerIdentifier: row.integration.providerIdentifier,
+            providerName,
+          },
+          metrics,
+          metricsUnavailable: unavailable,
+        };
+      }
+    );
+
     const attempted = published + failed;
 
     return {
@@ -66,6 +122,7 @@ export const analyticsService = {
         date: outcome.publishDate.toISOString(),
         outcome: outcome.state === 'PUBLISHED' ? 'published' : 'error',
       })),
+      posts,
     };
   },
 };

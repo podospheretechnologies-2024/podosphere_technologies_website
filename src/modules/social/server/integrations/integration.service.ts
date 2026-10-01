@@ -72,12 +72,38 @@ function toAvailableProvider(provider: SocialProvider): AvailableProvider {
   };
 }
 
+const EXTRA_CHANNEL_PROVIDERS: AvailableProvider[] = [
+  {
+    identifier: 'whatsapp',
+    name: 'WhatsApp',
+    configured: true,
+    requiredEnv: [],
+    maxLength: 4096,
+  },
+  {
+    identifier: 'youtube',
+    name: 'YouTube',
+    configured: false,
+    requiredEnv: [],
+    maxLength: 0,
+    comingSoon: true,
+  },
+  {
+    identifier: 'pinterest',
+    name: 'Pinterest',
+    configured: false,
+    requiredEnv: [],
+    maxLength: 0,
+    comingSoon: true,
+  },
+];
+
 export const integrationService = {
   async list(organizationId: string): Promise<ChannelsResponse> {
     const rows = await integrationRepository.list(organizationId);
     return {
       channels: rows.map(toChannelItem),
-      providers: integrationRegistry.list().map(toAvailableProvider),
+      providers: [...integrationRegistry.list().map(toAvailableProvider), ...EXTRA_CHANNEL_PROVIDERS],
     };
   },
 

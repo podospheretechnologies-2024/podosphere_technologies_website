@@ -1,10 +1,12 @@
 'use client';
 
 import { Plus, Share2 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { Button } from '@/shared/components/ui/button';
 import { EmptyState } from '@/shared/components/ui/empty-state';
 import { cn } from '@/shared/lib/cn';
+import { SOCIAL_BASE_PATH } from '../../config/navigation';
 import { useChannels } from '../../hooks/use-channels';
 import {
   deleteChannel,
@@ -26,6 +28,7 @@ function errorMessage(error: unknown, fallback: string): string {
 }
 
 export function ChannelsManager({ connected, connectError }: ChannelsManagerProps) {
+  const router = useRouter();
   const { data, error, isLoading, mutate } = useChannels();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [connecting, setConnecting] = useState<string | null>(null);
@@ -76,6 +79,14 @@ export function ChannelsManager({ connected, connectError }: ChannelsManagerProp
   }
 
   function handleSelectProvider(provider: AvailableProvider) {
+    if (provider.comingSoon) {
+      return;
+    }
+    if (provider.identifier === 'whatsapp') {
+      setDialogOpen(false);
+      router.push(`${SOCIAL_BASE_PATH}/whatsapp`);
+      return;
+    }
     void connect(provider.identifier);
   }
 

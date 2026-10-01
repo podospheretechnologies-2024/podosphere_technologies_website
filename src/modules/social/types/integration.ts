@@ -18,6 +18,8 @@ export interface AvailableProvider {
   configured: boolean;
   requiredEnv: string[];
   maxLength: number;
+  /** Shown in Add Channel as disabled with "Coming soon". */
+  comingSoon?: boolean;
 }
 
 export interface ChannelsResponse {

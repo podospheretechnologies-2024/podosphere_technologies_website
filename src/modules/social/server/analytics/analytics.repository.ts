@@ -44,4 +44,32 @@ export const analyticsRepository = {
       orderBy: { name: 'asc' },
     });
   },
+
+  listPublishedPosts(organizationId: string, start: Date, end: Date) {
+    return prisma.socialPost.findMany({
+      where: {
+        ...rootPostsWhere(organizationId),
+        state: 'PUBLISHED',
+        publishDate: { gte: start, lt: end },
+      },
+      select: {
+        id: true,
+        content: true,
+        media: true,
+        publishDate: true,
+        releaseId: true,
+        releaseUrl: true,
+        integration: {
+          select: {
+            id: true,
+            name: true,
+            picture: true,
+            providerIdentifier: true,
+            accessToken: true,
+          },
+        },
+      },
+      orderBy: { publishDate: 'desc' },
+    });
+  },
 };

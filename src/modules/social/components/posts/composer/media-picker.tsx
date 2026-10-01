@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { Button } from '@/shared/components/ui/button';
 import { Modal } from '@/shared/components/ui/modal';
 import { cn } from '@/shared/lib/cn';
+import { MEDIA_FORMAT_OPTIONS, type MediaFormat } from '../../../config/media';
 import { POST_MAX_MEDIA } from '../../../config/posts';
 import { useMediaLibrary } from '../../../hooks/use-media-library';
 import type { MediaItem } from '../../../types/media';
@@ -17,8 +18,8 @@ interface MediaPickerProps {
   onInsert: (media: PostMedia[]) => void;
 }
 
-function toPostMedia(media: MediaItem): PostMedia {
-  return { id: media.id, url: media.url, type: media.type, format: media.format, alt: media.alt };
+function toPostMedia(media: MediaItem, format: MediaFormat): PostMedia {
+  return { id: media.id, url: media.url, type: media.type, format, alt: media.alt };
 }
 
 export function MediaPicker({ open, alreadySelected, onClose, onInsert }: MediaPickerProps) {
@@ -59,8 +60,10 @@ function MediaPickerBody({
 }) {
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<MediaItem[]>([]);
+  const [format, setFormat] = useState<MediaFormat>('post');
   const { data, error, isLoading } = useMediaLibrary(page, '');
   const pages = data?.pages ?? 0;
+  const hasVideo = selected.some((item) => item.type === 'video');
 
   function toggle(media: MediaItem) {
     setSelected((current) =>
@@ -72,6 +75,13 @@ function MediaPickerBody({
     );
   }
 
+  function chooseFormat(next: MediaFormat) {
+    if (next === 'reel' && selected.length > 0 && !hasVideo) {
+      return;
+    }
+    setFormat(next);
+  }
+
   const pageNumbers =
     pages <= 1
       ? []
@@ -79,6 +89,38 @@ function MediaPickerBody({
 
   return (
     <>
+      <div className="mb-4">
+        <p className="text-muted-foreground mb-2 text-xs font-medium">Publish as</p>
+        <div
+          role="radiogroup"
+          aria-label="Publish as"
+          className="bg-surface-muted/50 flex w-fit flex-wrap gap-1 rounded-lg p-1"
+        >
+          {MEDIA_FORMAT_OPTIONS.map((option) => {
+            const disabled = option.value === 'reel' && selected.length > 0 && !hasVideo;
+            return (
+              <button
+                key={option.value}
+                type="button"
+                role="radio"
+                aria-checked={format === option.value}
+                disabled={disabled}
+                title={disabled ? 'Reels need a video. Select a video first.' : option.label}
+                onClick={() => chooseFormat(option.value)}
+                className={cn(
+                  'rounded-md px-3 py-1.5 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-40',
+                  format === option.value
+                    ? 'bg-primary text-primary-foreground shadow-sm'
+                    : 'text-muted-foreground hover:bg-surface-muted hover:text-foreground'
+                )}
+              >
+                {option.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       {error && !data ? (
         <p className="text-danger text-sm">Could not load media.</p>
       ) : isLoading && !data ? (
@@ -172,7 +214,10 @@ function MediaPickerBody({
         <Button variant="secondary" onClick={onClose}>
           Cancel
         </Button>
-        <Button onClick={() => onInsert(selected.map(toPostMedia))} disabled={selected.length === 0}>
+        <Button
+          onClick={() => onInsert(selected.map((item) => toPostMedia(item, format)))}
+          disabled={selected.length === 0 || (format === 'reel' && !hasVideo)}
+        >
           Add selected media
         </Button>
       </div>
