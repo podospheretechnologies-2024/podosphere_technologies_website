@@ -1,42 +1,44 @@
 import dayjs from 'dayjs';
+import { ADS_DEFAULT_DATE_PRESET } from './ads';
 import type { SocialAppNavItem } from './app-nav';
+import { POST_LIST_FILTER_VALUES } from './posts';
 
 export interface SectionBackendEndpoint {
   label: string;
   url: string;
 }
 
-/** Live GET endpoints that back each social section (no mocks). */
+/** Primary live GET endpoints for each social section (no mocks). */
 export function getSectionBackendEndpoints(
   sectionKey: SocialAppNavItem['key'] | undefined
 ): SectionBackendEndpoint[] {
   if (!sectionKey) return [];
 
   const endExclusive = dayjs().add(1, 'day').startOf('day');
-  const weekStart = endExclusive.subtract(7, 'day');
-  const analyticsStart = endExclusive.subtract(7, 'day');
+  const calendarStart = endExclusive.subtract(31, 'day');
+  const analyticsStart = endExclusive.subtract(30, 'day');
 
   switch (sectionKey) {
     case 'calendar':
       return [
         {
-          label: 'Calendar posts',
+          label: 'Calendar posts (31 days)',
           url: `/api/social/posts/calendar?${new URLSearchParams({
-            startDate: weekStart.toISOString(),
+            startDate: calendarStart.toISOString(),
             endDate: endExclusive.toISOString(),
           })}`,
         },
-        {
-          label: 'Posts list',
-          url: `/api/social/posts?${new URLSearchParams({ page: '1', state: 'all' })}`,
-        },
+        ...POST_LIST_FILTER_VALUES.map((state) => ({
+          label: `Posts list · ${state}`,
+          url: `/api/social/posts?${new URLSearchParams({ page: '1', state })}`,
+        })),
       ];
     case 'ai':
       return [{ label: 'AI status', url: '/api/social/ai' }];
     case 'analytics':
       return [
         {
-          label: 'Analytics summary',
+          label: 'Analytics summary (30 days)',
           url: `/api/social/analytics?${new URLSearchParams({
             startDate: analyticsStart.toISOString(),
             endDate: endExclusive.toISOString(),
@@ -46,7 +48,7 @@ export function getSectionBackendEndpoints(
     case 'media':
       return [
         {
-          label: 'Media library',
+          label: 'Media library page 1',
           url: `/api/social/media?${new URLSearchParams({ page: '1' })}`,
         },
       ];
@@ -74,3 +76,5 @@ export function getSectionBackendEndpoints(
       return [];
   }
 }
+
+export { ADS_DEFAULT_DATE_PRESET };

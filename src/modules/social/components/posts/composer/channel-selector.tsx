@@ -39,7 +39,47 @@ function matchesQuery(channel: ChannelItem, query: string): boolean {
 }
 
 function normalizeBrand(value: string): string {
-  return value.trim().toLowerCase();
+  return value.trim().toLowerCase().replace(/^@/, '');
+}
+
+/** Compact brand key: letters/digits only, drop common TLDs so francoleone.in ≈ Franco Leone. */
+function brandKey(value: string): string {
+  return normalizeBrand(value)
+    .replace(/\.(in|com|co|net|org|io|app|me)$/i, '')
+    .replace(/[^a-z0-9]+/g, '');
+}
+
+function brandKeys(channel: ChannelItem): string[] {
+  const keys = new Set<string>();
+  for (const value of [channel.name, channel.username]) {
+    if (!value) continue;
+    const key = brandKey(value);
+    if (key.length >= 3) {
+      keys.add(key);
+    }
+  }
+  return [...keys];
+}
+
+function brandsMatch(a: ChannelItem, b: ChannelItem): boolean {
+  const aKeys = brandKeys(a);
+  const bKeys = brandKeys(b);
+  for (const ak of aKeys) {
+    for (const bk of bKeys) {
+      if (ak === bk) {
+        return true;
+      }
+      // Close variants: podocrm / podocrmindia (min length avoids tiny false matches)
+      if (ak.length >= 5 && bk.length >= 5 && (ak.includes(bk) || bk.includes(ak))) {
+        return true;
+      }
+    }
+  }
+  // Same profile image is a strong Meta brand signal when names differ slightly.
+  if (a.picture && b.picture && a.picture === b.picture) {
+    return true;
+  }
+  return false;
 }
 
 /** Same client group, or same brand name/username across Instagram / Facebook / LinkedIn / etc. */
@@ -48,22 +88,11 @@ export function relatedChannels(channels: ChannelItem[], channel: ChannelItem): 
     return channels.filter((entry) => entry.customer?.id === channel.customer?.id);
   }
 
-  const keys = new Set<string>([normalizeBrand(channel.name)]);
-  if (channel.username) {
-    keys.add(normalizeBrand(channel.username));
-  }
-
   return channels.filter((entry) => {
     if (entry.customer?.id) {
       return false;
     }
-    if (keys.has(normalizeBrand(entry.name))) {
-      return true;
-    }
-    if (entry.username && keys.has(normalizeBrand(entry.username))) {
-      return true;
-    }
-    return false;
+    return entry.id === channel.id || brandsMatch(channel, entry);
   });
 }
 

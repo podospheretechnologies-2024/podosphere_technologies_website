@@ -4,76 +4,69 @@ import { Code2, RefreshCw, X } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { Button } from '@/shared/components/ui/button';
 import { cn } from '@/shared/lib/cn';
-import { apiFetch } from '@/shared/lib/fetcher';
+import { getSectionBackendEndpoints } from '../../config/section-backend';
 import {
-  getSectionBackendEndpoints,
-  type SectionBackendEndpoint,
-} from '../../config/section-backend';
+  loadFullSectionBackend,
+  type SectionBackendResult,
+} from '../../lib/section-backend.client';
 
 interface SectionBackendPanelProps {
   sectionKey: string | undefined;
   sectionLabel: string;
 }
 
-interface EndpointResult {
-  label: string;
-  url: string;
-  status: 'idle' | 'loading' | 'ok' | 'error';
-  data?: unknown;
-  error?: string;
-}
+type Row = SectionBackendResult & { status: 'loading' | 'ok' | 'error' };
 
 export function SectionBackendPanel({ sectionKey, sectionLabel }: SectionBackendPanelProps) {
   const [open, setOpen] = useState(false);
-  const [results, setResults] = useState<EndpointResult[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [results, setResults] = useState<Row[]>([]);
+  const [complete, setComplete] = useState<Record<string, unknown> | null>(null);
   const endpoints = getSectionBackendEndpoints(sectionKey);
 
-  const load = useCallback(async (list: SectionBackendEndpoint[]) => {
+  const load = useCallback(async () => {
+    if (!sectionKey) {
+      return;
+    }
+    setLoading(true);
+    setComplete(null);
     setResults(
-      list.map((endpoint) => ({
+      getSectionBackendEndpoints(sectionKey).map((endpoint) => ({
         label: endpoint.label,
         url: endpoint.url,
         status: 'loading',
       }))
     );
-
-    const next = await Promise.all(
-      list.map(async (endpoint) => {
-        try {
-          const data = await apiFetch<unknown>(endpoint.url);
-          return {
-            label: endpoint.label,
-            url: endpoint.url,
-            status: 'ok' as const,
-            data,
-          };
-        } catch (error) {
-          return {
-            label: endpoint.label,
-            url: endpoint.url,
-            status: 'error' as const,
-            error: error instanceof Error ? error.message : 'Request failed',
-          };
-        }
-      })
-    );
-    setResults(next);
-  }, []);
+    try {
+      const payload = await loadFullSectionBackend(sectionKey);
+      setResults(payload.endpoints);
+      setComplete(payload.complete);
+    } catch (error) {
+      setResults([
+        {
+          label: 'Section backend',
+          url: sectionKey,
+          status: 'error',
+          error: error instanceof Error ? error.message : 'Could not load backend data',
+        },
+      ]);
+      setComplete(null);
+    } finally {
+      setLoading(false);
+    }
+  }, [sectionKey]);
 
   useEffect(() => {
     setOpen(false);
     setResults([]);
+    setComplete(null);
   }, [sectionKey]);
 
   useEffect(() => {
     if (!open || !sectionKey) {
       return;
     }
-    const list = getSectionBackendEndpoints(sectionKey);
-    if (list.length === 0) {
-      return;
-    }
-    void load(list);
+    void load();
   }, [open, sectionKey, load]);
 
   if (endpoints.length === 0) {
@@ -97,23 +90,25 @@ export function SectionBackendPanel({ sectionKey, sectionLabel }: SectionBackend
       {open && (
         <div
           id="section-backend-panel"
-          className="border-border bg-surface absolute top-full right-0 z-50 mt-2 w-[min(92vw,40rem)] overflow-hidden rounded-xl border shadow-xl"
+          className="border-border bg-surface absolute top-full right-0 z-50 mt-2 w-[min(96vw,48rem)] overflow-hidden rounded-xl border shadow-xl"
         >
           <div className="border-border flex items-center justify-between gap-2 border-b px-3 py-2">
             <div className="min-w-0">
               <p className="truncate text-sm font-semibold">{sectionLabel} · Backend</p>
               <p className="text-muted-foreground text-xs">
-                Live API responses for this section
+                Complete live API data for this section
+                {loading ? ' · loading…' : complete ? ` · ${results.length} responses` : ''}
               </p>
             </div>
             <div className="flex shrink-0 items-center gap-1">
               <button
                 type="button"
-                onClick={() => void load(getSectionBackendEndpoints(sectionKey))}
+                onClick={() => void load()}
+                disabled={loading}
                 title="Refresh"
-                className="text-muted-foreground hover:bg-surface-muted hover:text-foreground rounded-md p-1.5 transition"
+                className="text-muted-foreground hover:bg-surface-muted hover:text-foreground rounded-md p-1.5 transition disabled:opacity-40"
               >
-                <RefreshCw className="size-3.5" />
+                <RefreshCw className={cn('size-3.5', loading && 'animate-spin')} />
               </button>
               <button
                 type="button"
@@ -126,9 +121,23 @@ export function SectionBackendPanel({ sectionKey, sectionLabel }: SectionBackend
             </div>
           </div>
 
-          <div className="max-h-[min(70vh,32rem)] space-y-3 overflow-y-auto p-3">
+          <div className="max-h-[min(80vh,40rem)] space-y-3 overflow-y-auto p-3">
+            {complete && (
+              <div className="border-primary/30 bg-primary/5 overflow-hidden rounded-lg border">
+                <div className="flex items-center justify-between gap-2 px-3 py-2">
+                  <p className="text-xs font-semibold">Complete section data</p>
+                  <span className="bg-primary/15 text-primary rounded-md px-1.5 py-0.5 text-[10px] font-semibold tracking-wide uppercase">
+                    full
+                  </span>
+                </div>
+                <pre className="border-border max-h-[min(50vh,24rem)] overflow-auto border-t p-3 font-mono text-[11px] leading-relaxed whitespace-pre-wrap break-all">
+                  {JSON.stringify(complete, null, 2)}
+                </pre>
+              </div>
+            )}
+
             {results.map((result) => (
-              <div key={result.url} className="border-border overflow-hidden rounded-lg border">
+              <div key={`${result.label}:${result.url}`} className="border-border overflow-hidden rounded-lg border">
                 <div className="bg-surface-muted/50 flex flex-wrap items-center justify-between gap-2 px-3 py-2">
                   <p className="text-xs font-semibold">{result.label}</p>
                   <span
@@ -145,7 +154,7 @@ export function SectionBackendPanel({ sectionKey, sectionLabel }: SectionBackend
                 <p className="text-muted-foreground border-border border-b px-3 py-1.5 font-mono text-[11px] break-all">
                   GET {result.url}
                 </p>
-                <pre className="overflow-x-auto p-3 font-mono text-[11px] leading-relaxed whitespace-pre-wrap">
+                <pre className="max-h-80 overflow-auto p-3 font-mono text-[11px] leading-relaxed whitespace-pre-wrap break-all">
                   {result.status === 'loading'
                     ? 'Loading…'
                     : result.status === 'error'

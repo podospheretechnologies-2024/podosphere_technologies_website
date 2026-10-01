@@ -1,11 +1,10 @@
 'use client';
 
+import { MessageCircle, Phone, RefreshCw, Send } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '@/shared/components/ui/button';
-import { Card } from '@/shared/components/ui/card';
 import { EmptyState } from '@/shared/components/ui/empty-state';
 import { Input } from '@/shared/components/ui/input';
-import { SegmentedControl } from '@/shared/components/ui/segmented-control';
 import { cn } from '@/shared/lib/cn';
 import {
   WHATSAPP_MESSAGE_TYPES,
@@ -40,10 +39,18 @@ export function WhatsAppPanel() {
   const { data, error, isLoading, mutate } = useWhatsApp();
 
   if (isLoading) {
-    return <Card className="text-muted-foreground text-sm">Loading WhatsApp number…</Card>;
+    return (
+      <div className="border-border bg-surface text-muted-foreground rounded-2xl border p-8 text-sm">
+        Loading WhatsApp number…
+      </div>
+    );
   }
   if (error) {
-    return <Card className="text-danger text-sm">{error.message}</Card>;
+    return (
+      <div className="border-danger/40 bg-danger/10 text-danger rounded-2xl border p-6 text-sm">
+        {error.message}
+      </div>
+    );
   }
   if (!data?.configured || !data.number) {
     return (
@@ -55,16 +62,18 @@ export function WhatsAppPanel() {
   }
 
   return (
-    <div className="space-y-6">
-      <NumberCard number={data.number} />
+    <div className="space-y-5">
+      <NumberStrip number={data.number} />
       <WhatsAppInbox number={data.number} />
-      <SendCard data={data} />
-      <TemplatesCard data={data} onRefresh={() => void mutate()} />
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
+        <SendCard data={data} />
+        <TemplatesCard data={data} onRefresh={() => void mutate()} />
+      </div>
     </div>
   );
 }
 
-function Badge({
+function StatusChip({
   tone,
   children,
 }: {
@@ -74,13 +83,22 @@ function Badge({
   return (
     <span
       className={cn(
-        'rounded-full px-2 py-0.5 text-xs font-medium',
+        'inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold tracking-wide uppercase',
         tone === 'success' && 'bg-success/15 text-success',
-        tone === 'warning' && 'bg-amber-500/15 text-amber-600 dark:text-amber-400',
+        tone === 'warning' && 'bg-amber-500/15 text-amber-600',
         tone === 'danger' && 'bg-danger/15 text-danger',
         tone === 'muted' && 'bg-surface-muted text-muted-foreground'
       )}
     >
+      <span
+        className={cn(
+          'size-1.5 rounded-full',
+          tone === 'success' && 'bg-success',
+          tone === 'warning' && 'bg-amber-500',
+          tone === 'danger' && 'bg-danger',
+          tone === 'muted' && 'bg-muted-foreground'
+        )}
+      />
       {children}
     </span>
   );
@@ -88,25 +106,34 @@ function Badge({
 
 const qualityTone = { GREEN: 'success', YELLOW: 'warning', RED: 'danger' } as const;
 
-function NumberCard({ number }: { number: WhatsAppNumber }) {
+function NumberStrip({ number }: { number: WhatsAppNumber }) {
   return (
-    <Card className="flex flex-wrap items-center justify-between gap-4">
-      <div>
-        <p className="text-lg font-semibold tracking-tight">{number.displayPhoneNumber}</p>
-        <p className="text-muted-foreground text-sm">{number.verifiedName}</p>
+    <div className="border-border from-surface via-surface to-success/5 flex flex-wrap items-center justify-between gap-4 rounded-2xl border bg-gradient-to-r px-4 py-3.5">
+      <div className="flex min-w-0 items-center gap-3">
+        <span className="bg-success/15 text-success flex size-11 shrink-0 items-center justify-center rounded-2xl">
+          <Phone className="size-5" />
+        </span>
+        <div className="min-w-0">
+          <p className="truncate text-base font-semibold tracking-tight">
+            {number.displayPhoneNumber}
+          </p>
+          <p className="text-muted-foreground truncate text-sm">{number.verifiedName}</p>
+        </div>
       </div>
-      <div className="flex flex-wrap items-center gap-2 text-xs">
-        <Badge tone={number.status === 'CONNECTED' ? 'success' : 'warning'}>
+      <div className="flex flex-wrap items-center gap-2">
+        <StatusChip tone={number.status === 'CONNECTED' ? 'success' : 'warning'}>
           {number.status.toLowerCase()}
-        </Badge>
-        <Badge tone={qualityTone[number.qualityRating as keyof typeof qualityTone] ?? 'muted'}>
-          {`quality: ${number.qualityRating.toLowerCase()}`}
-        </Badge>
+        </StatusChip>
+        <StatusChip tone={qualityTone[number.qualityRating as keyof typeof qualityTone] ?? 'muted'}>
+          {`quality ${number.qualityRating.toLowerCase()}`}
+        </StatusChip>
         {number.messagingLimitTier && (
-          <Badge tone="muted">{`limit: ${number.messagingLimitTier.replace('TIER_', '')}/day`}</Badge>
+          <StatusChip tone="muted">
+            {`${number.messagingLimitTier.replace('TIER_', '')}/day`}
+          </StatusChip>
         )}
       </div>
-    </Card>
+    </div>
   );
 }
 
@@ -166,27 +193,59 @@ function SendCard({ data }: { data: WhatsAppOverview }) {
     }
   }
 
+  const previewText =
+    type === 'text'
+      ? text || 'Your message will appear here'
+      : template
+        ? fillTemplate(template, values)
+        : 'Pick a template to preview';
+
   return (
-    <Card>
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-sm font-semibold">Send a message</h2>
-        <SegmentedControl
-          label="Message type"
-          options={WHATSAPP_MESSAGE_TYPES}
-          value={type}
-          onChange={setType}
-          disabled={sending}
-        />
+    <section className="border-border bg-surface overflow-hidden rounded-2xl border">
+      <div className="border-border flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3">
+        <div className="flex items-center gap-2">
+          <span className="bg-primary/15 text-primary flex size-8 items-center justify-center rounded-xl">
+            <Send className="size-3.5" />
+          </span>
+          <div>
+            <h2 className="text-sm font-semibold">Compose</h2>
+            <p className="text-muted-foreground text-xs">Send text or an approved template</p>
+          </div>
+        </div>
+        <div
+          role="tablist"
+          aria-label="Message type"
+          className="bg-surface-muted flex rounded-lg p-0.5"
+        >
+          {WHATSAPP_MESSAGE_TYPES.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              role="tab"
+              aria-selected={type === option.value}
+              disabled={sending}
+              onClick={() => setType(option.value)}
+              className={cn(
+                'rounded-md px-3 py-1.5 text-xs font-semibold transition',
+                type === option.value
+                  ? 'bg-surface text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       <form
-        className="grid gap-6 md:grid-cols-2"
+        className="grid gap-0 md:grid-cols-2"
         onSubmit={(event) => {
           event.preventDefault();
           void send();
         }}
       >
-        <div className="space-y-4">
+        <div className="border-border space-y-4 border-b p-4 md:border-r md:border-b-0">
           <label className="block space-y-1.5 text-sm font-medium">
             <span>To</span>
             <Input
@@ -197,7 +256,7 @@ function SendCard({ data }: { data: WhatsAppOverview }) {
               aria-invalid={to.length > 0 && !validRecipient}
             />
             <span className="text-muted-foreground block text-xs font-normal">
-              With country code, no + or leading 0.
+              Country code, no + or leading 0
             </span>
           </label>
 
@@ -208,17 +267,16 @@ function SendCard({ data }: { data: WhatsAppOverview }) {
                 value={text}
                 onChange={(event) => setText(event.target.value)}
                 maxLength={WHATSAPP_TEXT_MAX_LENGTH}
-                rows={5}
+                rows={6}
                 placeholder="Hi! Thanks for reaching out…"
-                className="border-border placeholder:text-muted-foreground block w-full resize-y rounded-lg border bg-transparent p-3 text-sm font-normal outline-none"
+                className="border-border placeholder:text-muted-foreground bg-surface-muted/40 block w-full resize-y rounded-xl border p-3 text-sm font-normal outline-none"
               />
               <span className="text-muted-foreground block text-xs font-normal">
-                Only delivered if this person messaged your number in the last 24 hours. Otherwise
-                use a template.
+                Free-form only works inside the 24-hour customer window.
               </span>
             </label>
           ) : usable.length === 0 ? (
-            <p className="text-muted-foreground text-sm">
+            <p className="text-muted-foreground rounded-xl border border-dashed p-4 text-sm">
               {data.templatesAvailable
                 ? 'No approved templates yet. Create one in WhatsApp Manager → Message templates.'
                 : 'Set WHATSAPP_WABA_ID on the server to load your templates.'}
@@ -228,7 +286,7 @@ function SendCard({ data }: { data: WhatsAppOverview }) {
               <label className="block space-y-1.5 text-sm font-medium">
                 <span>Template</span>
                 <select
-                  className="border-border bg-surface h-10 w-full rounded-lg border px-3 text-sm font-normal"
+                  className="border-border bg-surface-muted/40 h-10 w-full rounded-xl border px-3 text-sm font-normal outline-none"
                   value={selectedKey}
                   onChange={(event) => pickTemplate(event.target.value)}
                 >
@@ -258,23 +316,23 @@ function SendCard({ data }: { data: WhatsAppOverview }) {
           )}
         </div>
 
-        <div className="flex flex-col gap-4">
-          <div className="bg-surface-muted flex-1 rounded-lg p-4">
-            <p className="text-muted-foreground mb-2 text-xs">Preview</p>
-            <p className="bg-surface max-w-sm rounded-lg p-3 text-sm whitespace-pre-wrap shadow-sm">
-              {type === 'text'
-                ? text || 'Your message'
-                : template
-                  ? fillTemplate(template, values)
-                  : 'Pick a template'}
+        <div className="flex flex-col gap-4 p-4">
+          <div className="bg-surface-muted/50 flex min-h-[220px] flex-1 flex-col rounded-2xl p-4">
+            <p className="text-muted-foreground mb-3 text-[11px] font-semibold tracking-wide uppercase">
+              Preview
             </p>
+            <div className="flex flex-1 items-end justify-end">
+              <div className="bg-success max-w-[90%] rounded-2xl rounded-br-md px-3.5 py-2.5 text-sm leading-relaxed whitespace-pre-wrap text-white shadow-sm">
+                {previewText}
+              </div>
+            </div>
           </div>
 
           {result && (
             <div
               role={result.ok ? 'status' : 'alert'}
               className={cn(
-                'rounded-lg border p-3 text-sm break-all',
+                'rounded-xl border p-3 text-sm break-all',
                 result.ok
                   ? 'border-success/40 bg-success/10 text-success'
                   : 'border-danger/40 bg-danger/10 text-danger'
@@ -284,14 +342,13 @@ function SendCard({ data }: { data: WhatsAppOverview }) {
             </div>
           )}
 
-          <div className="flex justify-end">
-            <Button type="submit" disabled={!ready || sending}>
-              {sending ? 'Sending…' : 'Send on WhatsApp'}
-            </Button>
-          </div>
+          <Button type="submit" disabled={!ready || sending} className="w-full sm:w-auto sm:self-end">
+            <Send className="size-4" />
+            {sending ? 'Sending…' : 'Send on WhatsApp'}
+          </Button>
         </div>
       </form>
-    </Card>
+    </section>
   );
 }
 
@@ -299,33 +356,46 @@ function TemplatesCard({ data, onRefresh }: { data: WhatsAppOverview; onRefresh:
   if (!data.templatesAvailable) {
     return null;
   }
+
   return (
-    <Card className="overflow-x-auto p-0">
-      <div className="flex items-center justify-between px-4 py-3">
-        <h2 className="text-sm font-semibold">Message templates</h2>
+    <section className="border-border bg-surface flex flex-col overflow-hidden rounded-2xl border">
+      <div className="border-border flex items-center justify-between gap-3 border-b px-4 py-3">
+        <div className="flex items-center gap-2">
+          <span className="bg-surface-muted text-muted-foreground flex size-8 items-center justify-center rounded-xl">
+            <MessageCircle className="size-3.5" />
+          </span>
+          <div>
+            <h2 className="text-sm font-semibold">Templates</h2>
+            <p className="text-muted-foreground text-xs">
+              {data.templates.length} from your WhatsApp Business account
+            </p>
+          </div>
+        </div>
         <Button variant="ghost" size="sm" onClick={onRefresh}>
+          <RefreshCw className="size-3.5" />
           Refresh
         </Button>
       </div>
-      <table className="w-full text-sm">
-        <thead className="border-border text-muted-foreground border-y text-left text-xs">
-          <tr>
-            <th className="px-4 py-3 font-medium">Template</th>
-            <th className="px-4 py-3 font-medium">Category</th>
-            <th className="px-4 py-3 font-medium">Status</th>
-            <th className="px-4 py-3 font-medium">Body</th>
-          </tr>
-        </thead>
-        <tbody>
-          {data.templates.map((template) => (
-            <tr key={template.id} className="border-border border-b last:border-0">
-              <td className="px-4 py-3">
-                <p className="font-medium">{template.name}</p>
-                <p className="text-muted-foreground text-xs">{template.language}</p>
-              </td>
-              <td className="px-4 py-3 text-xs">{template.category.toLowerCase()}</td>
-              <td className="px-4 py-3">
-                <Badge
+
+      <div className="max-h-[420px] space-y-2 overflow-y-auto p-3">
+        {data.templates.length === 0 ? (
+          <p className="text-muted-foreground px-2 py-8 text-center text-sm">
+            No templates yet. Create them in WhatsApp Manager → Message templates.
+          </p>
+        ) : (
+          data.templates.map((template) => (
+            <article
+              key={template.id}
+              className="border-border bg-surface-muted/30 rounded-xl border p-3"
+            >
+              <div className="mb-2 flex flex-wrap items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold">{template.name}</p>
+                  <p className="text-muted-foreground text-xs">
+                    {template.language} · {template.category.toLowerCase()}
+                  </p>
+                </div>
+                <StatusChip
                   tone={
                     template.status === 'APPROVED'
                       ? 'success'
@@ -335,25 +405,18 @@ function TemplatesCard({ data, onRefresh }: { data: WhatsAppOverview; onRefresh:
                   }
                 >
                   {template.status.toLowerCase()}
-                </Badge>
-                {template.unsupportedReason && (
-                  <p className="text-muted-foreground mt-1 text-xs">{template.unsupportedReason}</p>
-                )}
-              </td>
-              <td className="text-muted-foreground max-w-md px-4 py-3 text-xs whitespace-pre-wrap">
+                </StatusChip>
+              </div>
+              <p className="text-muted-foreground line-clamp-4 text-xs leading-relaxed whitespace-pre-wrap">
                 {template.body}
-              </td>
-            </tr>
-          ))}
-          {data.templates.length === 0 && (
-            <tr>
-              <td colSpan={4} className="text-muted-foreground px-4 py-6 text-center">
-                No templates yet. Create them in WhatsApp Manager → Message templates.
-              </td>
-            </tr>
-          )}
-        </tbody>
-      </table>
-    </Card>
+              </p>
+              {template.unsupportedReason && (
+                <p className="text-danger mt-2 text-xs">{template.unsupportedReason}</p>
+              )}
+            </article>
+          ))
+        )}
+      </div>
+    </section>
   );
 }

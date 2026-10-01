@@ -63,3 +63,13 @@ body {
   background: var(--background);
   color: var(--foreground);
 }
+
+.theme-social.theme-social-light {
+  --background: #f0f2f4;
+  --surface: #ffffff;
+  --surface-muted: #e7e9eb;
+  --border: #eaecee;
+  --foreground: #0e0e0e;
+  --muted-foreground: #5f6368;
+  color-scheme: light;
+}

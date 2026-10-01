@@ -11,9 +11,9 @@ export default function WhatsAppPage() {
   const { label, description } = socialSections.whatsapp;
 
   return (
-    <>
+    <div className="space-y-5">
       <PageHeader title={label} description={description} />
       <WhatsAppPanel />
-    </>
+    </div>
   );
 }
