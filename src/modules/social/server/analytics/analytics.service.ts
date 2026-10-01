@@ -10,6 +10,7 @@ import { fetchPostMetrics } from './post-metrics';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const METRICS_CONCURRENCY = 6;
+const MAX_POSTS_WITH_METRICS = 100;
 
 async function mapPool<T, R>(items: T[], concurrency: number, mapper: (item: T) => Promise<R>) {
   if (items.length === 0) return [] as R[];
@@ -80,7 +81,7 @@ export const analyticsService = {
     }
 
     const posts: AnalyticsPost[] = await mapPool(
-      publishedRows,
+      publishedRows.slice(0, MAX_POSTS_WITH_METRICS),
       METRICS_CONCURRENCY,
       async (row) => {
         const providerName =

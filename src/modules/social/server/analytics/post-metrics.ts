@@ -138,7 +138,7 @@ async function instagramMetrics(
         config,
         `${releaseId}/insights`,
         token,
-        { metric: metricSet }
+        { metric: metricSet, period: 'lifetime' }
       );
       metrics.impressions = metrics.impressions ?? insightValue(insights.data, 'impressions');
       metrics.reach = metrics.reach ?? insightValue(insights.data, 'reach');
@@ -175,13 +175,22 @@ export async function fetchPostMetrics(
     return { metrics: emptyMetrics(), unavailable: true };
   }
 
+  const fallback = { metrics: emptyMetrics(), unavailable: true };
+
   try {
     const token = decrypt(encryptedAccessToken);
-    if (providerIdentifier === 'facebook') {
-      return await facebookMetrics(releaseId, token);
-    }
-    return await instagramMetrics(releaseId, token);
+    const fetchMetrics =
+      providerIdentifier === 'facebook'
+        ? facebookMetrics(releaseId, token)
+        : instagramMetrics(releaseId, token);
+
+    return await Promise.race([
+      fetchMetrics,
+      new Promise<typeof fallback>((resolve) => {
+        setTimeout(() => resolve(fallback), 8_000);
+      }),
+    ]);
   } catch {
-    return { metrics: emptyMetrics(), unavailable: true };
+    return fallback;
   }
 }

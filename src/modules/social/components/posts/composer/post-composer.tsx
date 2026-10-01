@@ -407,7 +407,12 @@ function ComposerForm({
           )}
         </div>
 
-        <PostPreview channels={channels} selectedIds={selectedIds} items={items} />
+        <PostPreview
+          channels={channels}
+          selectedIds={selectedIds}
+          items={items}
+          onSelectedIdsChange={setSelectedIds}
+        />
       </div>
 
       {error && (

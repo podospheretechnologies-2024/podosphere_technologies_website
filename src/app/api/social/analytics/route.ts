@@ -4,6 +4,8 @@ import { analyticsService } from '@/modules/social/server/analytics/analytics.se
 import { getCurrentOrganization } from '@/shared/server/current-organization';
 import { errorResponse } from '@/shared/server/http-error';
 
+export const maxDuration = 60;
+
 // Publishing stats between two dates: totals, per channel and per post outcome.
 export async function GET(request: NextRequest) {
   try {

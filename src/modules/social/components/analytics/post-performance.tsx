@@ -1,6 +1,7 @@
 import dayjs from 'dayjs';
 import { ExternalLink } from 'lucide-react';
 import { Card } from '@/shared/components/ui/card';
+import { cn } from '@/shared/lib/cn';
 import type { AnalyticsPost, AnalyticsPostMetrics } from '../../types/analytics';
 import { ChannelAvatar } from '../channels/channel-avatar';
 import { ProviderMark } from '../channels/provider-mark';
@@ -30,40 +31,34 @@ export function PostPerformance({ posts }: PostPerformanceProps) {
   return (
     <Card className="space-y-4">
       <div>
-        <h2 className="text-sm font-semibold">Detailed report</h2>
+        <h2 className="text-sm font-semibold">Published posts</h2>
         <p className="text-muted-foreground mt-1 text-xs">
-          Per-post performance metrics for the selected date range.
+          Each published post with likes, views, comments, shares, reach, engagement, and other
+          available metrics.
         </p>
       </div>
 
       {posts.length === 0 ? (
         <p className="text-muted-foreground text-sm">No published posts in this period.</p>
       ) : (
-        <div className="border-border overflow-x-auto rounded-xl border">
-          <table className="w-full min-w-[960px] border-collapse text-left text-sm">
-            <thead className="bg-surface-muted/60 text-muted-foreground text-xs">
-              <tr>
-                <th className="px-3 py-2.5 font-medium">Date</th>
-                <th className="px-3 py-2.5 font-medium">Channel</th>
-                <th className="px-3 py-2.5 font-medium">Post</th>
-                {METRIC_COLUMNS.map((column) => (
-                  <th key={column.key} className="px-3 py-2.5 text-right font-medium">
-                    {column.label}
-                  </th>
-                ))}
-                <th className="px-3 py-2.5 font-medium">Link</th>
-              </tr>
-            </thead>
-            <tbody className="divide-border divide-y">
-              {posts.map((post) => (
-                <tr key={post.id} className="align-top">
-                  <td className="text-muted-foreground whitespace-nowrap px-3 py-3 text-xs tabular-nums">
-                    {dayjs(post.publishDate).format('D MMM YYYY')}
-                    <br />
-                    {dayjs(post.publishDate).format('h:mm A')}
-                  </td>
-                  <td className="px-3 py-3">
-                    <div className="flex max-w-[180px] items-center gap-2">
+        <ul className="space-y-3">
+          {posts.map((post) => (
+            <li
+              key={post.id}
+              className="border-border bg-surface-muted/20 rounded-xl border p-3 sm:p-4"
+            >
+              <div className="flex flex-wrap items-start gap-3">
+                {post.thumbnailUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={post.thumbnailUrl}
+                    alt=""
+                    className="bg-surface-muted size-14 shrink-0 rounded-lg object-cover"
+                  />
+                ) : null}
+                <div className="min-w-0 flex-1 space-y-2">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div className="flex min-w-0 items-center gap-2">
                       <span className="relative shrink-0">
                         <ChannelAvatar
                           name={post.channel.name}
@@ -78,37 +73,18 @@ export function PostPerformance({ posts }: PostPerformanceProps) {
                         />
                       </span>
                       <div className="min-w-0">
-                        <p className="truncate text-xs font-medium">{post.channel.name}</p>
-                        <p className="text-muted-foreground truncate text-[11px]">
-                          {post.channel.providerName}
+                        <p className="truncate text-sm font-medium">
+                          {post.channel.name}
+                          <span className="text-muted-foreground font-normal">
+                            {' '}
+                            · {post.channel.providerName}
+                          </span>
+                        </p>
+                        <p className="text-muted-foreground text-xs tabular-nums">
+                          {dayjs(post.publishDate).format('ddd, D MMM YYYY · h:mm A')}
                         </p>
                       </div>
                     </div>
-                  </td>
-                  <td className="px-3 py-3">
-                    <div className="flex max-w-xs items-start gap-2">
-                      {post.thumbnailUrl ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={post.thumbnailUrl}
-                          alt=""
-                          className="bg-surface-muted size-10 shrink-0 rounded object-cover"
-                        />
-                      ) : null}
-                      <p className="line-clamp-2 text-xs whitespace-pre-wrap">
-                        {post.content.trim() || '(No caption)'}
-                      </p>
-                    </div>
-                  </td>
-                  {METRIC_COLUMNS.map((column) => (
-                    <td
-                      key={column.key}
-                      className="px-3 py-3 text-right text-xs font-medium tabular-nums"
-                    >
-                      {formatMetric(post.metrics[column.key])}
-                    </td>
-                  ))}
-                  <td className="px-3 py-3">
                     {post.releaseUrl ? (
                       <a
                         href={post.releaseUrl}
@@ -116,18 +92,45 @@ export function PostPerformance({ posts }: PostPerformanceProps) {
                         rel="noopener noreferrer"
                         className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-xs transition"
                       >
-                        Open
+                        Open post
                         <ExternalLink className="size-3" />
                       </a>
-                    ) : (
-                      <span className="text-muted-foreground text-xs">—</span>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+                    ) : null}
+                  </div>
+
+                  <p className="text-foreground line-clamp-3 text-sm whitespace-pre-wrap">
+                    {post.content.trim() || '(No caption)'}
+                  </p>
+
+                  {post.metricsUnavailable ? (
+                    <p className="text-muted-foreground text-xs">
+                      Live metrics unavailable for this post (missing permissions, unsupported
+                      network, or no release id).
+                    </p>
+                  ) : null}
+
+                  <dl className="grid grid-cols-3 gap-2 sm:grid-cols-5 lg:grid-cols-9">
+                    {METRIC_COLUMNS.map((column) => (
+                      <div
+                        key={column.key}
+                        className={cn(
+                          'border-border bg-surface rounded-lg border px-2 py-1.5 text-center'
+                        )}
+                      >
+                        <dt className="text-muted-foreground text-[10px] font-medium tracking-wide uppercase">
+                          {column.label}
+                        </dt>
+                        <dd className="mt-0.5 text-sm font-semibold tabular-nums">
+                          {formatMetric(post.metrics[column.key])}
+                        </dd>
+                      </div>
+                    ))}
+                  </dl>
+                </div>
+              </div>
+            </li>
+          ))}
+        </ul>
       )}
     </Card>
   );

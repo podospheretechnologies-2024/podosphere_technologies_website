@@ -4,12 +4,13 @@ import {
   BadgeCheck,
   Globe,
   Heart,
+  Info,
   MessageCircle,
   Repeat2,
   Send,
   ThumbsUp,
 } from 'lucide-react';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { cn } from '@/shared/lib/cn';
 import type { MediaFormat } from '../../../config/media';
 import type { ChannelItem } from '../../../types/integration';
@@ -20,41 +21,114 @@ import { ProviderMark } from '../../channels/provider-mark';
 import { InstagramFrame } from '../../media/instagram-frames';
 import type { ThreadItemDraft } from './thread-item-editor';
 
+const GLOBAL_EDIT_INFO =
+  'Global Edit means this post is prepared for every account selected in this row. Click accounts to include or exclude them. Global Edit stays selected only when every account is selected.';
+
 interface PostPreviewProps {
   channels: ChannelItem[];
   selectedIds: string[];
   items: ThreadItemDraft[];
+  onSelectedIdsChange?: (ids: string[]) => void;
 }
 
-export function PostPreview({ channels, selectedIds, items }: PostPreviewProps) {
+export function PostPreview({
+  channels,
+  selectedIds,
+  items,
+  onSelectedIdsChange,
+}: PostPreviewProps) {
   const selected = channels.filter((channel) => selectedIds.includes(channel.id));
   const main = items[0];
   const comments = items.slice(1);
-  const [activeId, setActiveId] = useState(selected[0]?.id ?? '');
+  const hasMedia = (main?.media.length ?? 0) > 0;
+  const allSelected =
+    channels.length > 0 && channels.every((channel) => selectedIds.includes(channel.id));
+  const showPreviewBar = hasMedia && channels.length > 0;
+  const [focusId, setFocusId] = useState<string>(allSelected ? 'global' : (selected[0]?.id ?? ''));
+  const prevHasMedia = useRef<boolean | null>(null);
+
+  // When media is newly added, select every connected account and keep Global Edit on.
+  useEffect(() => {
+    if (prevHasMedia.current === null) {
+      prevHasMedia.current = hasMedia;
+      return;
+    }
+    if (prevHasMedia.current === false && hasMedia && channels.length > 0 && onSelectedIdsChange) {
+      onSelectedIdsChange(channels.map((channel) => channel.id));
+      setFocusId('global');
+    }
+    prevHasMedia.current = hasMedia;
+  }, [hasMedia, channels, onSelectedIdsChange]);
 
   useEffect(() => {
     if (selected.length === 0) {
-      setActiveId('');
+      setFocusId('');
       return;
     }
-    if (activeId === 'global') {
+    if (allSelected) {
+      setFocusId('global');
       return;
     }
-    if (!selected.some((channel) => channel.id === activeId)) {
-      setActiveId(selected.length > 1 ? 'global' : selected[0].id);
+    if (focusId === 'global' || !selected.some((channel) => channel.id === focusId)) {
+      setFocusId(selected[0].id);
     }
-  }, [selected, activeId]);
+  }, [selected, allSelected, focusId]);
 
-  const previewChannel = selected.find((channel) => channel.id === activeId) ?? selected[0];
-  const showGlobal = selected.length > 1 && (activeId === 'global' || !previewChannel);
+  const previewChannel =
+    focusId === 'global'
+      ? selected[0]
+      : (selected.find((channel) => channel.id === focusId) ?? selected[0]);
+  const showGlobal = selected.length > 1 && allSelected && focusId === 'global';
   const format = mediaFormat(main?.media ?? []);
   // Story / Reel must use the platform frame preview even in Global Edit.
-  const useFormatPreview = Boolean(previewChannel) && (format === 'story' || format === 'reel' || !showGlobal);
+  const useFormatPreview =
+    Boolean(previewChannel) && (format === 'story' || format === 'reel' || !showGlobal);
+
+  function selectAllChannels() {
+    if (!onSelectedIdsChange || channels.length === 0) {
+      setFocusId('global');
+      return;
+    }
+    onSelectedIdsChange(channels.map((channel) => channel.id));
+    setFocusId('global');
+  }
+
+  function togglePreviewChannel(id: string) {
+    if (!onSelectedIdsChange) {
+      setFocusId(id);
+      return;
+    }
+    const next = selectedIds.includes(id)
+      ? selectedIds.filter((entry) => entry !== id)
+      : [...selectedIds, id];
+    onSelectedIdsChange(next);
+    if (next.includes(id)) {
+      setFocusId(id);
+    } else if (next.length === 0) {
+      setFocusId('');
+    } else if (
+      channels.length > 0 &&
+      channels.every((channel) => next.includes(channel.id))
+    ) {
+      setFocusId('global');
+    } else {
+      setFocusId(next[0]);
+    }
+  }
 
   if (!previewChannel) {
     return (
       <div className="flex h-full min-h-72 flex-col">
         <h3 className="mb-4 text-lg font-semibold">Post Preview</h3>
+        {showPreviewBar && (
+          <PreviewChannelBar
+            channels={channels}
+            selectedIds={selectedIds}
+            allSelected={allSelected}
+            onSelectAll={selectAllChannels}
+            onToggleChannel={togglePreviewChannel}
+          />
+        )}
         <div className="border-border bg-surface-muted/40 text-muted-foreground flex flex-1 items-center justify-center rounded-xl border border-dashed p-6 text-center text-sm">
           Select a channel to preview your post
         </div>
@@ -84,43 +158,14 @@ export function PostPreview({ channels, selectedIds, items }: PostPreviewProps) 
         )}
       </div>
 
-      {selected.length > 1 && (
-        <div className="mb-3 flex flex-wrap gap-1.5">
-          <button
-            type="button"
-            onClick={() => setActiveId('global')}
-            className={cn(
-              'flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition',
-              activeId === 'global'
-                ? 'border-primary bg-primary/15 text-foreground'
-                : 'border-border text-muted-foreground hover:bg-surface-muted'
-            )}
-          >
-            <Globe className="size-3.5" />
-            Global Edit
-          </button>
-          {selected.map((channel) => (
-            <button
-              key={channel.id}
-              type="button"
-              onClick={() => setActiveId(channel.id)}
-              className={cn(
-                'flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition',
-                channel.id === activeId
-                  ? 'border-primary bg-primary/15 text-foreground'
-                  : 'border-border text-muted-foreground hover:bg-surface-muted'
-              )}
-            >
-              <ProviderMark
-                identifier={channel.providerIdentifier}
-                name={channel.providerName}
-                size="sm"
-                className="size-3.5"
-              />
-              <span className="max-w-28 truncate">{channel.name}</span>
-            </button>
-          ))}
-        </div>
+      {showPreviewBar && (
+        <PreviewChannelBar
+          channels={channels}
+          selectedIds={selectedIds}
+          allSelected={allSelected}
+          onSelectAll={selectAllChannels}
+          onToggleChannel={togglePreviewChannel}
+        />
       )}
 
       <div className="min-h-0 flex-1 overflow-y-auto pr-1">
@@ -157,6 +202,76 @@ export function PostPreview({ channels, selectedIds, items }: PostPreviewProps) 
           Will publish to all {selected.length} selected channels.
         </p>
       )}
+    </div>
+  );
+}
+
+function PreviewChannelBar({
+  channels,
+  selectedIds,
+  allSelected,
+  onSelectAll,
+  onToggleChannel,
+}: {
+  channels: ChannelItem[];
+  selectedIds: string[];
+  allSelected: boolean;
+  onSelectAll: () => void;
+  onToggleChannel: (id: string) => void;
+}) {
+  return (
+    <div className="mb-3 flex flex-wrap items-center gap-1.5">
+      <div className="flex min-w-0 flex-1 flex-wrap gap-1.5">
+        {channels.map((channel) => {
+          const isOn = selectedIds.includes(channel.id);
+          return (
+            <button
+              key={channel.id}
+              type="button"
+              onClick={() => onToggleChannel(channel.id)}
+              aria-pressed={isOn}
+              className={cn(
+                'flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition',
+                isOn
+                  ? 'border-primary bg-primary/15 text-foreground'
+                  : 'border-border text-muted-foreground hover:bg-surface-muted'
+              )}
+            >
+              <ProviderMark
+                identifier={channel.providerIdentifier}
+                name={channel.providerName}
+                size="sm"
+                className="size-3.5"
+              />
+              <span className="max-w-28 truncate">{channel.name}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="ml-auto flex shrink-0 items-center gap-1">
+        <button
+          type="button"
+          onClick={onSelectAll}
+          aria-pressed={allSelected}
+          className={cn(
+            'flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition',
+            allSelected
+              ? 'border-primary bg-primary/15 text-foreground'
+              : 'border-border text-muted-foreground hover:bg-surface-muted'
+          )}
+        >
+          <Globe className="size-3.5" />
+          Global Edit
+        </button>
+        <span
+          className="text-muted-foreground hover:text-foreground inline-flex size-7 items-center justify-center rounded-full transition"
+          title={GLOBAL_EDIT_INFO}
+          aria-label={GLOBAL_EDIT_INFO}
+        >
+          <Info className="size-3.5" />
+        </span>
+      </div>
     </div>
   );
 }

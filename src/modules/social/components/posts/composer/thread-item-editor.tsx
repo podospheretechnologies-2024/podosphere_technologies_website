@@ -249,6 +249,7 @@ function FormatButton({
   return (
     <button
       type="button"
+      onMouseDown={(event) => event.preventDefault()}
       onClick={onClick}
       title={label}
       aria-label={label}
@@ -274,6 +275,7 @@ export function ThreadItemEditor({
   const [pickerOpen, setPickerOpen] = useState(false);
   const [delayOpen, setDelayOpen] = useState(false);
   const [limitsOpen, setLimitsOpen] = useState(false);
+  const [emojiOpen, setEmojiOpen] = useState(false);
   const [customDelay, setCustomDelay] = useState(
     item.delay > 0 && !DELAY_PRESETS.some((p) => p.minutes === item.delay)
       ? String(item.delay)
@@ -282,6 +284,8 @@ export function ThreadItemEditor({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const delayRef = useRef<HTMLDivElement>(null);
   const limitsRef = useRef<HTMLDivElement>(null);
+  const emojiRef = useRef<HTMLDivElement>(null);
+  const selectionRef = useRef({ start: 0, end: 0 });
   const length = item.content.trim().length;
   const overLimit = maxLength !== null && length > maxLength;
   const withinLimit = maxLength === null || length <= maxLength;
@@ -300,7 +304,7 @@ export function ThreadItemEditor({
   }
 
   useEffect(() => {
-    if (!delayOpen && !limitsOpen) {
+    if (!delayOpen && !limitsOpen && !emojiOpen) {
       return;
     }
     function onPointerDown(event: MouseEvent) {
@@ -311,40 +315,57 @@ export function ThreadItemEditor({
       if (limitsOpen && limitsRef.current && !limitsRef.current.contains(target)) {
         setLimitsOpen(false);
       }
+      if (emojiOpen && emojiRef.current && !emojiRef.current.contains(target)) {
+        setEmojiOpen(false);
+      }
     }
     document.addEventListener('mousedown', onPointerDown);
     return () => document.removeEventListener('mousedown', onPointerDown);
-  }, [delayOpen, limitsOpen]);
+  }, [delayOpen, limitsOpen, emojiOpen]);
 
-  function wrapSelection(before: string, after = before) {
+  function rememberSelection() {
     const el = textareaRef.current;
     if (!el) {
       return;
     }
-    const start = el.selectionStart;
-    const end = el.selectionEnd;
+    selectionRef.current = { start: el.selectionStart, end: el.selectionEnd };
+  }
+
+  function applySelectionTransform(transform: (selected: string) => string) {
+    const el = textareaRef.current;
+    if (!el) {
+      return;
+    }
+    rememberSelection();
+    const { start, end } = selectionRef.current;
+    if (start === end) {
+      return;
+    }
     const selected = item.content.slice(start, end);
-    const next = `${item.content.slice(0, start)}${before}${selected}${after}${item.content.slice(end)}`;
+    const nextSelected = transform(selected);
+    const next = `${item.content.slice(0, start)}${nextSelected}${item.content.slice(end)}`;
     onChange({ ...item, content: next });
     requestAnimationFrame(() => {
       el.focus();
-      el.setSelectionRange(start + before.length, end + before.length);
+      el.setSelectionRange(start, start + nextSelected.length);
+      rememberSelection();
     });
   }
 
-  function insertEmoji() {
+  function insertEmoji(emoji: string) {
     const el = textareaRef.current;
     if (!el) {
       return;
     }
-    const start = el.selectionStart;
-    const emoji = '😊';
-    const next = `${item.content.slice(0, start)}${emoji}${item.content.slice(el.selectionEnd)}`;
+    const { start, end } = selectionRef.current;
+    const next = `${item.content.slice(0, start)}${emoji}${item.content.slice(end)}`;
     onChange({ ...item, content: next });
+    setEmojiOpen(false);
     requestAnimationFrame(() => {
       el.focus();
       const pos = start + emoji.length;
       el.setSelectionRange(pos, pos);
+      rememberSelection();
     });
   }
 
@@ -361,6 +382,9 @@ export function ThreadItemEditor({
           ref={textareaRef}
           value={item.content}
           onChange={(event) => onChange({ ...item, content: event.target.value })}
+          onSelect={rememberSelection}
+          onKeyUp={rememberSelection}
+          onClick={rememberSelection}
           placeholder={index === 0 ? 'Write something...' : 'Write a comment…'}
           aria-label={index === 0 ? 'Post content' : `Comment ${index}`}
           rows={index === 0 ? 5 : 3}
@@ -461,14 +485,60 @@ export function ThreadItemEditor({
             <FormatButton
               label="Bold"
               icon={<Bold className="size-3.5" />}
-              onClick={() => wrapSelection('**')}
+              onClick={() => applySelectionTransform(toggleBold)}
             />
             <FormatButton
               label="Underline"
               icon={<Underline className="size-3.5" />}
-              onClick={() => wrapSelection('<u>', '</u>')}
+              onClick={() => applySelectionTransform(toggleUnderline)}
             />
-            <FormatButton label="Emoji" icon={<Smile className="size-3.5" />} onClick={insertEmoji} />
+            <div className="relative" ref={emojiRef}>
+              <FormatButton
+                label="Emoji"
+                icon={<Smile className="size-3.5" />}
+                onClick={() => {
+                  rememberSelection();
+                  setEmojiOpen((open) => !open);
+                }}
+              />
+              {emojiOpen && (
+                <div className="border-border bg-surface absolute right-0 bottom-full z-40 mb-2 w-[300px] overflow-hidden rounded-xl border shadow-lg sm:w-[340px]">
+                  <div className="border-border flex items-center justify-between border-b px-3 py-2">
+                    <p className="text-xs font-semibold">Emojis</p>
+                    <button
+                      type="button"
+                      onClick={() => setEmojiOpen(false)}
+                      className="text-muted-foreground hover:text-foreground text-xs"
+                    >
+                      Close
+                    </button>
+                  </div>
+                  <div className="max-h-64 overflow-y-auto p-2">
+                    {EMOJI_GROUPS.map((group) => (
+                      <div key={group.label} className="mb-2 last:mb-0">
+                        <p className="text-muted-foreground px-1 pb-1 text-[10px] font-semibold tracking-wide uppercase">
+                          {group.label}
+                        </p>
+                        <div className="grid grid-cols-8 gap-0.5">
+                          {group.emojis.map((emoji) => (
+                            <button
+                              key={`${group.label}-${emoji}`}
+                              type="button"
+                              onMouseDown={(event) => event.preventDefault()}
+                              onClick={() => insertEmoji(emoji)}
+                              title={emoji}
+                              className="hover:bg-surface-muted flex size-8 items-center justify-center rounded-md text-lg transition"
+                            >
+                              {emoji}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
             <div className="relative" ref={limitsRef}>
               <button
                 type="button"

@@ -272,11 +272,11 @@ export function AnalyticsPanel() {
 
           <ActivityChart start={range.start} days={days} activity={data.activity} />
 
-          <ChannelBreakdown channels={data.channels} />
+          <ChannelBreakdown channels={data.channels} posts={data.posts ?? []} />
 
-          <PostTimeline posts={data.posts} />
+          <PostPerformance posts={data.posts ?? []} />
 
-          <PostPerformance posts={data.posts} />
+          <PostTimeline posts={data.posts ?? []} />
         </>
       ) : null}
     </div>
