@@ -103,6 +103,7 @@ export function TimeGridView({ days, posts, onOpen, onDelete, onMove, onCreate }
               const disabled = slotStart.add(1, 'hour').isBefore(now);
               const isCurrentHour =
                 clock !== null && day.isSame(clock, 'day') && clock.hour() === hour;
+              const isDayView = days.length === 1;
               return (
                 <CalendarDropZone
                   key={day.valueOf()}
@@ -111,7 +112,10 @@ export function TimeGridView({ days, posts, onOpen, onDelete, onMove, onCreate }
                   onDropPost={(post) => onMove(post, moveToSlot(post.publishDate, day, hour))}
                   onCreate={() => onCreate(slotStart.isBefore(now) ? now : slotStart)}
                   className={cn(
-                    'border-border relative flex min-h-16 flex-col gap-1 border-l p-1',
+                    'border-border relative flex border-l',
+                    isDayView
+                      ? 'min-h-20 flex-col gap-2 p-2'
+                      : 'min-h-16 flex-col gap-1 p-1',
                     isToday && !disabled && 'bg-primary/[0.03]'
                   )}
                 >
@@ -130,6 +134,7 @@ export function TimeGridView({ days, posts, onOpen, onDelete, onMove, onCreate }
                       post={post}
                       onOpen={onOpen}
                       onDelete={onDelete}
+                      variant={isDayView ? 'day' : 'compact'}
                     />
                   ))}
                 </CalendarDropZone>

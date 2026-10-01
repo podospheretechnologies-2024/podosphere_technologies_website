@@ -8,6 +8,10 @@ import type {
   PublishTarget,
   PublishThread,
 } from '../../core/social-provider.interface';
+import {
+  ensureInstagramPublishImage,
+  isMetaPostImageMime,
+} from '../../../media/ensure-instagram-jpeg';
 import type { GraphPage } from './graph-client';
 import { MetaProviderBase } from './meta.provider.base';
 
@@ -67,17 +71,20 @@ export class InstagramProvider extends MetaProviderBase {
   }
 
   async post(target: PublishTarget, item: PublishItem): Promise<PublishResult> {
-    const { media } = item;
-    if (media.length === 0) {
+    const { media: rawMedia } = item;
+    if (rawMedia.length === 0) {
       throw new BadBodyError(this.identifier, 'Instagram posts need at least one image or video');
     }
-    if (media.length > MAX_CAROUSEL_ITEMS) {
+    if (rawMedia.length > MAX_CAROUSEL_ITEMS) {
       throw new BadBodyError(
         this.identifier,
         `Instagram posts can have up to ${MAX_CAROUSEL_ITEMS} images or videos`
       );
     }
-    media.forEach((entry) => this.assertPublishable(entry));
+    rawMedia.forEach((entry) => this.assertPublishable(entry));
+
+    // Meta's image_url publish path expects JPEG; PNG is converted first.
+    const media = await Promise.all(rawMedia.map((entry) => ensureInstagramPublishImage(entry)));
 
     const isStory = media.some((entry) => entry.format === 'story');
     if (isStory && media.length > 1) {
@@ -135,8 +142,11 @@ export class InstagramProvider extends MetaProviderBase {
   }
 
   private assertPublishable(media: PublishMedia) {
-    if (media.type === 'image' && media.mimeType !== 'image/jpeg') {
-      throw new BadBodyError(this.identifier, 'Instagram only accepts JPEG images');
+    if (media.type === 'image' && !isMetaPostImageMime(media.mimeType)) {
+      throw new BadBodyError(
+        this.identifier,
+        'Instagram posts accept JPEG or PNG images (PNG is converted to JPEG automatically)'
+      );
     }
     if (LOCAL_HOSTS.test(new URL(media.url).hostname)) {
       throw new BadBodyError(

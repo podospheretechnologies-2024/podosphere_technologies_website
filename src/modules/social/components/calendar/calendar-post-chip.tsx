@@ -16,6 +16,20 @@ const topBarByState: Record<PostState, string> = {
   error: 'bg-danger',
 };
 
+const sideBarByState: Record<PostState, string> = {
+  draft: 'border-l-muted-foreground',
+  queue: 'border-l-primary',
+  published: 'border-l-success',
+  error: 'border-l-danger',
+};
+
+const stateTone: Record<PostState, string> = {
+  draft: 'bg-surface-muted text-muted-foreground',
+  queue: 'bg-primary/15 text-primary',
+  published: 'bg-success/15 text-success',
+  error: 'bg-danger/15 text-danger',
+};
+
 const stateLabel: Record<PostState, string> = {
   draft: 'Draft',
   queue: 'Scheduled',
@@ -32,18 +46,26 @@ interface CalendarPostChipProps {
   post: PostListItem;
   onOpen: (post: PostListItem) => void;
   onDelete?: (post: PostListItem) => void;
+  /** Day view uses a roomier card; week/month keep the compact chip. */
+  variant?: 'compact' | 'day';
 }
 
-export function CalendarPostChip({ post, onOpen, onDelete }: CalendarPostChipProps) {
+export function CalendarPostChip({
+  post,
+  onOpen,
+  onDelete,
+  variant = 'compact',
+}: CalendarPostChipProps) {
   const [hover, setHover] = useState(false);
   const movable = post.state !== 'published';
   const mediaFormat = post.media.find((item) => item.format && item.format !== 'post')?.format;
   const label = formatLabel[mediaFormat ?? 'post'];
   const previewText = post.content.trim() || (label ? label : 'Media only');
+  const isDay = variant === 'day';
 
   return (
     <div
-      className="group relative"
+      className={cn('group relative', isDay && 'max-w-xl')}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
     >
@@ -95,36 +117,75 @@ export function CalendarPostChip({ post, onOpen, onDelete }: CalendarPostChipPro
         onClick={() => onOpen(post)}
         title={`${stateLabel[post.state]}${label ? ` · ${label}` : ''} · ${post.channel.name}\n${previewText}`}
         className={cn(
-          'bg-surface border-border flex w-full flex-col overflow-hidden rounded-lg border text-left shadow-sm transition',
+          'bg-surface border-border flex w-full overflow-hidden border text-left shadow-sm transition',
+          isDay
+            ? cn('rounded-xl border-l-4', sideBarByState[post.state])
+            : 'flex-col rounded-lg',
           hover && 'border-primary ring-primary/30 shadow-md ring-1',
           movable ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'
         )}
       >
-        <span className={cn('h-1.5 w-full shrink-0', topBarByState[post.state])} />
-        <span className="flex min-w-0 items-center gap-1.5 px-2 py-1.5">
+        {!isDay && <span className={cn('h-1.5 w-full shrink-0', topBarByState[post.state])} />}
+        <span
+          className={cn(
+            'flex min-w-0 items-start gap-2',
+            isDay ? 'px-3 py-2.5' : 'items-center gap-1.5 px-2 py-1.5'
+          )}
+        >
           <span className="relative shrink-0">
-            <ChannelAvatar name={post.channel.name} picture={post.channel.picture} size="xs" />
+            <ChannelAvatar
+              name={post.channel.name}
+              picture={post.channel.picture}
+              size={isDay ? 'sm' : 'xs'}
+            />
             <ProviderMark
               identifier={post.channel.providerIdentifier}
               name={post.channel.providerName}
               size="sm"
-              className="ring-surface absolute -right-1 -bottom-1 size-3 ring-1"
+              className={cn(
+                'ring-surface absolute ring-1',
+                isDay ? '-right-0.5 -bottom-0.5 size-3.5' : '-right-1 -bottom-1 size-3'
+              )}
             />
           </span>
           <span className="min-w-0 flex-1">
-            <span className="block truncate text-[11px] leading-tight font-medium text-white">
-              {previewText}
-            </span>
-            <span className="text-muted-foreground block truncate text-[10px] leading-tight">
-              {stateLabel[post.state]}
-              {label ? ` · ${label}` : ''}
-            </span>
+            {isDay ? (
+              <>
+                <span className="mb-1 flex flex-wrap items-center gap-1.5">
+                  <span className="text-foreground truncate text-xs font-semibold">
+                    {post.channel.name}
+                  </span>
+                  <span
+                    className={cn(
+                      'rounded-md px-1.5 py-0.5 text-[10px] font-semibold',
+                      stateTone[post.state]
+                    )}
+                  >
+                    {stateLabel[post.state]}
+                    {label ? ` · ${label}` : ''}
+                  </span>
+                </span>
+                <span className="text-muted-foreground line-clamp-2 text-xs leading-snug">
+                  {previewText}
+                </span>
+              </>
+            ) : (
+              <>
+                <span className="text-foreground block truncate text-[11px] leading-tight font-medium">
+                  {previewText}
+                </span>
+                <span className="text-muted-foreground block truncate text-[10px] leading-tight">
+                  {stateLabel[post.state]}
+                  {label ? ` · ${label}` : ''}
+                </span>
+              </>
+            )}
           </span>
         </span>
       </button>
 
       {hover && (
-        <div className="border-border bg-surface text-muted-foreground pointer-events-none absolute top-full right-0 z-20 mt-1 max-w-[200px] rounded-md border px-2 py-1 text-[10px] shadow-lg">
+        <div className="border-border bg-surface text-muted-foreground pointer-events-none absolute top-full right-0 z-20 mt-1 max-w-[220px] rounded-md border px-2 py-1 text-[10px] shadow-lg">
           <p className="text-foreground font-medium">
             {stateLabel[post.state]} · {post.channel.name}
           </p>
@@ -157,9 +218,7 @@ function ChipAction({
       }}
       className={cn(
         'rounded-md p-1.5 transition',
-        danger
-          ? 'text-danger hover:bg-danger/15'
-          : 'text-primary hover:bg-primary/15'
+        danger ? 'text-danger hover:bg-danger/15' : 'text-primary hover:bg-primary/15'
       )}
     >
       {icon}
