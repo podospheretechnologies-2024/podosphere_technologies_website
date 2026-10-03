@@ -82,10 +82,31 @@ export interface AdsAdItem {
   headline: string | null;
   description: string | null;
   spend: number;
+  impressions: number;
   clicks: number;
   ctr: number;
+  cpc: number;
   leads: number;
   costPerLead: number | null;
+}
+
+export type AdsEntityKind = 'ad' | 'campaign' | 'adset' | 'lead';
+
+export interface AdsHistoryPoint {
+  date: string;
+  spend: number;
+  impressions: number;
+  clicks: number;
+  ctr: number;
+  cpc: number;
+  leads: number;
+}
+
+export interface AdsEntityHistory {
+  kind: Exclude<AdsEntityKind, 'lead'>;
+  id: string;
+  totals: AdsTotals;
+  history: AdsHistoryPoint[];
 }
 
 /** A currently serving ad (effective_status ACTIVE). */
@@ -124,7 +145,11 @@ export interface AdsLeadItem {
 
 export interface AdsOverview {
   account: AdAccountItem;
-  datePreset: AdsDatePreset;
+  /** Present when the request used a Meta date_preset. */
+  datePreset: AdsDatePreset | null;
+  /** Present when the request used a custom since/until range. */
+  since: string | null;
+  until: string | null;
   totals: AdsTotals;
   daily: AdsDailyPoint[];
   campaigns: AdsCampaignItem[];

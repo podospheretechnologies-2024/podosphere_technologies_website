@@ -1,7 +1,7 @@
 import dayjs from 'dayjs';
 import { ExternalLink } from 'lucide-react';
 import { Card } from '@/shared/components/ui/card';
-import type { AnalyticsChannel, AnalyticsPost } from '../../types/analytics';
+import type { AnalyticsChannel, AnalyticsPost, AnalyticsPostMetrics } from '../../types/analytics';
 import { ChannelAvatar } from '../channels/channel-avatar';
 import { ProviderMark } from '../channels/provider-mark';
 
@@ -10,9 +10,38 @@ interface ChannelBreakdownProps {
   posts: AnalyticsPost[];
 }
 
+const METRIC_LABELS: { key: keyof AnalyticsPostMetrics; label: string }[] = [
+  { key: 'likes', label: 'Likes' },
+  { key: 'comments', label: 'Comments' },
+  { key: 'shares', label: 'Shares' },
+  { key: 'views', label: 'Views' },
+  { key: 'reach', label: 'Reach' },
+  { key: 'impressions', label: 'Impressions' },
+  { key: 'engagement', label: 'Engagement' },
+  { key: 'saved', label: 'Saved' },
+  { key: 'clicks', label: 'Clicks' },
+];
+
 function formatMetric(value: number | null): string {
   if (value === null) return '—';
   return new Intl.NumberFormat('en', { maximumFractionDigits: 0 }).format(value);
+}
+
+function MetricsStrip({ metrics }: { metrics: AnalyticsPostMetrics }) {
+  return (
+    <div className="border-border bg-surface-muted/40 grid grid-cols-3 gap-2 rounded-xl border p-2.5 sm:grid-cols-5 lg:grid-cols-9">
+      {METRIC_LABELS.map((metric) => (
+        <div key={metric.key} className="min-w-0 px-1 py-0.5 text-center">
+          <p className="text-muted-foreground text-[10px] font-medium tracking-wide uppercase">
+            {metric.label}
+          </p>
+          <p className="text-foreground mt-0.5 text-sm font-semibold tabular-nums">
+            {formatMetric(metrics[metric.key])}
+          </p>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 export function ChannelBreakdown({ channels, posts }: ChannelBreakdownProps) {
@@ -23,7 +52,8 @@ export function ChannelBreakdown({ channels, posts }: ChannelBreakdownProps) {
       <div>
         <h2 className="text-sm font-semibold">By channel</h2>
         <p className="text-muted-foreground mt-1 text-xs">
-          Published posts under each channel with performance metrics.
+          Live Meta metrics for published posts in the selected period (likes, comments, shares,
+          views, reach, impressions, and more), plus publish success history.
         </p>
       </div>
       {channels.length === 0 ? (
@@ -68,6 +98,8 @@ export function ChannelBreakdown({ channels, posts }: ChannelBreakdownProps) {
                   </div>
                 </div>
 
+                {channelPosts.length > 0 && <MetricsStrip metrics={channel.metrics} />}
+
                 {channelPosts.length > 0 && (
                   <ul className="border-border ml-2 space-y-2 border-l pl-4">
                     {channelPosts.map((post) => (
@@ -87,6 +119,11 @@ export function ChannelBreakdown({ channels, posts }: ChannelBreakdownProps) {
                               <p className="text-muted-foreground text-[11px] tabular-nums">
                                 {dayjs(post.publishDate).format('D MMM YYYY · h:mm A')}
                               </p>
+                              {post.metricsUnavailable && (
+                                <span className="text-muted-foreground text-[10px]">
+                                  · metrics unavailable
+                                </span>
+                              )}
                             </div>
                             <p className="line-clamp-2 text-sm whitespace-pre-wrap">
                               {post.content.trim() || '(No caption)'}
@@ -105,37 +142,14 @@ export function ChannelBreakdown({ channels, posts }: ChannelBreakdownProps) {
                           ) : null}
                         </div>
                         <div className="text-muted-foreground mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] tabular-nums">
-                          <span>
-                            Likes <strong className="text-foreground">{formatMetric(post.metrics.likes)}</strong>
-                          </span>
-                          <span>
-                            Views <strong className="text-foreground">{formatMetric(post.metrics.views)}</strong>
-                          </span>
-                          <span>
-                            Comments{' '}
-                            <strong className="text-foreground">
-                              {formatMetric(post.metrics.comments)}
-                            </strong>
-                          </span>
-                          <span>
-                            Shares{' '}
-                            <strong className="text-foreground">{formatMetric(post.metrics.shares)}</strong>
-                          </span>
-                          <span>
-                            Reach <strong className="text-foreground">{formatMetric(post.metrics.reach)}</strong>
-                          </span>
-                          <span>
-                            Engagement{' '}
-                            <strong className="text-foreground">
-                              {formatMetric(post.metrics.engagement)}
-                            </strong>
-                          </span>
-                          <span>
-                            Impressions{' '}
-                            <strong className="text-foreground">
-                              {formatMetric(post.metrics.impressions)}
-                            </strong>
-                          </span>
+                          {METRIC_LABELS.map((metric) => (
+                            <span key={metric.key}>
+                              {metric.label}{' '}
+                              <strong className="text-foreground">
+                                {formatMetric(post.metrics[metric.key])}
+                              </strong>
+                            </span>
+                          ))}
                         </div>
                       </li>
                     ))}

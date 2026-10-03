@@ -40,7 +40,14 @@ export const analyticsRepository = {
   listChannels(organizationId: string) {
     return prisma.socialIntegration.findMany({
       where: { organizationId, deletedAt: null },
-      select: { id: true, name: true, picture: true, providerIdentifier: true },
+      select: {
+        id: true,
+        name: true,
+        picture: true,
+        providerIdentifier: true,
+        internalId: true,
+        accessToken: true,
+      },
       orderBy: { name: 'asc' },
     });
   },

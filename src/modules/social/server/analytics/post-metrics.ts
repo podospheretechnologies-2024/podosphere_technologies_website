@@ -45,6 +45,17 @@ function insightValue(
   return null;
 }
 
+function firstInsight(
+  rows: { name: string; values?: { value: number | Record<string, number> }[] }[] | undefined,
+  names: string[]
+): number | null {
+  for (const name of names) {
+    const value = insightValue(rows, name);
+    if (value !== null) return value;
+  }
+  return null;
+}
+
 interface FacebookPostFields {
   likes?: { summary?: { total_count?: number } };
   comments?: { summary?: { total_count?: number } };
@@ -55,10 +66,11 @@ interface FacebookPostFields {
 interface InstagramMediaFields {
   like_count?: number;
   comments_count?: number;
-  insights?: GraphList<{ name: string; values?: { value: number }[] }>;
+  media_type?: string;
+  media_product_type?: string;
 }
 
-interface FacebookInsightRow {
+interface InsightRow {
   name: string;
   values?: { value: number | Record<string, number> }[];
 }
@@ -83,27 +95,27 @@ async function facebookMetrics(
   }
 
   try {
-    const insights = await graphGet<GraphList<FacebookInsightRow>>(
-      config,
-      `${releaseId}/insights`,
-      token,
-      {
-        metric: [
-          'post_impressions',
-          'post_impressions_unique',
-          'post_engaged_users',
-          'post_clicks',
-          'post_video_views',
-        ].join(','),
-      }
-    );
-    metrics.impressions = insightValue(insights.data, 'post_impressions');
+    const insights = await graphGet<GraphList<InsightRow>>(config, `${releaseId}/insights`, token, {
+      metric: [
+        'post_impressions',
+        'post_impressions_unique',
+        'post_impressions_organic',
+        'post_engaged_users',
+        'post_clicks',
+        'post_video_views',
+        'post_media_view',
+      ].join(','),
+    });
+    metrics.impressions = firstInsight(insights.data, [
+      'post_impressions',
+      'post_impressions_organic',
+    ]);
     metrics.reach = insightValue(insights.data, 'post_impressions_unique');
     metrics.engagement = insightValue(insights.data, 'post_engaged_users');
     metrics.clicks = insightValue(insights.data, 'post_clicks');
-    metrics.views = insightValue(insights.data, 'post_video_views');
+    metrics.views = firstInsight(insights.data, ['post_video_views', 'post_media_view']);
   } catch {
-    // Insights need read_insights; counts above may still be present.
+    // Insights need pages_read_engagement / read_insights; counts above may still work.
   }
 
   const hasAny = Object.values(metrics).some((value) => value !== null);
@@ -119,7 +131,7 @@ async function instagramMetrics(
 
   try {
     const media = await graphGet<InstagramMediaFields>(config, releaseId, token, {
-      fields: 'like_count,comments_count',
+      fields: 'like_count,comments_count,media_type,media_product_type',
     });
     metrics.likes = num(media.like_count);
     metrics.comments = num(media.comments_count);
@@ -127,35 +139,64 @@ async function instagramMetrics(
     if (!(error instanceof GraphApiError)) throw error;
   }
 
-  // Try common lifetime metrics; some only apply to certain media types.
-  for (const metricSet of [
-    'impressions,reach,saved,shares,total_interactions,views,video_views',
+  // Meta rotates IG insight metric names; try several lifetime sets used by feed / reels / stories.
+  const metricSets = [
+    'reach,saved,shares,total_interactions,views,likes,comments',
     'reach,saved,shares,total_interactions,views',
+    'impressions,reach,saved,shares,total_interactions,views,video_views',
     'impressions,reach,engagement,saved',
-  ]) {
+    'reach,total_interactions,views',
+  ];
+
+  for (const metricSet of metricSets) {
     try {
-      const insights = await graphGet<GraphList<{ name: string; values?: { value: number }[] }>>(
+      const insights = await graphGet<GraphList<InsightRow>>(
         config,
         `${releaseId}/insights`,
         token,
         { metric: metricSet, period: 'lifetime' }
       );
-      metrics.impressions = metrics.impressions ?? insightValue(insights.data, 'impressions');
+      metrics.impressions =
+        metrics.impressions ?? firstInsight(insights.data, ['impressions', 'views']);
+      metrics.reach = metrics.reach ?? insightValue(insights.data, 'reach');
+      metrics.saved = metrics.saved ?? insightValue(insights.data, 'saved');
+      metrics.shares = metrics.shares ?? insightValue(insights.data, 'shares');
+      metrics.likes = metrics.likes ?? insightValue(insights.data, 'likes');
+      metrics.comments = metrics.comments ?? insightValue(insights.data, 'comments');
+      metrics.engagement =
+        metrics.engagement ??
+        firstInsight(insights.data, ['total_interactions', 'engagement']);
+      metrics.views =
+        metrics.views ?? firstInsight(insights.data, ['views', 'video_views', 'plays']);
+      if (Object.values(metrics).some((value) => value !== null)) break;
+    } catch {
+      // Try the next metric set.
+    }
+  }
+
+  // Some media types accept insights without an explicit period.
+  if (metrics.reach === null && metrics.impressions === null && metrics.views === null) {
+    try {
+      const insights = await graphGet<GraphList<InsightRow>>(
+        config,
+        `${releaseId}/insights`,
+        token,
+        { metric: 'reach,saved,shares,total_interactions,views' }
+      );
       metrics.reach = metrics.reach ?? insightValue(insights.data, 'reach');
       metrics.saved = metrics.saved ?? insightValue(insights.data, 'saved');
       metrics.shares = metrics.shares ?? insightValue(insights.data, 'shares');
       metrics.engagement =
-        metrics.engagement ??
-        insightValue(insights.data, 'total_interactions') ??
-        insightValue(insights.data, 'engagement');
-      metrics.views =
-        metrics.views ??
-        insightValue(insights.data, 'views') ??
-        insightValue(insights.data, 'video_views');
-      break;
+        metrics.engagement ?? insightValue(insights.data, 'total_interactions');
+      metrics.views = metrics.views ?? insightValue(insights.data, 'views');
+      metrics.impressions = metrics.impressions ?? metrics.views;
     } catch {
-      // Try the next metric set.
+      // Keep field-level like/comment counts if present.
     }
+  }
+
+  if (metrics.impressions === null && metrics.views !== null) {
+    metrics.impressions = metrics.views;
   }
 
   const hasAny = Object.values(metrics).some((value) => value !== null);
@@ -187,7 +228,7 @@ export async function fetchPostMetrics(
     return await Promise.race([
       fetchMetrics,
       new Promise<typeof fallback>((resolve) => {
-        setTimeout(() => resolve(fallback), 8_000);
+        setTimeout(() => resolve(fallback), 12_000);
       }),
     ]);
   } catch {

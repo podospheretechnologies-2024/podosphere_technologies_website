@@ -8,20 +8,6 @@ export interface AnalyticsTotals {
   drafts: number;
 }
 
-export interface AnalyticsChannel {
-  id: string;
-  name: string;
-  picture: string | null;
-  providerName: string;
-  published: number;
-  failed: number;
-}
-
-export interface AnalyticsActivity {
-  date: string;
-  outcome: AnalyticsOutcome;
-}
-
 export interface AnalyticsPostMetrics {
   likes: number | null;
   views: number | null;
@@ -32,6 +18,24 @@ export interface AnalyticsPostMetrics {
   engagement: number | null;
   saved: number | null;
   clicks: number | null;
+}
+
+export interface AnalyticsChannel {
+  id: string;
+  name: string;
+  picture: string | null;
+  providerIdentifier: string;
+  providerName: string;
+  published: number;
+  failed: number;
+  /** Summed Meta engagement metrics for published posts in the range. */
+  metrics: AnalyticsPostMetrics;
+}
+
+export interface AnalyticsActivity {
+  date: string;
+  outcome: AnalyticsOutcome;
+  channelId: string;
 }
 
 export interface AnalyticsPost {

@@ -8,8 +8,16 @@ import { Card } from '@/shared/components/ui/card';
 import { EmptyState } from '@/shared/components/ui/empty-state';
 import { SegmentedControl } from '@/shared/components/ui/segmented-control';
 import { cn } from '@/shared/lib/cn';
-import { ADS_DATE_PRESETS, ADS_DEFAULT_DATE_PRESET, type AdsDatePreset } from '../../config/ads';
-import { useAdAccounts, useAdsOverview } from '../../hooks/use-ads';
+import {
+  ADS_DATE_PRESETS,
+  ADS_DEFAULT_DATE_PRESET,
+  ADS_DEFAULT_STATUS_FILTER,
+  ADS_STATUS_FILTERS,
+  matchesAdsStatusFilter,
+  type AdsDatePreset,
+  type AdsStatusFilter,
+} from '../../config/ads';
+import { useAdAccounts, useAdsOverview, type AdsOverviewDateInput } from '../../hooks/use-ads';
 import type {
   AdAccountItem,
   AdsAdItem,
@@ -20,6 +28,7 @@ import type {
   AdsLiveAd,
   AdsOverview,
 } from '../../types/ads';
+import { AdsDetailPanel, type AdsDetailSelection } from './ads-detail-panel';
 
 const count = new Intl.NumberFormat('en-IN');
 
@@ -146,19 +155,69 @@ function toggleId(ids: string[], id: string): string[] {
   return ids.includes(id) ? ids.filter((entry) => entry !== id) : [...ids, id];
 }
 
+function adItemToLiveAd(ad: AdsAdItem): AdsLiveAd {
+  return {
+    id: ad.id,
+    name: ad.name,
+    status: ad.status,
+    campaignId: ad.campaignId,
+    campaignName: ad.campaignName,
+    adsetId: ad.adsetId,
+    adsetName: ad.adsetName,
+    thumbnailUrl: ad.thumbnailUrl,
+    headline: ad.headline ?? ad.primaryText,
+    body: ad.primaryText,
+    spend: ad.spend,
+    impressions: ad.impressions,
+    clicks: ad.clicks,
+    ctr: ad.ctr,
+    leads: ad.leads,
+    costPerLead: ad.costPerLead,
+  };
+}
+
+function filterOverviewByStatus(data: AdsOverview, statusFilter: AdsStatusFilter): AdsOverview {
+  if (statusFilter === 'all') return data;
+
+  const campaigns = data.campaigns.filter((item) =>
+    matchesAdsStatusFilter(item.status, statusFilter)
+  );
+  const adSets = data.adSets.filter((item) => matchesAdsStatusFilter(item.status, statusFilter));
+  const ads = data.ads.filter((item) => matchesAdsStatusFilter(item.status, statusFilter));
+  const adIds = new Set(ads.map((ad) => ad.id));
+  const leads = data.leads.filter((lead) => lead.adId != null && adIds.has(lead.adId));
+
+  return { ...data, campaigns, adSets, ads, leads };
+}
+
 export function AdsDashboard() {
   const accountsQuery = useAdAccounts();
   const [selected, setSelected] = useState<string | null>(null);
   const [datePreset, setDatePreset] = useState<AdsDatePreset>(ADS_DEFAULT_DATE_PRESET);
+  const [since, setSince] = useState('');
+  const [until, setUntil] = useState('');
+  const [statusFilter, setStatusFilter] = useState<AdsStatusFilter>(ADS_DEFAULT_STATUS_FILTER);
   const [focusedCampaignId, setFocusedCampaignId] = useState<string | null>(null);
+  const [detail, setDetail] = useState<AdsDetailSelection | null>(null);
 
   const accounts = accountsQuery.data?.accounts ?? [];
   const accountId = selected ?? preferredAccount(accounts);
-  const overview = useAdsOverview(accountId, datePreset);
+
+  const customRangeReady = Boolean(since && until && since <= until);
+  const dateQuery: AdsOverviewDateInput = customRangeReady
+    ? { mode: 'range', since, until }
+    : { mode: 'preset', datePreset };
+  const overview = useAdsOverview(accountId, dateQuery);
 
   function selectAccount(id: string) {
     setSelected(id);
     setFocusedCampaignId(null);
+  }
+
+  function selectPreset(value: AdsDatePreset) {
+    setDatePreset(value);
+    setSince('');
+    setUntil('');
   }
 
   if (accountsQuery.isLoading) {
@@ -184,43 +243,113 @@ export function AdsDashboard() {
     );
   }
 
-  const liveAds = overview.data
-    ? focusedCampaignId
-      ? overview.data.liveAds.filter((ad) => ad.campaignId === focusedCampaignId)
-      : overview.data.liveAds
-    : [];
+  const filteredOverview = overview.data
+    ? filterOverviewByStatus(overview.data, statusFilter)
+    : null;
+
+  const galleryAds = (() => {
+    if (!overview.data) return [] as AdsLiveAd[];
+    // Prefer full ACTIVE list from overview.liveAds (paged); fall back to ads filter.
+    let ads: AdsLiveAd[];
+    if (statusFilter === 'active') {
+      ads =
+        overview.data.liveAds.length > 0
+          ? overview.data.liveAds
+          : overview.data.ads
+              .filter((ad) => matchesAdsStatusFilter(ad.status, 'active'))
+              .map(adItemToLiveAd);
+    } else if (statusFilter === 'paused') {
+      ads = overview.data.ads
+        .filter((ad) => matchesAdsStatusFilter(ad.status, 'paused'))
+        .map(adItemToLiveAd);
+    } else {
+      ads = overview.data.ads.map(adItemToLiveAd);
+    }
+    return focusedCampaignId
+      ? ads.filter((ad) => ad.campaignId === focusedCampaignId)
+      : ads;
+  })();
+
+  const detailLeads =
+    detail?.kind === 'ad' && overview.data
+      ? overview.data.leads.filter((lead) => lead.adId === detail.ad.id)
+      : [];
 
   return (
     <div className="space-y-6">
-      <Card className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between">
-        <label className="flex min-w-0 flex-1 flex-col gap-1.5 text-sm sm:max-w-md">
-          <span className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
-            Ad account
-          </span>
-          <select
-            className="border-border bg-surface focus:border-primary h-10 w-full truncate rounded-lg border px-3 text-sm outline-none transition"
-            value={accountId ?? ''}
-            onChange={(event) => selectAccount(event.target.value)}
-          >
-            {accounts.map((account) => (
-              <option key={account.id} value={account.id}>
-                {account.name} ({account.id.replace('act_', '')})
-                {account.status !== 1 ? ' · inactive' : ''}
-              </option>
-            ))}
-          </select>
-        </label>
-        <div className="shrink-0">
-          <p className="text-muted-foreground mb-1.5 text-xs font-medium tracking-wide uppercase">
-            Date range
-          </p>
-          <SegmentedControl
-            label="Date range"
-            options={ADS_DATE_PRESETS}
-            value={datePreset}
-            onChange={setDatePreset}
-          />
+      <Card className="flex flex-col gap-4 p-4">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <label className="flex min-w-0 flex-1 flex-col gap-1.5 text-sm lg:max-w-md">
+            <span className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+              Ad account
+            </span>
+            <select
+              className="border-border bg-surface focus:border-primary h-10 w-full truncate rounded-lg border px-3 text-sm outline-none transition"
+              value={accountId ?? ''}
+              onChange={(event) => selectAccount(event.target.value)}
+            >
+              {accounts.map((account) => (
+                <option key={account.id} value={account.id}>
+                  {account.name} ({account.id.replace('act_', '')})
+                  {account.status !== 1 ? ' · inactive' : ''}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div className="shrink-0">
+            <p className="text-muted-foreground mb-1.5 text-xs font-medium tracking-wide uppercase">
+              Status
+            </p>
+            <SegmentedControl
+              label="Status"
+              options={ADS_STATUS_FILTERS}
+              value={statusFilter}
+              onChange={setStatusFilter}
+            />
+          </div>
         </div>
+        <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
+          <div className="shrink-0">
+            <p className="text-muted-foreground mb-1.5 text-xs font-medium tracking-wide uppercase">
+              Date range
+            </p>
+            <SegmentedControl
+              label="Date range"
+              options={ADS_DATE_PRESETS}
+              value={customRangeReady ? ('' as AdsDatePreset) : datePreset}
+              onChange={selectPreset}
+            />
+          </div>
+          <div className="flex flex-wrap items-end gap-3">
+            <label className="flex flex-col gap-1.5 text-sm">
+              <span className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+                From
+              </span>
+              <input
+                type="date"
+                className="border-border bg-surface focus:border-primary h-10 rounded-lg border px-3 text-sm outline-none transition"
+                value={since}
+                max={until || undefined}
+                onChange={(event) => setSince(event.target.value)}
+              />
+            </label>
+            <label className="flex flex-col gap-1.5 text-sm">
+              <span className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+                To
+              </span>
+              <input
+                type="date"
+                className="border-border bg-surface focus:border-primary h-10 rounded-lg border px-3 text-sm outline-none transition"
+                value={until}
+                min={since || undefined}
+                onChange={(event) => setUntil(event.target.value)}
+              />
+            </label>
+          </div>
+        </div>
+        {since && until && since > until && (
+          <p className="text-danger text-xs">From date must be on or before To date.</p>
+        )}
       </Card>
 
       {overview.error && (
@@ -231,18 +360,35 @@ export function AdsDashboard() {
       {!overview.data && !overview.error && (
         <Card className="text-muted-foreground p-6 text-sm">Loading live data from Meta…</Card>
       )}
-      {overview.data && (
+      {overview.data && filteredOverview && (
         <div className={cn('space-y-6 transition', overview.isValidating && 'opacity-60')}>
           <Totals data={overview.data} />
-          <LiveAds ads={liveAds} currency={overview.data.account.currency} />
+          <LiveAds
+            ads={galleryAds}
+            currency={overview.data.account.currency}
+            statusFilter={statusFilter}
+            onSelectAd={(ad) => setDetail({ kind: 'ad', ad })}
+          />
           <DailySpend points={overview.data.daily} currency={overview.data.account.currency} />
           <AdsHierarchy
             key={overview.data.account.id}
-            data={overview.data}
+            data={filteredOverview}
             focusedCampaignId={focusedCampaignId}
             onFocusCampaign={setFocusedCampaignId}
+            onSelectDetail={setDetail}
           />
         </div>
+      )}
+
+      {detail && accountId && overview.data && (
+        <AdsDetailPanel
+          selection={detail}
+          currency={overview.data.account.currency}
+          accountId={accountId}
+          date={dateQuery}
+          relatedLeads={detailLeads}
+          onClose={() => setDetail(null)}
+        />
       )}
 
       <p className="text-muted-foreground text-xs">
@@ -322,76 +468,114 @@ function DailySpend({ points, currency }: { points: AdsDailyPoint[]; currency: s
   );
 }
 
-function LiveAds({ ads, currency }: { ads: AdsLiveAd[]; currency: string }) {
+function LiveAds({
+  ads,
+  currency,
+  statusFilter,
+  onSelectAd,
+}: {
+  ads: AdsLiveAd[];
+  currency: string;
+  statusFilter: AdsStatusFilter;
+  onSelectAd: (ad: AdsLiveAd) => void;
+}) {
+  const title =
+    statusFilter === 'paused' ? 'Paused ads' : statusFilter === 'active' ? 'Live ads' : 'Ads';
+  const subtitle =
+    statusFilter === 'paused'
+      ? 'Creatives that are paused or not serving · click a card for full details'
+      : statusFilter === 'active'
+        ? 'All creatives currently eligible to serve · click for full & historical data'
+        : 'Active and paused creatives · click for full & historical data';
+  const countLabel =
+    statusFilter === 'paused' ? 'paused' : statusFilter === 'active' ? 'live' : 'shown';
+  const countClass =
+    statusFilter === 'paused'
+      ? 'bg-surface-muted text-muted-foreground'
+      : 'bg-success/15 text-success';
+
   return (
     <Card className="p-5">
       <div className="mb-5 flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h2 className="text-sm font-semibold">Live ads</h2>
-          <p className="text-muted-foreground mt-0.5 text-xs">
-            Creatives currently eligible to serve
-          </p>
+          <h2 className="text-sm font-semibold">{title}</h2>
+          <p className="text-muted-foreground mt-0.5 text-xs">{subtitle}</p>
         </div>
-        <span className="bg-success/15 text-success rounded-full px-2.5 py-1 text-[11px] font-semibold">
-          {ads.length} live
+        <span className={cn('rounded-full px-2.5 py-1 text-[11px] font-semibold', countClass)}>
+          {ads.length} {countLabel}
         </span>
       </div>
 
       {ads.length === 0 ? (
-        <p className="text-muted-foreground text-sm">No ads are live right now.</p>
+        <p className="text-muted-foreground text-sm">
+          {statusFilter === 'paused'
+            ? 'No paused ads in this account.'
+            : statusFilter === 'active'
+              ? 'No ads are live right now.'
+              : 'No ads found.'}
+        </p>
       ) : (
         <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {ads.map((ad) => (
-            <li
-              key={ad.id}
-              className="border-border bg-surface-muted/20 flex flex-col overflow-hidden rounded-xl border"
-            >
-              <div className="bg-surface-muted relative aspect-[1.91/1] w-full overflow-hidden">
-                {ad.thumbnailUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={ad.thumbnailUrl} alt="" className="h-full w-full object-cover" />
-                ) : (
-                  <div className="text-muted-foreground flex h-full items-center justify-center text-xs">
-                    No creative preview
-                  </div>
-                )}
-                <span className="bg-success absolute top-2.5 left-2.5 rounded-full px-2 py-0.5 text-[10px] font-semibold text-white shadow">
-                  Live
-                </span>
-              </div>
-              <div className="flex flex-1 flex-col gap-3 p-3.5">
-                <div className="min-w-0 space-y-1">
-                  <p className="line-clamp-2 text-sm font-semibold leading-snug">{ad.name}</p>
-                  {(ad.campaignName || ad.adsetName) && (
-                    <p className="text-muted-foreground line-clamp-1 text-xs">
-                      {[ad.campaignName, ad.adsetName].filter(Boolean).join(' · ')}
-                    </p>
+            <li key={ad.id}>
+              <button
+                type="button"
+                onClick={() => onSelectAd(ad)}
+                className="border-border bg-surface-muted/20 hover:border-primary/40 hover:bg-surface-muted/40 flex h-full w-full flex-col overflow-hidden rounded-xl border text-left transition"
+              >
+                <div className="bg-surface-muted relative aspect-[1.91/1] w-full overflow-hidden">
+                  {ad.thumbnailUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={ad.thumbnailUrl} alt="" className="h-full w-full object-cover" />
+                  ) : (
+                    <div className="text-muted-foreground flex h-full items-center justify-center text-xs">
+                      No creative preview
+                    </div>
                   )}
-                  {ad.headline && (
-                    <p className="text-muted-foreground line-clamp-2 text-xs leading-relaxed">
-                      {ad.headline}
-                    </p>
-                  )}
+                  <span
+                    className={cn(
+                      'absolute top-2.5 left-2.5 rounded-full px-2 py-0.5 text-[10px] font-semibold text-white shadow',
+                      ad.status === 'ACTIVE' ? 'bg-success' : 'bg-muted-foreground'
+                    )}
+                  >
+                    {ad.status === 'ACTIVE' ? 'Live' : 'Paused'}
+                  </span>
                 </div>
-                <div className="border-border mt-auto grid grid-cols-2 gap-2 border-t pt-3 text-xs">
-                  <div>
-                    <p className="text-muted-foreground text-[10px] uppercase">Spend</p>
-                    <p className="font-semibold tabular-nums">{money(ad.spend, currency)}</p>
+                <div className="flex flex-1 flex-col gap-3 p-3.5">
+                  <div className="min-w-0 space-y-1">
+                    <p className="line-clamp-2 text-sm font-semibold leading-snug">{ad.name}</p>
+                    {(ad.campaignName || ad.adsetName) && (
+                      <p className="text-muted-foreground line-clamp-1 text-xs">
+                        {[ad.campaignName, ad.adsetName].filter(Boolean).join(' · ')}
+                      </p>
+                    )}
+                    {ad.headline && (
+                      <p className="text-muted-foreground line-clamp-2 text-xs leading-relaxed">
+                        {ad.headline}
+                      </p>
+                    )}
                   </div>
-                  <div>
-                    <p className="text-muted-foreground text-[10px] uppercase">Clicks</p>
-                    <p className="font-semibold tabular-nums">{count.format(ad.clicks)}</p>
+                  <div className="border-border mt-auto grid grid-cols-2 gap-2 border-t pt-3 text-xs">
+                    <div>
+                      <p className="text-muted-foreground text-[10px] uppercase">Spend</p>
+                      <p className="font-semibold tabular-nums">{money(ad.spend, currency)}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground text-[10px] uppercase">Clicks</p>
+                      <p className="font-semibold tabular-nums">{count.format(ad.clicks)}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground text-[10px] uppercase">CTR</p>
+                      <p className="font-semibold tabular-nums">{ad.ctr.toFixed(2)}%</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground text-[10px] uppercase">Leads</p>
+                      <p className="font-semibold tabular-nums">{count.format(ad.leads)}</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-muted-foreground text-[10px] uppercase">CTR</p>
-                    <p className="font-semibold tabular-nums">{ad.ctr.toFixed(2)}%</p>
-                  </div>
-                  <div>
-                    <p className="text-muted-foreground text-[10px] uppercase">Leads</p>
-                    <p className="font-semibold tabular-nums">{count.format(ad.leads)}</p>
-                  </div>
+                  <p className="text-primary text-[11px] font-medium">View full &amp; historical data →</p>
                 </div>
-              </div>
+              </button>
             </li>
           ))}
         </ul>
@@ -404,10 +588,12 @@ function AdsHierarchy({
   data,
   focusedCampaignId,
   onFocusCampaign,
+  onSelectDetail,
 }: {
   data: AdsOverview;
   focusedCampaignId: string | null;
   onFocusCampaign: (id: string | null) => void;
+  onSelectDetail: (selection: AdsDetailSelection) => void;
 }) {
   const { campaigns, adSets, ads, leads, account } = data;
   const [level, setLevel] = useState<AdsLevel>('campaigns');
@@ -451,7 +637,7 @@ function AdsHierarchy({
     leads: filteredLeads.length,
   };
 
-  function openCampaign(id: string) {
+  function drillIntoCampaign(id: string) {
     onFocusCampaign(id);
     setSelectedAdSetIds([]);
     setLevel('adsets');
@@ -467,40 +653,12 @@ function AdsHierarchy({
     <Card className="overflow-hidden p-0">
       <div className="border-border space-y-3 border-b px-4 py-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div
-            role="tablist"
-            aria-label="Ads levels"
-            className="bg-surface-muted flex flex-wrap gap-1 rounded-xl p-1"
-          >
-            {LEVEL_TABS.map((tab) => (
-              <button
-                key={tab.value}
-                type="button"
-                role="tab"
-                aria-selected={level === tab.value}
-                onClick={() => setLevel(tab.value)}
-                className={cn(
-                  'inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition',
-                  level === tab.value
-                    ? 'bg-primary text-primary-foreground shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground'
-                )}
-              >
-                {tab.label}
-                <span
-                  className={cn(
-                    'rounded-full px-1.5 py-0.5 text-[10px] font-semibold tabular-nums',
-                    level === tab.value
-                      ? 'bg-primary-foreground/20 text-primary-foreground'
-                      : 'bg-surface text-muted-foreground'
-                  )}
-                >
-                  {tabCounts[tab.value]}
-                </span>
-              </button>
-            ))}
+          <div>
+            <h2 className="text-sm font-semibold">Campaign hierarchy</h2>
+            <p className="text-muted-foreground mt-0.5 text-xs">
+              Click a row for complete details. Use “Ad sets” on a campaign to drill down.
+            </p>
           </div>
-
           <div className="flex flex-wrap items-center gap-2">
             {selectedAdSetIds.length > 0 && (
               <button
@@ -524,6 +682,40 @@ function AdsHierarchy({
               </Button>
             )}
           </div>
+        </div>
+
+        <div
+          role="tablist"
+          aria-label="Ads levels"
+          className="bg-surface-muted flex flex-wrap gap-1 rounded-xl p-1"
+        >
+          {LEVEL_TABS.map((tab) => (
+            <button
+              key={tab.value}
+              type="button"
+              role="tab"
+              aria-selected={level === tab.value}
+              onClick={() => setLevel(tab.value)}
+              className={cn(
+                'inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition',
+                level === tab.value
+                  ? 'bg-primary text-primary-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
+            >
+              {tab.label}
+              <span
+                className={cn(
+                  'rounded-full px-1.5 py-0.5 text-[10px] font-semibold tabular-nums',
+                  level === tab.value
+                    ? 'bg-primary-foreground/20 text-primary-foreground'
+                    : 'bg-surface text-muted-foreground'
+                )}
+              >
+                {tabCounts[tab.value]}
+              </span>
+            </button>
+          ))}
         </div>
 
         {focusedCampaign && (
@@ -556,7 +748,8 @@ function AdsHierarchy({
           campaigns={visibleCampaigns}
           currency={account.currency}
           focusedId={focusedCampaignId}
-          onOpen={openCampaign}
+          onOpenDetail={(campaign) => onSelectDetail({ kind: 'campaign', campaign })}
+          onDrill={drillIntoCampaign}
         />
       )}
       {level === 'adsets' && (
@@ -565,10 +758,22 @@ function AdsHierarchy({
           currency={account.currency}
           selectedIds={selectedAdSetIds}
           onToggle={(id) => setSelectedAdSetIds((current) => toggleId(current, id))}
+          onOpenDetail={(adset) => onSelectDetail({ kind: 'adset', adset })}
         />
       )}
-      {level === 'ads' && <AdsTable ads={filteredAds} currency={account.currency} />}
-      {level === 'leads' && <LeadsTable leads={filteredLeads} />}
+      {level === 'ads' && (
+        <AdsTable
+          ads={filteredAds}
+          currency={account.currency}
+          onOpenDetail={(ad) => onSelectDetail({ kind: 'ad', ad })}
+        />
+      )}
+      {level === 'leads' && (
+        <LeadsTable
+          leads={filteredLeads}
+          onOpenDetail={(lead) => onSelectDetail({ kind: 'lead', lead })}
+        />
+      )}
     </Card>
   );
 }
@@ -577,27 +782,32 @@ function CampaignsTable({
   campaigns,
   currency,
   focusedId,
-  onOpen,
+  onOpenDetail,
+  onDrill,
 }: {
   campaigns: AdsCampaignItem[];
   currency: string;
   focusedId: string | null;
-  onOpen: (id: string) => void;
+  onOpenDetail: (campaign: AdsCampaignItem) => void;
+  onDrill: (id: string) => void;
 }) {
   return (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[1080px] border-collapse text-left text-sm">
+      <table className="w-full min-w-[1180px] border-collapse text-left text-sm">
         <thead className="bg-surface-muted/50 text-muted-foreground sticky top-0 z-10 text-[11px] tracking-wide uppercase">
           <tr>
             <th className="px-4 py-3 font-semibold">Campaign</th>
             <th className="px-4 py-3 font-semibold">Status</th>
             <th className="px-4 py-3 text-right font-semibold">Budget</th>
             <th className="px-4 py-3 text-right font-semibold">Spend</th>
+            <th className="px-4 py-3 text-right font-semibold">Impr.</th>
+            <th className="px-4 py-3 text-right font-semibold">Clicks</th>
             <th className="px-4 py-3 text-right font-semibold">Leads</th>
             <th className="px-4 py-3 text-right font-semibold">Cost / lead</th>
             <th className="px-4 py-3 text-right font-semibold">LP views</th>
             <th className="px-4 py-3 text-right font-semibold">CTR</th>
             <th className="px-4 py-3 text-right font-semibold">CPC</th>
+            <th className="px-4 py-3 font-semibold"> </th>
           </tr>
         </thead>
         <tbody>
@@ -610,30 +820,21 @@ function CampaignsTable({
                   'border-border hover:bg-surface-muted/35 cursor-pointer border-b transition last:border-0',
                   focused && 'bg-primary/8'
                 )}
-                onClick={() => onOpen(campaign.id)}
+                onClick={() => onOpenDetail(campaign)}
               >
                 <td className="px-4 py-3.5">
-                  <button
-                    type="button"
-                    className="group max-w-xs text-left"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      onOpen(campaign.id);
-                    }}
-                  >
-                    <p className="text-foreground group-hover:text-primary font-medium transition">
-                      {campaign.name}
-                    </p>
-                    <p className="text-muted-foreground mt-0.5 text-xs">
-                      {objectiveLabel(campaign.objective)}
-                    </p>
-                  </button>
+                  <p className="text-foreground max-w-xs font-medium">{campaign.name}</p>
+                  <p className="text-muted-foreground mt-0.5 text-xs">
+                    {objectiveLabel(campaign.objective)}
+                  </p>
                 </td>
                 <td className="px-4 py-3.5">{statusPill(campaign.status)}</td>
                 <MetricCell className="text-muted-foreground text-xs">
                   {campaign.budgetLabel ?? 'Ad set budget'}
                 </MetricCell>
                 <MetricCell>{money(campaign.spend, currency)}</MetricCell>
+                <MetricCell>{count.format(campaign.impressions)}</MetricCell>
+                <MetricCell>{count.format(campaign.clicks)}</MetricCell>
                 <MetricCell>{count.format(campaign.leads)}</MetricCell>
                 <MetricCell>
                   {campaign.costPerLead === null ? '—' : money(campaign.costPerLead, currency)}
@@ -643,12 +844,24 @@ function CampaignsTable({
                 <MetricCell>
                   {campaign.cpc ? money(campaign.cpc, currency, 2) : '—'}
                 </MetricCell>
+                <td className="px-4 py-3.5">
+                  <button
+                    type="button"
+                    className="text-primary hover:bg-primary/10 rounded-lg px-2 py-1 text-xs font-medium whitespace-nowrap transition"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onDrill(campaign.id);
+                    }}
+                  >
+                    Ad sets →
+                  </button>
+                </td>
               </tr>
             );
           })}
           {campaigns.length === 0 && (
             <tr>
-              <td colSpan={9} className="text-muted-foreground px-4 py-10 text-center text-sm">
+              <td colSpan={12} className="text-muted-foreground px-4 py-10 text-center text-sm">
                 No campaigns in this ad account.
               </td>
             </tr>
@@ -664,11 +877,13 @@ function AdSetsTable({
   currency,
   selectedIds,
   onToggle,
+  onOpenDetail,
 }: {
   adSets: AdsAdSetItem[];
   currency: string;
   selectedIds: string[];
   onToggle: (id: string) => void;
+  onOpenDetail: (adset: AdsAdSetItem) => void;
 }) {
   return (
     <div className="overflow-x-auto">
@@ -684,6 +899,7 @@ function AdSetsTable({
             <th className="px-4 py-3 font-semibold">Behaviors</th>
             <th className="px-4 py-3 text-right font-semibold">Spend</th>
             <th className="px-4 py-3 text-right font-semibold">Leads</th>
+            <th className="px-4 py-3 text-right font-semibold">Cost / lead</th>
           </tr>
         </thead>
         <tbody>
@@ -697,16 +913,17 @@ function AdSetsTable({
               <tr
                 key={adset.id}
                 className={cn(
-                  'border-border hover:bg-surface-muted/30 border-b transition last:border-0',
+                  'border-border hover:bg-surface-muted/30 cursor-pointer border-b transition last:border-0',
                   selected && 'bg-primary/8'
                 )}
+                onClick={() => onOpenDetail(adset)}
               >
-                <td className="px-4 py-3.5">
+                <td className="px-4 py-3.5" onClick={(event) => event.stopPropagation()}>
                   <input
                     type="checkbox"
                     checked={selected}
                     onChange={() => onToggle(adset.id)}
-                    aria-label={`Select ${adset.name}`}
+                    aria-label={`Filter by ${adset.name}`}
                     className="accent-primary size-3.5 rounded"
                   />
                 </td>
@@ -721,22 +938,25 @@ function AdSetsTable({
                 <td className="px-4 py-3.5">{statusPill(adset.status)}</td>
                 <td className="px-4 py-3.5 text-xs tabular-nums">{age}</td>
                 <td className="max-w-[180px] px-4 py-3.5">
-                  <TagList items={adset.targeting.locations} limit={3} />
+                  <TagList items={adset.targeting.locations} limit={4} />
                 </td>
                 <td className="max-w-[200px] px-4 py-3.5">
-                  <TagList items={adset.targeting.interests} limit={3} />
+                  <TagList items={adset.targeting.interests} limit={4} />
                 </td>
                 <td className="max-w-[200px] px-4 py-3.5">
-                  <TagList items={adset.targeting.behaviors} limit={3} />
+                  <TagList items={adset.targeting.behaviors} limit={4} />
                 </td>
                 <MetricCell>{money(adset.spend, currency)}</MetricCell>
                 <MetricCell>{count.format(adset.leads)}</MetricCell>
+                <MetricCell>
+                  {adset.costPerLead === null ? '—' : money(adset.costPerLead, currency)}
+                </MetricCell>
               </tr>
             );
           })}
           {adSets.length === 0 && (
             <tr>
-              <td colSpan={9} className="text-muted-foreground px-4 py-10 text-center text-sm">
+              <td colSpan={10} className="text-muted-foreground px-4 py-10 text-center text-sm">
                 No ad sets for the current selection.
               </td>
             </tr>
@@ -747,10 +967,18 @@ function AdSetsTable({
   );
 }
 
-function AdsTable({ ads, currency }: { ads: AdsAdItem[]; currency: string }) {
+function AdsTable({
+  ads,
+  currency,
+  onOpenDetail,
+}: {
+  ads: AdsAdItem[];
+  currency: string;
+  onOpenDetail: (ad: AdsAdItem) => void;
+}) {
   return (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[1100px] border-collapse text-left text-sm">
+      <table className="w-full min-w-[1200px] border-collapse text-left text-sm">
         <thead className="bg-surface-muted/50 text-muted-foreground sticky top-0 z-10 text-[11px] tracking-wide uppercase">
           <tr>
             <th className="px-4 py-3 font-semibold">Ad / Creative</th>
@@ -759,6 +987,8 @@ function AdsTable({ ads, currency }: { ads: AdsAdItem[]; currency: string }) {
             <th className="px-4 py-3 font-semibold">Headline</th>
             <th className="px-4 py-3 font-semibold">Description</th>
             <th className="px-4 py-3 text-right font-semibold">Spend</th>
+            <th className="px-4 py-3 text-right font-semibold">Clicks</th>
+            <th className="px-4 py-3 text-right font-semibold">CTR</th>
             <th className="px-4 py-3 text-right font-semibold">Leads</th>
           </tr>
         </thead>
@@ -766,7 +996,8 @@ function AdsTable({ ads, currency }: { ads: AdsAdItem[]; currency: string }) {
           {ads.map((ad) => (
             <tr
               key={ad.id}
-              className="border-border hover:bg-surface-muted/30 border-b transition last:border-0"
+              className="border-border hover:bg-primary/5 cursor-pointer border-b transition last:border-0"
+              onClick={() => onOpenDetail(ad)}
             >
               <td className="px-4 py-3.5">
                 <div className="flex items-start gap-3">
@@ -781,10 +1012,11 @@ function AdsTable({ ads, currency }: { ads: AdsAdItem[]; currency: string }) {
                     )}
                   </div>
                   <div className="min-w-0 max-w-[220px]">
-                    <p className="font-medium leading-snug">{ad.name}</p>
+                    <p className="text-primary font-medium leading-snug">{ad.name}</p>
                     <p className="text-muted-foreground mt-0.5 line-clamp-1 text-xs">
                       {dash([ad.adsetName, ad.campaignName].filter(Boolean).join(' · '))}
                     </p>
+                    <p className="text-muted-foreground mt-1 text-[11px]">Open full &amp; history →</p>
                   </div>
                 </div>
               </td>
@@ -799,12 +1031,14 @@ function AdsTable({ ads, currency }: { ads: AdsAdItem[]; currency: string }) {
                 <p className="line-clamp-2">{dash(ad.description)}</p>
               </td>
               <MetricCell>{money(ad.spend, currency)}</MetricCell>
+              <MetricCell>{count.format(ad.clicks)}</MetricCell>
+              <MetricCell>{ad.ctr.toFixed(2)}%</MetricCell>
               <MetricCell>{count.format(ad.leads)}</MetricCell>
             </tr>
           ))}
           {ads.length === 0 && (
             <tr>
-              <td colSpan={7} className="text-muted-foreground px-4 py-10 text-center text-sm">
+              <td colSpan={9} className="text-muted-foreground px-4 py-10 text-center text-sm">
                 No ads for the current selection.
               </td>
             </tr>
@@ -815,7 +1049,13 @@ function AdsTable({ ads, currency }: { ads: AdsAdItem[]; currency: string }) {
   );
 }
 
-function LeadsTable({ leads }: { leads: AdsLeadItem[] }) {
+function LeadsTable({
+  leads,
+  onOpenDetail,
+}: {
+  leads: AdsLeadItem[];
+  onOpenDetail: (lead: AdsLeadItem) => void;
+}) {
   return (
     <div className="overflow-x-auto">
       <table className="w-full min-w-[960px] border-collapse text-left text-sm">
@@ -832,7 +1072,8 @@ function LeadsTable({ leads }: { leads: AdsLeadItem[] }) {
           {leads.map((lead) => (
             <tr
               key={lead.id}
-              className="border-border hover:bg-surface-muted/30 border-b transition last:border-0"
+              className="border-border hover:bg-primary/5 cursor-pointer border-b transition last:border-0"
+              onClick={() => onOpenDetail(lead)}
             >
               <td className="text-muted-foreground whitespace-nowrap px-4 py-3.5 text-xs tabular-nums">
                 {lead.createdTime

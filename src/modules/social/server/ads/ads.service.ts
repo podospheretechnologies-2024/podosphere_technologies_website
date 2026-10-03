@@ -1,7 +1,7 @@
 import 'server-only';
 import { getServerEnv } from '@/shared/lib/env';
 import { HttpError } from '@/shared/server/http-error';
-import { ADS_LEAD_ACTION_TYPES, type AdsDatePreset } from '../../config/ads';
+import { ADS_LEAD_ACTION_TYPES } from '../../config/ads';
 import type {
   AdAccountItem,
   AdsAdItem,
@@ -9,6 +9,8 @@ import type {
   AdsAdSetTargeting,
   AdsCampaignItem,
   AdsDailyPoint,
+  AdsEntityHistory,
+  AdsHistoryPoint,
   AdsLeadItem,
   AdsLiveAd,
   AdsOverview,
@@ -20,6 +22,11 @@ import {
   type GraphConfig,
   type GraphList,
 } from '../integrations/providers/meta/graph-client';
+import type { AdsOverviewDateQuery } from './ads.schema';
+
+type GraphPagedList<T> = GraphList<T> & {
+  paging?: { cursors?: { after?: string }; next?: string };
+};
 
 // Read-only: nothing here pauses, edits or creates ads. See PODO_SOCIAL.md section 8 (safety rules).
 
@@ -163,8 +170,10 @@ interface GraphLead {
 }
 
 const LEAD_FETCH_CONCURRENCY = 4;
-const LEAD_ADS_LIMIT = 30;
+const LEAD_ADS_LIMIT = 50;
 const LEADS_PER_AD = 100;
+const PAGE_SIZE = 100;
+const MAX_PAGES = 20;
 
 function credentials(): { graph: GraphConfig; token: string } {
   const env = getServerEnv();
@@ -177,7 +186,7 @@ function credentials(): { graph: GraphConfig; token: string } {
   };
 }
 
-async function get<T>(path: string, params: Record<string, string | number>): Promise<T> {
+async function get<T>(path: string, params: Record<string, string | number | undefined> = {}): Promise<T> {
   const { graph, token } = credentials();
   try {
     return await graphGet<T>(graph, path, token, params);
@@ -196,6 +205,61 @@ async function get<T>(path: string, params: Record<string, string | number>): Pr
     }
     throw error;
   }
+}
+
+/** Follow Meta cursor pages so live / hierarchy lists are complete. */
+async function getPaged<T>(
+  path: string,
+  params: Record<string, string | number>,
+  maxPages = MAX_PAGES
+): Promise<T[]> {
+  const items: T[] = [];
+  let after: string | undefined;
+  for (let page = 0; page < maxPages; page += 1) {
+    const result = await get<GraphPagedList<T>>(path, {
+      ...params,
+      limit: Number(params.limit) || PAGE_SIZE,
+      ...(after ? { after } : {}),
+    });
+    items.push(...(result.data ?? []));
+    after = result.paging?.cursors?.after;
+    if (!after || !(result.data?.length)) break;
+  }
+  return items;
+}
+
+function toHistoryPoint(row: GraphInsight): AdsHistoryPoint {
+  const totals = toTotals(row);
+  return {
+    date: row.date_start ?? '',
+    spend: totals.spend,
+    impressions: totals.impressions,
+    clicks: totals.clicks,
+    ctr: totals.ctr,
+    cpc: totals.cpc,
+    leads: totals.leads,
+  };
+}
+
+function adItemToLiveAd(ad: AdsAdItem): AdsLiveAd {
+  return {
+    id: ad.id,
+    name: ad.name,
+    status: ad.status,
+    campaignId: ad.campaignId,
+    campaignName: ad.campaignName,
+    adsetId: ad.adsetId,
+    adsetName: ad.adsetName,
+    thumbnailUrl: ad.thumbnailUrl,
+    headline: ad.headline,
+    body: ad.primaryText,
+    spend: ad.spend,
+    impressions: ad.impressions,
+    clicks: ad.clicks,
+    ctr: ad.ctr,
+    leads: ad.leads,
+    costPerLead: ad.costPerLead,
+  };
 }
 
 const num = (value: string | number | undefined) =>
@@ -241,6 +305,13 @@ function toAccount(account: GraphAdAccount): AdAccountItem {
     status: account.account_status,
     amountSpent: num(account.amount_spent) / 100,
   };
+}
+
+function insightDateParams(date: AdsOverviewDateQuery): Record<string, string> {
+  if (date.mode === 'range') {
+    return { time_range: JSON.stringify({ since: date.since, until: date.until }) };
+  }
+  return { date_preset: date.datePreset };
 }
 
 function budgetFromCampaign(
@@ -423,12 +494,14 @@ export const adsService = {
     return result.data.map(toAccount).sort((a, b) => a.name.localeCompare(b.name));
   },
 
-  async overview(accountId: string, datePreset: AdsDatePreset): Promise<AdsOverview> {
+  async overview(accountId: string, date: AdsOverviewDateQuery): Promise<AdsOverview> {
     const accounts = await this.listAccounts();
     const account = accounts.find((item) => item.id === accountId);
     if (!account) {
       throw new HttpError(404, 'Ad account not found or not shared with the system user');
     }
+
+    const dateParams = insightDateParams(date);
 
     const [
       totals,
@@ -439,54 +512,51 @@ export const adsService = {
       campaigns,
       adSets,
       adsRaw,
-      liveAdsRaw,
     ] = await Promise.all([
       get<GraphList<GraphInsight>>(`${accountId}/insights`, {
         fields: 'spend,impressions,reach,clicks,ctr,cpc,actions',
-        date_preset: datePreset,
+        ...dateParams,
       }),
-      get<GraphList<GraphInsight>>(`${accountId}/insights`, {
+      getPaged<GraphInsight>(`${accountId}/insights`, {
         fields: 'spend,clicks',
-        date_preset: datePreset,
+        ...dateParams,
         time_increment: 1,
-        limit: 100,
-      }),
-      get<GraphList<GraphInsight>>(`${accountId}/insights`, {
+        limit: PAGE_SIZE,
+      }).then((data) => ({ data })),
+      getPaged<GraphInsight>(`${accountId}/insights`, {
         fields: 'campaign_id,campaign_name,spend,impressions,clicks,ctr,cpc,actions',
         level: 'campaign',
-        date_preset: datePreset,
-        limit: 200,
-      }),
-      get<GraphList<GraphInsight>>(`${accountId}/insights`, {
+        ...dateParams,
+        limit: PAGE_SIZE,
+      }).then((data) => ({ data })),
+      getPaged<GraphInsight>(`${accountId}/insights`, {
         fields: 'adset_id,adset_name,spend,actions',
         level: 'adset',
-        date_preset: datePreset,
-        limit: 200,
-      }).catch(() => ({ data: [] as GraphInsight[] })),
-      get<GraphList<GraphInsight>>(`${accountId}/insights`, {
+        ...dateParams,
+        limit: PAGE_SIZE,
+      })
+        .then((data) => ({ data }))
+        .catch(() => ({ data: [] as GraphInsight[] })),
+      getPaged<GraphInsight>(`${accountId}/insights`, {
         fields: 'ad_id,ad_name,spend,impressions,clicks,ctr,cpc,actions',
         level: 'ad',
-        date_preset: datePreset,
-        limit: 200,
-      }).catch(() => ({ data: [] as GraphInsight[] })),
-      get<GraphList<GraphCampaign>>(`${accountId}/campaigns`, {
+        ...dateParams,
+        limit: PAGE_SIZE,
+      })
+        .then((data) => ({ data }))
+        .catch(() => ({ data: [] as GraphInsight[] })),
+      getPaged<GraphCampaign>(`${accountId}/campaigns`, {
         fields: 'name,effective_status,objective,daily_budget,lifetime_budget',
-        limit: 200,
+        limit: PAGE_SIZE,
       }),
-      get<GraphList<GraphAdSet>>(`${accountId}/adsets`, {
+      getPaged<GraphAdSet>(`${accountId}/adsets`, {
         fields: 'name,effective_status,campaign_id,campaign{name},targeting',
-        limit: 200,
+        limit: PAGE_SIZE,
       }),
-      get<GraphList<GraphAd>>(`${accountId}/ads`, {
+      getPaged<GraphAd>(`${accountId}/ads`, {
         fields:
           'name,effective_status,campaign_id,adset_id,campaign{name},adset{name},creative{id,name,title,body,thumbnail_url,image_url,object_story_spec,asset_feed_spec}',
-        limit: 200,
-      }),
-      get<GraphList<GraphAd>>(`${accountId}/ads`, {
-        fields:
-          'name,effective_status,campaign_id,adset_id,campaign{name},adset{name},creative{name,title,body,thumbnail_url,image_url}',
-        effective_status: JSON.stringify(['ACTIVE']),
-        limit: 100,
+        limit: PAGE_SIZE,
       }),
     ]);
 
@@ -498,7 +568,7 @@ export const adsService = {
         .map((row) => [row.ad_id, row])
     );
 
-    const campaignItems: AdsCampaignItem[] = campaigns.data.map((campaign) => {
+    const campaignItems: AdsCampaignItem[] = campaigns.map((campaign) => {
       const stats = toTotals(insightByCampaign.get(campaign.id));
       const budget = budgetFromCampaign(campaign, account.currency);
       const actions = insightByCampaign.get(campaign.id)?.actions;
@@ -522,7 +592,7 @@ export const adsService = {
       (a, b) => Number(b.status === 'ACTIVE') - Number(a.status === 'ACTIVE') || b.spend - a.spend
     );
 
-    const adSetItems: AdsAdSetItem[] = adSets.data.map((adset) => {
+    const adSetItems: AdsAdSetItem[] = adSets.map((adset) => {
       const stats = toTotals(insightByAdSet.get(adset.id));
       return {
         id: adset.id,
@@ -540,7 +610,7 @@ export const adsService = {
       (a, b) => Number(b.status === 'ACTIVE') - Number(a.status === 'ACTIVE') || b.spend - a.spend
     );
 
-    const adItems: AdsAdItem[] = adsRaw.data.map((ad) => {
+    const adItems: AdsAdItem[] = adsRaw.map((ad) => {
       const stats = toTotals(insightByAd.get(ad.id));
       const creative = creativeFields(ad.creative);
       return {
@@ -556,8 +626,10 @@ export const adsService = {
         headline: creative.headline,
         description: creative.description,
         spend: stats.spend,
+        impressions: stats.impressions,
         clicks: stats.clicks,
         ctr: stats.ctr,
+        cpc: stats.cpc,
         leads: stats.leads,
         costPerLead: stats.costPerLead,
       };
@@ -566,29 +638,11 @@ export const adsService = {
       (a, b) => Number(b.status === 'ACTIVE') - Number(a.status === 'ACTIVE') || b.spend - a.spend
     );
 
-    const liveAds: AdsLiveAd[] = liveAdsRaw.data.map((ad) => {
-      const stats = toTotals(insightByAd.get(ad.id));
-      const creative = creativeFields(ad.creative);
-      return {
-        id: ad.id,
-        name: ad.name,
-        status: ad.effective_status,
-        campaignId: ad.campaign_id ?? ad.campaign?.id ?? null,
-        campaignName: ad.campaign?.name ?? null,
-        adsetId: ad.adset_id ?? ad.adset?.id ?? null,
-        adsetName: ad.adset?.name ?? null,
-        thumbnailUrl: creative.thumbnailUrl,
-        headline: creative.headline,
-        body: creative.primaryText,
-        spend: stats.spend,
-        impressions: stats.impressions,
-        clicks: stats.clicks,
-        ctr: stats.ctr,
-        leads: stats.leads,
-        costPerLead: stats.costPerLead,
-      };
-    });
-    liveAds.sort((a, b) => b.spend - a.spend);
+    // Live grid uses every ACTIVE ad from the full paged list (count matches cards).
+    const liveAds: AdsLiveAd[] = adItems
+      .filter((ad) => ad.status === 'ACTIVE')
+      .map(adItemToLiveAd)
+      .sort((a, b) => b.spend - a.spend);
 
     const insightLeadsByAd = new Map(
       [...insightByAd.entries()].map(([id, row]) => [id, leadsOf(row.actions)])
@@ -611,7 +665,9 @@ export const adsService = {
 
     return {
       account,
-      datePreset,
+      datePreset: date.mode === 'preset' ? date.datePreset : null,
+      since: date.mode === 'range' ? date.since : null,
+      until: date.mode === 'range' ? date.until : null,
       totals: toTotals(totals.data[0]),
       daily: dailyPoints,
       campaigns: campaignItems,
@@ -619,6 +675,47 @@ export const adsService = {
       ads: adItems,
       leads,
       liveAds,
+    };
+  },
+
+  /** Daily history + period totals for one campaign, ad set, or ad. */
+  async entityHistory(
+    accountId: string,
+    kind: 'ad' | 'campaign' | 'adset',
+    entityId: string,
+    date: AdsOverviewDateQuery
+  ): Promise<AdsEntityHistory> {
+    const accounts = await this.listAccounts();
+    if (!accounts.some((item) => item.id === accountId)) {
+      throw new HttpError(404, 'Ad account not found or not shared with the system user');
+    }
+
+    const dateParams = insightDateParams(date);
+    const fields = 'spend,impressions,reach,clicks,ctr,cpc,actions';
+
+    const [totalsRaw, historyRaw] = await Promise.all([
+      get<GraphList<GraphInsight>>(`${entityId}/insights`, {
+        fields,
+        ...dateParams,
+      }),
+      getPaged<GraphInsight>(`${entityId}/insights`, {
+        fields,
+        ...dateParams,
+        time_increment: 1,
+        limit: PAGE_SIZE,
+      }),
+    ]);
+
+    const history = historyRaw
+      .map(toHistoryPoint)
+      .filter((point) => point.date)
+      .sort((a, b) => a.date.localeCompare(b.date));
+
+    return {
+      kind,
+      id: entityId,
+      totals: toTotals(totalsRaw.data[0]),
+      history,
     };
   },
 };

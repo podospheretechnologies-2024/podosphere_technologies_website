@@ -16,8 +16,9 @@ import {
 } from '../../config/analytics';
 import { useAnalytics } from '../../hooks/use-analytics';
 import { downloadAnalyticsReport } from '../../lib/analytics-download';
-import type { AnalyticsActivity } from '../../types/analytics';
+import type { AnalyticsActivity, AnalyticsSummary } from '../../types/analytics';
 import { ActivityChart } from './activity-chart';
+import { AnalyticsChannelPicker } from './analytics-channel-picker';
 import { ChannelBreakdown } from './channel-breakdown';
 import { PostPerformance } from './post-performance';
 import { PostTimeline } from './post-timeline';
@@ -115,12 +116,39 @@ function dailySeries(
   return buckets;
 }
 
+function filterSummary(data: AnalyticsSummary, channelId: string): AnalyticsSummary {
+  if (channelId === 'all') return data;
+
+  const channels = data.channels.filter((channel) => channel.id === channelId);
+  const channel = channels[0];
+  const posts = data.posts.filter((post) => post.channel.id === channelId);
+  const activity = data.activity.filter((item) => item.channelId === channelId);
+  const published = channel?.published ?? 0;
+  const failed = channel?.failed ?? 0;
+  const attempted = published + failed;
+
+  return {
+    ...data,
+    totals: {
+      published,
+      failed,
+      scheduled: data.totals.scheduled,
+      drafts: data.totals.drafts,
+    },
+    successRate: attempted > 0 ? Math.round((published / attempted) * 100) : null,
+    channels,
+    activity,
+    posts,
+  };
+}
+
 export function AnalyticsPanel() {
   const [rangeValue, setRangeValue] = useState<AnalyticsRange>(ANALYTICS_DEFAULT_RANGE);
   const [customStart, setCustomStart] = useState(() =>
     dayjs().subtract(29, 'day').format('YYYY-MM-DD')
   );
   const [customEnd, setCustomEnd] = useState(() => dayjs().format('YYYY-MM-DD'));
+  const [channelFilter, setChannelFilter] = useState<string>('all');
 
   const range = useMemo(() => {
     const endExclusive = dayjs().add(1, 'day').startOf('day');
@@ -140,17 +168,31 @@ export function AnalyticsPanel() {
   const days = Math.max(1, range.end.diff(range.start, 'day'));
   const { data, error, isLoading, mutate } = useAnalytics(range);
 
+  const view = useMemo(
+    () => (data ? filterSummary(data, channelFilter) : null),
+    [data, channelFilter]
+  );
+
+  const channelPostCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    if (!data) return counts;
+    for (const channel of data.channels) {
+      counts.set(channel.id, channel.published + channel.failed);
+    }
+    return counts;
+  }, [data]);
+
   const publishedSeries = useMemo(
-    () => (data ? dailySeries(range.start, days, data.activity, 'published') : []),
-    [data, range.start, days]
+    () => (view ? dailySeries(range.start, days, view.activity, 'published') : []),
+    [view, range.start, days]
   );
   const failedSeries = useMemo(
-    () => (data ? dailySeries(range.start, days, data.activity, 'error') : []),
-    [data, range.start, days]
+    () => (view ? dailySeries(range.start, days, view.activity, 'error') : []),
+    [view, range.start, days]
   );
   const allSeries = useMemo(
-    () => (data ? dailySeries(range.start, days, data.activity, 'all') : []),
-    [data, range.start, days]
+    () => (view ? dailySeries(range.start, days, view.activity, 'all') : []),
+    [view, range.start, days]
   );
   const successSeries = useMemo(
     () =>
@@ -229,54 +271,62 @@ export function AnalyticsPanel() {
         />
       ) : isLoading && !data ? (
         <p className="text-muted-foreground text-sm">Loading analytics…</p>
-      ) : data ? (
+      ) : data && view ? (
         <>
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             <SparklineCard
               label="Posts Published"
-              value={data.totals.published}
+              value={view.totals.published}
               series={publishedSeries}
               accent="primary"
             />
             <SparklineCard
               label="Success Rate"
-              value={data.successRate === null ? '—' : `${data.successRate}%`}
+              value={view.successRate === null ? '—' : `${view.successRate}%`}
               series={successSeries.length ? successSeries : [0]}
               accent="success"
             />
             <SparklineCard
               label="Failed Posts"
-              value={data.totals.failed}
+              value={view.totals.failed}
               series={failedSeries}
               accent="danger"
             />
             <SparklineCard
               label="Scheduled"
-              value={data.totals.scheduled}
+              value={view.totals.scheduled}
               series={allSeries}
               accent="primary"
             />
             <SparklineCard
               label="Drafts"
-              value={data.totals.drafts}
+              value={view.totals.drafts}
               series={allSeries.map((value) => Math.max(0, value))}
               accent="muted"
             />
             <SparklineCard
               label="Total Activity"
-              value={data.totals.published + data.totals.failed}
+              value={view.totals.published + view.totals.failed}
               series={allSeries}
               accent="primary"
             />
           </div>
 
-          <ActivityChart start={range.start} days={days} activity={data.activity} />
+          <ActivityChart start={range.start} days={days} activity={view.activity} />
 
-          <ChannelBreakdown channels={data.channels} posts={data.posts ?? []} />
+          <div className="space-y-3">
+            <AnalyticsChannelPicker
+              channels={data.channels}
+              value={channelFilter}
+              onChange={setChannelFilter}
+              postCounts={channelPostCounts}
+            />
+            <ChannelBreakdown channels={view.channels} posts={view.posts} />
+          </div>
 
-          <PostPerformance posts={data.posts ?? []} />
+          <PostPerformance posts={view.posts} />
 
-          <PostTimeline posts={data.posts ?? []} />
+          <PostTimeline posts={view.posts} />
         </>
       ) : null}
     </div>

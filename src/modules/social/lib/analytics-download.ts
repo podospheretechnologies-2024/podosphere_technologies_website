@@ -68,9 +68,37 @@ function postsCsv(posts: AnalyticsPost[]): string {
 }
 
 function channelsCsv(channels: AnalyticsChannel[]): string {
-  const header = ['Channel', 'Platform', 'Published', 'Failed'];
+  const header = [
+    'Channel',
+    'Platform',
+    'Published',
+    'Failed',
+    'Likes',
+    'Views',
+    'Comments',
+    'Shares',
+    'Reach',
+    'Impressions',
+    'Engagement',
+    'Saved',
+    'Clicks',
+  ];
   const rows = channels.map((channel) =>
-    [channel.name, channel.providerName, channel.published, channel.failed]
+    [
+      channel.name,
+      channel.providerName,
+      channel.published,
+      channel.failed,
+      metric(channel.metrics.likes),
+      metric(channel.metrics.views),
+      metric(channel.metrics.comments),
+      metric(channel.metrics.shares),
+      metric(channel.metrics.reach),
+      metric(channel.metrics.impressions),
+      metric(channel.metrics.engagement),
+      metric(channel.metrics.saved),
+      metric(channel.metrics.clicks),
+    ]
       .map(csvEscape)
       .join(',')
   );

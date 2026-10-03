@@ -1,5 +1,4 @@
 import type { NextRequest } from 'next/server';
-import type { AdsDatePreset } from '@/modules/social/config/ads';
 import { adAccountIdSchema, adsOverviewQuerySchema } from '@/modules/social/server/ads/ads.schema';
 import { adsService } from '@/modules/social/server/ads/ads.service';
 import { getCurrentOrganization } from '@/shared/server/current-organization';
@@ -10,10 +9,8 @@ export async function GET(request: NextRequest, ctx: RouteContext<'/api/social/a
   try {
     await getCurrentOrganization();
     const accountId = adAccountIdSchema.parse((await ctx.params).id);
-    const { datePreset } = adsOverviewQuerySchema.parse(
-      Object.fromEntries(request.nextUrl.searchParams)
-    );
-    return Response.json(await adsService.overview(accountId, datePreset as AdsDatePreset));
+    const date = adsOverviewQuerySchema.parse(Object.fromEntries(request.nextUrl.searchParams));
+    return Response.json(await adsService.overview(accountId, date));
   } catch (error) {
     return errorResponse(error);
   }
