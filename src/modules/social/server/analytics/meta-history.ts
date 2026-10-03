@@ -139,27 +139,27 @@ async function fetchFacebookHistory(
     );
   });
 
-  return rows
-    .map((row) => {
-      const publishDate = row.created_time ? new Date(row.created_time) : null;
-      if (!publishDate || Number.isNaN(publishDate.getTime()) || !inRange(publishDate, start, end)) {
-        return null;
-      }
-      const metrics = emptyMetrics();
-      metrics.likes = num(row.reactions?.summary?.total_count ?? row.likes?.summary?.total_count);
-      metrics.comments = num(row.comments?.summary?.total_count);
-      metrics.shares = num(row.shares?.count);
-      return {
-        releaseId: row.id,
-        content: (row.message ?? row.story ?? '').trim(),
-        publishDate,
-        releaseUrl: row.permalink_url ?? null,
-        thumbnailUrl: row.full_picture ?? null,
-        providerIdentifier: 'facebook' as const,
-        seedMetrics: metrics,
-      };
-    })
-    .filter((row): row is MetaHistoryPost => row !== null);
+  const posts: MetaHistoryPost[] = [];
+  for (const row of rows) {
+    const publishDate = row.created_time ? new Date(row.created_time) : null;
+    if (!publishDate || Number.isNaN(publishDate.getTime()) || !inRange(publishDate, start, end)) {
+      continue;
+    }
+    const metrics = emptyMetrics();
+    metrics.likes = num(row.reactions?.summary?.total_count ?? row.likes?.summary?.total_count);
+    metrics.comments = num(row.comments?.summary?.total_count);
+    metrics.shares = num(row.shares?.count);
+    posts.push({
+      releaseId: row.id,
+      content: (row.message ?? row.story ?? '').trim(),
+      publishDate,
+      releaseUrl: row.permalink_url ?? null,
+      thumbnailUrl: row.full_picture ?? null,
+      providerIdentifier: 'facebook',
+      seedMetrics: metrics,
+    });
+  }
+  return posts;
 }
 
 async function fetchInstagramHistory(

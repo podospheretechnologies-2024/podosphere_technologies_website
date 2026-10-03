@@ -113,7 +113,8 @@ export const whatsappWebhookService = {
 
     for (const entry of payload.entry ?? []) {
       for (const change of entry.changes ?? []) {
-        if (change.field !== 'messages') {
+        // With several apps on the WABA, apps that don't own the thread get inbound copies as 'standby'.
+        if (change.field !== 'messages' && change.field !== 'standby') {
           continue;
         }
         const value = change.value;
