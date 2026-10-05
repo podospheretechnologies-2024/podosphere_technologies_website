@@ -17,6 +17,9 @@ interface LinkApiResponse {
   success?: boolean;
   sync_secret?: string;
   syncSecret?: string;
+  sync_token?: string;
+  syncToken?: string;
+  secret?: string;
   phone_number_id?: string;
   phoneNumberId?: string;
   podocrm_company_id?: string;
@@ -58,9 +61,9 @@ function parseLinkPayload(payload: LinkApiResponse): {
       root.secret,
       payload.sync_secret,
       payload.syncSecret,
-      (payload as { sync_token?: string }).sync_token,
-      (payload as { syncToken?: string }).syncToken,
-      (payload as { secret?: string }).secret
+      payload.sync_token,
+      payload.syncToken,
+      payload.secret
     ),
     phoneNumberId: pickString(
       root.phone_number_id,
