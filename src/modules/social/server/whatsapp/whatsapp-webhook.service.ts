@@ -61,7 +61,23 @@ function messageBody(message: WebhookMessage): string {
   return `[${message.type}]`;
 }
 
-async function defaultOrganizationId(): Promise<string> {
+// Outbound messages are stored under the sender's organization, so route inbound replies to the
+// organization already talking to this contact, then to whichever one last used WhatsApp.
+async function resolveOrganizationId(waId: string): Promise<string> {
+  const conversation =
+    (await prisma.whatsAppConversation.findFirst({
+      where: { waId },
+      orderBy: { lastMessageAt: 'desc' },
+      select: { organizationId: true },
+    })) ??
+    (await prisma.whatsAppConversation.findFirst({
+      orderBy: { lastMessageAt: 'desc' },
+      select: { organizationId: true },
+    }));
+  if (conversation) {
+    return conversation.organizationId;
+  }
+
   const org = await prisma.organization.findFirst({
     where: { deletedAt: null },
     orderBy: { createdAt: 'asc' },
@@ -108,7 +124,6 @@ export const whatsappWebhookService = {
       return { stored: 0 };
     }
     const phoneNumberId = getServerEnv().WHATSAPP_PHONE_NUMBER_ID;
-    const organizationId = await defaultOrganizationId();
     let stored = 0;
 
     for (const entry of payload.entry ?? []) {
@@ -142,6 +157,7 @@ export const whatsappWebhookService = {
             continue;
           }
           const timestamp = new Date(Number(message.timestamp) * 1000);
+          const organizationId = await resolveOrganizationId(message.from);
           const conversation = await whatsappChatRepository.upsertConversation({
             organizationId,
             waId: message.from,
