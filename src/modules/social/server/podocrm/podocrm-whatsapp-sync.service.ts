@@ -13,13 +13,9 @@ const DEFAULT_PODOCRM_API_BASE = 'https://podocrm.podospheretechnologies.com/api
 const LINK_TIMEOUT_MS = 15_000;
 const SIGNED_TIMEOUT_MS = 8_000;
 
-interface LinkApiResponse {
-  success?: boolean;
+interface LinkApiData {
   sync_secret?: string;
   syncSecret?: string;
-  sync_token?: string;
-  syncToken?: string;
-  secret?: string;
   phone_number_id?: string;
   phoneNumberId?: string;
   podocrm_company_id?: string;
@@ -28,13 +24,17 @@ interface LinkApiResponse {
   companyId?: string;
   podocrm_base_url?: string;
   podocrmBaseUrl?: string;
-  base_url?: string;
-  baseUrl?: string;
-  data?: LinkApiResponse;
+}
+
+interface LinkApiResponse {
+  success?: boolean;
+  data?: LinkApiData;
   error?: string;
   code?: string;
   message?: string;
 }
+
+const DEFAULT_PARTNER_BASE_URL = 'https://social.podospheretechnologies.com/api';
 
 function pickString(...values: unknown[]): string | undefined {
   for (const value of values) {
@@ -45,53 +45,29 @@ function pickString(...values: unknown[]): string | undefined {
   return undefined;
 }
 
-function parseLinkPayload(payload: LinkApiResponse): {
-  syncSecret?: string;
-  phoneNumberId?: string;
-  companyId?: string;
-  baseUrl?: string;
-} {
-  const root = payload.data && typeof payload.data === 'object' ? payload.data : payload;
-  return {
-    syncSecret: pickString(
-      root.sync_secret,
-      root.syncSecret,
-      root.sync_token,
-      root.syncToken,
-      root.secret,
-      payload.sync_secret,
-      payload.syncSecret,
-      payload.sync_token,
-      payload.syncToken,
-      payload.secret
-    ),
-    phoneNumberId: pickString(
-      root.phone_number_id,
-      root.phoneNumberId,
-      payload.phone_number_id,
-      payload.phoneNumberId
-    ),
-    companyId: pickString(
-      root.podocrm_company_id,
-      root.podocrmCompanyId,
-      root.company_id,
-      root.companyId,
-      payload.podocrm_company_id,
-      payload.podocrmCompanyId,
-      payload.company_id,
-      payload.companyId
-    ),
-    baseUrl: pickString(
-      root.podocrm_base_url,
-      root.podocrmBaseUrl,
-      root.base_url,
-      root.baseUrl,
-      payload.podocrm_base_url,
-      payload.podocrmBaseUrl,
-      payload.base_url,
-      payload.baseUrl
-    ),
-  };
+function redactLinkLog(payload: unknown): string {
+  try {
+    const clone = JSON.parse(JSON.stringify(payload)) as Record<string, unknown>;
+    const data = clone.data;
+    if (data && typeof data === 'object' && data !== null) {
+      const nested = data as Record<string, unknown>;
+      for (const key of ['sync_secret', 'syncSecret', 'sync_token', 'syncToken', 'secret']) {
+        if (typeof nested[key] === 'string') {
+          const value = nested[key] as string;
+          nested[key] = value.length > 8 ? `${value.slice(0, 4)}…${value.slice(-4)}` : '[redacted]';
+        }
+      }
+    }
+    for (const key of ['sync_secret', 'syncSecret', 'sync_token', 'syncToken', 'secret']) {
+      if (typeof clone[key] === 'string') {
+        const value = clone[key] as string;
+        clone[key] = value.length > 8 ? `${value.slice(0, 4)}…${value.slice(-4)}` : '[redacted]';
+      }
+    }
+    return JSON.stringify(clone);
+  } catch {
+    return '[unserializable link response]';
+  }
 }
 
 function apiBase(): string {
@@ -100,8 +76,12 @@ function apiBase(): string {
 }
 
 function partnerBaseUrl(): string {
+  // Prefer production Social API URL so CRM always gets a stable partner callback base.
   const appUrl = getServerEnv().APP_URL.replace(/\/$/, '');
-  return `${appUrl}/api`;
+  if (appUrl.includes('social.podospheretechnologies.com')) {
+    return `${appUrl}/api`;
+  }
+  return DEFAULT_PARTNER_BASE_URL;
 }
 
 function toStatus(
@@ -166,16 +146,18 @@ export const podoCrmWhatsAppSyncService = {
     }
 
     const workspaceId = organizationId.slice(0, 64);
+    const requestBody = {
+      code: trimmed,
+      workspace_id: workspaceId,
+      partner_base_url: partnerBaseUrl(),
+    };
+
     let response: Response;
     try {
       response = await fetch(`${apiBase()}/sync/whatsapp/link`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          code: trimmed,
-          workspace_id: workspaceId,
-          partner_base_url: partnerBaseUrl(),
-        }),
+        body: JSON.stringify(requestBody),
         signal: AbortSignal.timeout(LINK_TIMEOUT_MS),
       });
     } catch (error) {
@@ -184,28 +166,44 @@ export const podoCrmWhatsAppSyncService = {
     }
 
     const payload = (await response.json().catch(() => ({}))) as LinkApiResponse;
+    console.info(`[podocrm-sync] link response status=${response.status} body=${redactLinkLog(payload)}`);
+
     if (!response.ok || payload.success === false) {
       const detail =
         payload.message ||
         payload.error ||
         payload.code ||
-        (response.status === 404 ? 'LINK_CODE_INVALID — generate a new code in PodoCRM' : 'Link failed');
+        (response.status === 404
+          ? 'LINK_CODE_INVALID — generate a new code in PodoCRM'
+          : `Link failed (HTTP ${response.status})`);
       throw new HttpError(
         response.status === 404 || payload.code === 'LINK_CODE_INVALID' ? 404 : 502,
         String(detail)
       );
     }
 
-    const parsed = parseLinkPayload(payload);
-    const syncSecret = parsed.syncSecret;
-    const phoneNumberId = parsed.phoneNumberId;
-    const companyId = parsed.companyId;
-    const baseUrl = (parsed.baseUrl || apiBase()).replace(/\/$/, '');
+    // PodoCRM success shape: { success: true, data: { sync_secret, phone_number_id, ... } }
+    const data = payload.data;
+    if (!data || typeof data !== 'object') {
+      throw new HttpError(502, 'PodoCRM link response was missing data object');
+    }
+
+    const syncSecret = pickString(data.sync_secret, data.syncSecret);
+    const phoneNumberId = pickString(data.phone_number_id, data.phoneNumberId);
+    const companyId = pickString(
+      data.podocrm_company_id,
+      data.podocrmCompanyId,
+      data.company_id,
+      data.companyId
+    );
+    const baseUrl = (
+      pickString(data.podocrm_base_url, data.podocrmBaseUrl) || apiBase()
+    ).replace(/\/$/, '');
+
     if (!syncSecret || !phoneNumberId || !companyId) {
-      const keys = Object.keys(payload.data && typeof payload.data === 'object' ? payload.data : payload);
       throw new HttpError(
         502,
-        `PodoCRM link response was missing sync_secret / phone_number_id / company id (got keys: ${keys.join(', ') || 'none'})`
+        `PodoCRM link data missing required fields (got keys: ${Object.keys(data).join(', ') || 'none'})`
       );
     }
 
@@ -226,6 +224,7 @@ export const podoCrmWhatsAppSyncService = {
       });
       if (ping.ok) {
         await podoCrmWhatsAppSyncRepository.markPinged(organizationId);
+        console.info(`[podocrm-sync] ping ok status=${ping.status}`);
       } else {
         console.error(`[podocrm-sync] ping failed status=${ping.status}`);
       }
