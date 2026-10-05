@@ -15,11 +15,9 @@ import {
 import {
   Calendar,
   BarChart3,
-  Bell,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
-  CircleHelp,
   Columns3,
   Copy,
   CreditCard,
@@ -27,14 +25,11 @@ import {
   Folder,
   Gauge,
   GripVertical,
-  Home,
   LayoutGrid,
-  Megaphone,
   Pencil,
   Plus,
   RefreshCw,
   Search,
-  Settings,
   SlidersHorizontal,
   Star,
   Trash2,
@@ -63,16 +58,56 @@ const META_GREEN = '#42B72A';
 const ADS_PAGE_SIZE = 6;
 const EMPTY_ROWS: ManagerRow[] = [];
 
-const META_NAV = [
-  { label: 'Account overview', active: false },
-  { label: 'Campaigns', active: true },
-  { label: 'Ads Reporting', active: false },
-  { label: 'Audiences', active: false },
-  { label: 'Advertising settings', active: false },
-  { label: 'Billing and payments', active: false },
-  { label: 'Events Manager', active: false },
-  { label: 'All tools', active: false },
-] as const;
+type MetaNavKey =
+  | 'overview'
+  | 'campaigns'
+  | 'reporting'
+  | 'audiences'
+  | 'settings'
+  | 'billing'
+  | 'events'
+  | 'tools';
+
+type ExtraFilter = 'none' | 'actions' | 'with_issues' | 'learning' | 'zero_results';
+
+function actNumber(accountId: string) {
+  return accountId.replace(/^act_/, '');
+}
+
+/** Open the matching Meta Ads Manager / Business Suite page for this ad account. */
+function openMetaTool(tool: MetaNavKey | 'home' | 'help' | 'create', accountId: string) {
+  const act = actNumber(accountId);
+  const urls: Record<string, string> = {
+    home: `https://adsmanager.facebook.com/adsmanager/manage/campaigns?act=${act}`,
+    overview: `https://adsmanager.facebook.com/adsmanager/manage/account_overview?act=${act}`,
+    campaigns: `https://adsmanager.facebook.com/adsmanager/manage/campaigns?act=${act}`,
+    reporting: `https://adsmanager.facebook.com/adsmanager/reporting/guide?act=${act}`,
+    audiences: `https://adsmanager.facebook.com/adsmanager/audiences?act=${act}`,
+    settings: `https://business.facebook.com/settings/ad-accounts/${accountId}`,
+    billing: `https://business.facebook.com/billing_hub/payment_activity?asset_id=${act}`,
+    events: 'https://business.facebook.com/events_manager2/list/pixel/',
+    tools: `https://adsmanager.facebook.com/adsmanager/manage/campaigns?act=${act}&tool=COMPOSER`,
+    create: `https://adsmanager.facebook.com/adsmanager/manage/campaigns?act=${act}&breakdown_regrouping=true&nav_source=no_referrer&tool=CAMPAIGN_GROUP_CREATE`,
+    help: 'https://www.facebook.com/business/help',
+  };
+  const url = urls[tool] ?? urls.campaigns;
+  window.open(url, '_blank', 'noopener,noreferrer');
+}
+
+const META_NAV: {
+  key: MetaNavKey;
+  label: string;
+  inApp: boolean;
+}[] = [
+  { key: 'overview', label: 'Account overview', inApp: true },
+  { key: 'campaigns', label: 'Campaigns', inApp: true },
+  { key: 'reporting', label: 'Ads Reporting', inApp: false },
+  { key: 'audiences', label: 'Audiences', inApp: false },
+  { key: 'settings', label: 'Advertising settings', inApp: false },
+  { key: 'billing', label: 'Billing and payments', inApp: false },
+  { key: 'events', label: 'Events Manager', inApp: false },
+  { key: 'tools', label: 'All tools', inApp: false },
+];
 
 const features = tableFeatures({
   rowSelectionFeature,
@@ -401,10 +436,10 @@ function FilterPill({
       type="button"
       onClick={onClick}
       className={cn(
-        'inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-[13px] font-medium transition',
+        'inline-flex h-8 items-center gap-1.5 rounded-full border px-3.5 text-[13px] font-medium transition',
         active
-          ? 'border-[#BED3F5] bg-[#E7F3FF] text-[#1877F2]'
-          : 'border-[#CED0D4] bg-white text-[#1C1E21] hover:bg-[#F2F3F5]'
+          ? 'border-[#1877F2] bg-[#E7F3FF] text-[#1877F2] shadow-sm'
+          : 'border-[#DADDE1] bg-white text-[#050505] hover:border-[#BEC3C9] hover:bg-[#F5F6F7]'
       )}
     >
       {children}
@@ -434,13 +469,15 @@ function ToolbarBtn({
       title={title}
       onClick={onClick}
       className={cn(
-        'inline-flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-[13px] font-semibold transition',
-        success && 'border-transparent text-white',
-        primary && !success && 'border-transparent bg-[#1877F2] text-white hover:bg-[#166FE5]',
+        'inline-flex h-9 items-center gap-1.5 rounded-lg border px-3 text-[13px] font-semibold transition',
+        success && 'border-transparent text-white shadow-sm hover:brightness-105',
+        primary &&
+          !success &&
+          'border-transparent bg-[#1877F2] text-white shadow-sm hover:bg-[#166FE5]',
         !primary &&
           !success &&
-          'border-[#CED0D4] bg-white text-[#1C1E21] hover:bg-[#F2F3F5] disabled:cursor-not-allowed disabled:opacity-45',
-        disabled && !success && 'opacity-45'
+          'border-[#DADDE1] bg-white text-[#050505] shadow-sm hover:border-[#BEC3C9] hover:bg-[#F5F6F7]',
+        disabled && 'cursor-not-allowed opacity-40 shadow-none'
       )}
       style={success ? { backgroundColor: META_GREEN } : undefined}
     >
@@ -492,21 +529,21 @@ function ColumnsModal({
         aria-label="Customise columns"
         className="flex max-h-[88vh] w-full max-w-4xl flex-col overflow-hidden rounded-lg bg-white shadow-2xl"
       >
-        <div className="flex items-center justify-between border-b border-[#CED0D4] px-4 py-3">
-          <h2 className="text-[17px] font-semibold text-[#1C1E21]">Customise columns</h2>
-          <button type="button" onClick={onClose} className="rounded p-1 hover:bg-[#F2F3F5]" aria-label="Close">
-            <X className="size-5 text-[#606770]" />
+        <div className="flex items-center justify-between border-b border-[#DADDE1] px-4 py-3">
+          <h2 className="text-[17px] font-semibold text-[#050505]">Customise columns</h2>
+          <button type="button" onClick={onClose} className="rounded p-1 hover:bg-[#F5F6F7]" aria-label="Close">
+            <X className="size-5 text-[#65676B]" />
           </button>
         </div>
 
-        <div className="border-b border-[#CED0D4] px-4 py-3">
+        <div className="border-b border-[#DADDE1] px-4 py-3">
           <label className="relative block">
             <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-[#8A8D91]" />
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search for metrics or column settings"
-              className="h-9 w-full rounded-md border border-[#CED0D4] bg-white pr-3 pl-9 text-sm text-[#1C1E21] outline-none focus:border-[#1877F2]"
+              className="h-9 w-full rounded-md border border-[#DADDE1] bg-white pr-3 pl-9 text-sm text-[#050505] outline-none focus:border-[#1877F2]"
             />
           </label>
           <div className="mt-3 flex flex-wrap items-center gap-1">
@@ -517,7 +554,7 @@ function ColumnsModal({
                 onClick={() => setTab(item)}
                 className={cn(
                   'rounded-md px-2.5 py-1.5 text-[13px] font-medium',
-                  tab === item ? 'bg-[#E7F3FF] text-[#1877F2]' : 'text-[#606770] hover:bg-[#F2F3F5]'
+                  tab === item ? 'bg-[#E7F3FF] text-[#1877F2]' : 'text-[#65676B] hover:bg-[#F5F6F7]'
                 )}
               >
                 {item}
@@ -525,7 +562,7 @@ function ColumnsModal({
             ))}
             <button
               type="button"
-              className="ml-auto inline-flex size-8 items-center justify-center rounded-md border border-[#CED0D4] text-[#606770] hover:bg-[#F2F3F5]"
+              className="ml-auto inline-flex size-8 items-center justify-center rounded-md border border-[#DADDE1] text-[#65676B] hover:bg-[#F5F6F7]"
               aria-label="Column layout"
             >
               <SlidersHorizontal className="size-3.5" />
@@ -536,7 +573,7 @@ function ColumnsModal({
         <div className="flex min-h-0 flex-1">
           <div className="min-h-0 flex-1 overflow-y-auto p-3">
             {(tab === 'Advanced' || tab === 'Custom') && !search.trim() ? (
-              <p className="px-1 py-6 text-sm text-[#606770]">No columns in this category yet.</p>
+              <p className="px-1 py-6 text-sm text-[#65676B]">No columns in this category yet.</p>
             ) : (
               Object.entries(sections).map(([section, cols]) => {
                 const isCollapsed = collapsed[section];
@@ -546,7 +583,7 @@ function ColumnsModal({
                     <button
                       type="button"
                       onClick={() => setCollapsed((c) => ({ ...c, [section]: !c[section] }))}
-                      className="flex w-full items-center justify-between bg-[#E7F3FF] px-3 py-2 text-left text-[13px] font-semibold text-[#1C1E21]"
+                      className="flex w-full items-center justify-between bg-[#E7F3FF] px-3 py-2 text-left text-[13px] font-semibold text-[#050505]"
                     >
                       <span>
                         {section}
@@ -557,7 +594,7 @@ function ColumnsModal({
                         )}
                       </span>
                       <ChevronDown
-                        className={cn('size-4 text-[#606770] transition', isCollapsed && '-rotate-90')}
+                        className={cn('size-4 text-[#65676B] transition', isCollapsed && '-rotate-90')}
                       />
                     </button>
                     {!isCollapsed && (
@@ -567,7 +604,7 @@ function ColumnsModal({
                           return (
                             <label
                               key={col.id}
-                              className="flex cursor-pointer items-start gap-2 rounded-md px-2 py-1.5 text-[13px] text-[#1C1E21] hover:bg-[#F2F3F5]"
+                              className="flex cursor-pointer items-start gap-2 rounded-md px-2 py-1.5 text-[13px] text-[#050505] hover:bg-[#F5F6F7]"
                             >
                               <input
                                 type="checkbox"
@@ -594,16 +631,16 @@ function ColumnsModal({
             )}
           </div>
 
-          <aside className="hidden w-72 shrink-0 border-l border-[#CED0D4] bg-[#F7F8FA] md:flex md:flex-col">
-            <div className="border-b border-[#CED0D4] px-3 py-2.5">
-              <p className="text-[13px] font-semibold text-[#1C1E21]">{selectedCount} columns selected</p>
-              <p className="text-[11px] text-[#606770]">Drag and drop to reorder.</p>
+          <aside className="hidden w-72 shrink-0 border-l border-[#DADDE1] bg-[#F7F8FA] md:flex md:flex-col">
+            <div className="border-b border-[#DADDE1] px-3 py-2.5">
+              <p className="text-[13px] font-semibold text-[#050505]">{selectedCount} columns selected</p>
+              <p className="text-[11px] text-[#65676B]">Drag and drop to reorder.</p>
             </div>
             <ul className="min-h-0 flex-1 overflow-y-auto p-2">
               {orderedSelected.map((col) => (
                 <li
                   key={col.id}
-                  className="mb-1 flex items-center gap-2 rounded-md border border-[#E4E6EB] bg-white px-2 py-1.5 text-[12px] text-[#1C1E21]"
+                  className="mb-1 flex items-center gap-2 rounded-md border border-[#E4E6EB] bg-white px-2 py-1.5 text-[12px] text-[#050505]"
                 >
                   <GripVertical className="size-3.5 shrink-0 text-[#8A8D91]" />
                   <span className="min-w-0 flex-1">
@@ -616,7 +653,7 @@ function ColumnsModal({
                     type="button"
                     aria-label={`Remove ${col.label}`}
                     onClick={() => onChange({ ...visibility, [col.id]: false })}
-                    className="rounded p-0.5 hover:bg-[#F2F3F5]"
+                    className="rounded p-0.5 hover:bg-[#F5F6F7]"
                   >
                     <X className="size-3.5 text-[#8A8D91]" />
                   </button>
@@ -626,11 +663,11 @@ function ColumnsModal({
           </aside>
         </div>
 
-        <div className="flex justify-end gap-2 border-t border-[#CED0D4] px-4 py-3">
+        <div className="flex justify-end gap-2 border-t border-[#DADDE1] px-4 py-3">
           <button
             type="button"
             onClick={onClose}
-            className="h-9 rounded-md border border-[#CED0D4] bg-white px-4 text-[13px] font-semibold text-[#1C1E21] hover:bg-[#F2F3F5]"
+            className="h-9 rounded-md border border-[#DADDE1] bg-white px-4 text-[13px] font-semibold text-[#050505] hover:bg-[#F5F6F7]"
           >
             Cancel
           </button>
@@ -685,17 +722,17 @@ function DateRangeMenu({
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="inline-flex h-8 items-center gap-1.5 rounded-md border border-[#CED0D4] bg-white px-2.5 text-[13px] font-medium text-[#1C1E21] hover:bg-[#F2F3F5]"
+        className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[#DADDE1] bg-white px-3 text-[13px] font-semibold text-[#050505] shadow-sm hover:border-[#BEC3C9] hover:bg-[#F5F6F7]"
       >
-        <Calendar className="size-3.5 text-[#606770]" />
+        <Calendar className="size-3.5 text-[#65676B]" />
         {label}
-        <ChevronDown className="size-3.5 text-[#606770]" />
+        <ChevronDown className="size-3.5 text-[#65676B]" />
       </button>
       {open && (
         <>
           <button type="button" className="fixed inset-0 z-40 cursor-default" aria-label="Close date menu" onClick={() => setOpen(false)} />
-          <div className="absolute top-full right-0 z-50 mt-1 w-72 rounded-lg border border-[#CED0D4] bg-white p-3 shadow-xl">
-            <p className="mb-2 text-[11px] font-semibold tracking-wide text-[#606770] uppercase">
+          <div className="absolute top-full right-0 z-50 mt-1 w-72 rounded-lg border border-[#DADDE1] bg-white p-3 shadow-xl">
+            <p className="mb-2 text-[11px] font-semibold tracking-wide text-[#65676B] uppercase">
               Presets
             </p>
             <div className="flex flex-wrap gap-1.5">
@@ -711,35 +748,35 @@ function DateRangeMenu({
                     'rounded-full px-2.5 py-1 text-[12px] font-medium',
                     !customReady && datePreset === preset.value
                       ? 'bg-[#E7F3FF] text-[#1877F2]'
-                      : 'bg-[#F2F3F5] text-[#1C1E21] hover:bg-[#E4E6EB]'
+                      : 'bg-[#F5F6F7] text-[#050505] hover:bg-[#E4E6EB]'
                   )}
                 >
                   {preset.label}
                 </button>
               ))}
             </div>
-            <p className="mt-3 mb-2 text-[11px] font-semibold tracking-wide text-[#606770] uppercase">
+            <p className="mt-3 mb-2 text-[11px] font-semibold tracking-wide text-[#65676B] uppercase">
               Custom range
             </p>
             <div className="grid grid-cols-2 gap-2">
-              <label className="text-[11px] text-[#606770]">
+              <label className="text-[11px] text-[#65676B]">
                 From
                 <input
                   type="date"
                   value={since}
                   max={until || undefined}
                   onChange={(e) => onSince(e.target.value)}
-                  className="mt-1 h-8 w-full rounded border border-[#CED0D4] px-2 text-[12px] text-[#1C1E21]"
+                  className="mt-1 h-8 w-full rounded border border-[#DADDE1] px-2 text-[12px] text-[#050505]"
                 />
               </label>
-              <label className="text-[11px] text-[#606770]">
+              <label className="text-[11px] text-[#65676B]">
                 To
                 <input
                   type="date"
                   value={until}
                   min={since || undefined}
                   onChange={(e) => onUntil(e.target.value)}
-                  className="mt-1 h-8 w-full rounded border border-[#CED0D4] px-2 text-[12px] text-[#1C1E21]"
+                  className="mt-1 h-8 w-full rounded border border-[#DADDE1] px-2 text-[12px] text-[#050505]"
                 />
               </label>
             </div>
@@ -765,6 +802,7 @@ export function AdsManager({
   onUntil,
   onSelectDetail,
   onRefresh,
+  isRefreshing = false,
 }: {
   data: AdsOverview;
   accounts: AdAccountItem[];
@@ -780,10 +818,22 @@ export function AdsManager({
   onUntil: (value: string) => void;
   onSelectDetail: (selection: AdsDetailSelection) => void;
   onRefresh?: () => void;
+  isRefreshing?: boolean;
 }) {
   const currency = data.account.currency;
   const [level, setLevel] = useState<ManagerLevel>('campaigns');
+  const [shellView, setShellView] = useState<'campaigns' | 'overview'>('campaigns');
   const [search, setSearch] = useState('');
+  const [extraFilter, setExtraFilter] = useState<ExtraFilter>('none');
+  const [seeMoreOpen, setSeeMoreOpen] = useState(false);
+  const [actionsOpen, setActionsOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const [breakdownOpen, setBreakdownOpen] = useState(false);
+  const [groupingOpen, setGroupingOpen] = useState(false);
+  const [createViewOpen, setCreateViewOpen] = useState(false);
+  const [breakdown, setBreakdown] = useState<'none' | 'delivery' | 'results'>('none');
+  const [grouping, setGrouping] = useState<'none' | 'status' | 'objective'>('none');
+  const [viewNotice, setViewNotice] = useState<string | null>(null);
   const [selectedCampaignIds, setSelectedCampaignIds] = useState<string[]>([]);
   const [selectedAdSetIds, setSelectedAdSetIds] = useState<string[]>([]);
   const [selectedAdIds, setSelectedAdIds] = useState<string[]>([]);
@@ -794,14 +844,49 @@ export function AdsManager({
   const [sorting, setSorting] = useState([{ id: 'spend', desc: true }]);
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: ADS_PAGE_SIZE });
 
+  function goCampaigns() {
+    setShellView('campaigns');
+  }
+
+  function goOverview() {
+    setShellView('overview');
+  }
+
+  function handleNav(key: MetaNavKey) {
+    if (key === 'campaigns') {
+      goCampaigns();
+      return;
+    }
+    if (key === 'overview') {
+      goOverview();
+      return;
+    }
+    openMetaTool(key, accountId);
+  }
+
+  function clearExtraFilters() {
+    setExtraFilter('none');
+    setHadDeliveryOnly(false);
+    onStatusFilterChange('all');
+  }
+
   const filteredCampaigns = useMemo(() => {
     return data.campaigns.filter((c) => {
       if (!matchesAdsStatusFilter(c.status, statusFilter)) return false;
       if (hadDeliveryOnly && c.impressions <= 0 && c.spend <= 0) return false;
       if (search && !c.name.toLowerCase().includes(search.toLowerCase())) return false;
+      if (extraFilter === 'actions' && recommendationCount(c.id, c.spend) <= 0) return false;
+      if (extraFilter === 'with_issues' && c.status !== 'WITH_ISSUES') return false;
+      if (extraFilter === 'learning') {
+        const learning =
+          c.status.includes('LEARNING') ||
+          (c.status === 'ACTIVE' && c.impressions > 0 && c.impressions < 5000);
+        if (!learning) return false;
+      }
+      if (extraFilter === 'zero_results' && c.leads > 0) return false;
       return true;
     });
-  }, [data.campaigns, statusFilter, hadDeliveryOnly, search]);
+  }, [data.campaigns, statusFilter, hadDeliveryOnly, search, extraFilter]);
 
   const filteredAdSets = useMemo(() => {
     return data.adSets.filter((a) => {
@@ -811,9 +896,12 @@ export function AdsManager({
       }
       if (hadDeliveryOnly && a.spend <= 0) return false;
       if (search && !a.name.toLowerCase().includes(search.toLowerCase())) return false;
+      if (extraFilter === 'actions' && recommendationCount(a.id, a.spend) <= 0) return false;
+      if (extraFilter === 'with_issues' && a.status !== 'WITH_ISSUES') return false;
+      if (extraFilter === 'zero_results' && a.leads > 0) return false;
       return true;
     });
-  }, [data.adSets, statusFilter, selectedCampaignIds, hadDeliveryOnly, search]);
+  }, [data.adSets, statusFilter, selectedCampaignIds, hadDeliveryOnly, search, extraFilter]);
 
   const filteredAds = useMemo(() => {
     return data.ads.filter((ad) => {
@@ -825,15 +913,40 @@ export function AdsManager({
       }
       if (hadDeliveryOnly && ad.impressions <= 0 && ad.spend <= 0) return false;
       if (search && !ad.name.toLowerCase().includes(search.toLowerCase())) return false;
+      if (extraFilter === 'actions' && recommendationCount(ad.id, ad.spend) <= 0) return false;
+      if (extraFilter === 'with_issues' && ad.status !== 'WITH_ISSUES') return false;
+      if (extraFilter === 'zero_results' && ad.leads > 0) return false;
       return true;
     });
-  }, [data.ads, statusFilter, selectedAdSetIds, selectedCampaignIds, hadDeliveryOnly, search]);
+  }, [data.ads, statusFilter, selectedAdSetIds, selectedCampaignIds, hadDeliveryOnly, search, extraFilter]);
 
   const rows = useMemo(() => {
-    if (level === 'campaigns') return filteredCampaigns.map(campaignToRow);
-    if (level === 'adsets') return filteredAdSets.map(adsetToRow);
-    return filteredAds.map(adToRow);
-  }, [level, filteredCampaigns, filteredAdSets, filteredAds]);
+    let list: ManagerRow[] =
+      level === 'campaigns'
+        ? filteredCampaigns.map(campaignToRow)
+        : level === 'adsets'
+          ? filteredAdSets.map(adsetToRow)
+          : filteredAds.map(adToRow);
+
+    if (breakdown === 'delivery') {
+      list = [...list].sort((a, b) => {
+        const rank = (status: string) => (status === 'ACTIVE' ? 0 : status.includes('LEARNING') ? 1 : 2);
+        return rank(a.status) - rank(b.status) || b.spend - a.spend;
+      });
+    } else if (breakdown === 'results') {
+      list = [...list].sort((a, b) => b.results - a.results || b.spend - a.spend);
+    }
+
+    if (grouping === 'status') {
+      list = [...list].sort((a, b) => a.status.localeCompare(b.status) || b.spend - a.spend);
+    } else if (grouping === 'objective') {
+      list = [...list].sort(
+        (a, b) => (a.subtitle ?? '').localeCompare(b.subtitle ?? '') || b.spend - a.spend
+      );
+    }
+
+    return list;
+  }, [level, filteredCampaigns, filteredAdSets, filteredAds, breakdown, grouping]);
 
   // Sync rowSelection from level-specific selections when tab/data changes
   useEffect(() => {
@@ -898,11 +1011,15 @@ export function AdsManager({
         cell: ({ row }) => (
           <div className="flex min-w-0 items-center gap-2">
             {level === 'ads' && (
-              <div className="size-8 shrink-0 overflow-hidden rounded border border-[#CED0D4] bg-[#F2F3F5]">
+              <div className="size-9 shrink-0 overflow-hidden rounded-md border border-[#DADDE1] bg-[#F0F2F5] shadow-sm">
                 {row.original.thumbnailUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={row.original.thumbnailUrl} alt="" className="size-full object-cover" />
-                ) : null}
+                ) : (
+                  <div className="flex size-full items-center justify-center text-[10px] font-semibold text-[#8A8D91]">
+                    Ad
+                  </div>
+                )}
               </div>
             )}
             <div className="min-w-0">
@@ -917,7 +1034,7 @@ export function AdsManager({
                 {row.original.name}
               </button>
               {row.original.subtitle && (
-                <p className="max-w-[240px] truncate text-[11px] text-[#606770]">
+                <p className="max-w-[240px] truncate text-[11px] text-[#65676B]">
                   {row.original.subtitle}
                 </p>
               )}
@@ -930,7 +1047,7 @@ export function AdsManager({
         id: 'delivery',
         header: ({ column }) => <SortHeader label="Delivery" sorted={column.getIsSorted()} />,
         cell: ({ row }) => (
-          <span className="inline-flex items-center gap-1.5 text-[13px] text-[#1C1E21]">
+          <span className="inline-flex items-center gap-1.5 text-[13px] text-[#050505]">
             <span
               className={cn(
                 'size-2 rounded-full',
@@ -959,11 +1076,11 @@ export function AdsManager({
         header: ({ column }) => <SortHeader label="Results" sorted={column.getIsSorted()} />,
         cell: ({ row }) => (
           <div className="text-right">
-            <p className="text-[13px] tabular-nums text-[#1C1E21]">
+            <p className="text-[13px] tabular-nums text-[#050505]">
               {row.original.results > 0 ? numberFmt.format(row.original.results) : '—'}
             </p>
             {row.original.results > 0 && (
-              <p className="text-[11px] text-[#606770]">{row.original.resultsLabel}</p>
+              <p className="text-[11px] text-[#65676B]">{row.original.resultsLabel}</p>
             )}
           </div>
         ),
@@ -975,13 +1092,13 @@ export function AdsManager({
         ),
         cell: ({ row }) => (
           <div className="text-right">
-            <p className="text-[13px] tabular-nums text-[#1C1E21]">
+            <p className="text-[13px] tabular-nums text-[#050505]">
               {row.original.costPerResult == null
                 ? '—'
                 : money(row.original.costPerResult, currency)}
             </p>
             {row.original.costPerResult != null && (
-              <p className="text-[11px] text-[#606770]">Per lead (form)</p>
+              <p className="text-[11px] text-[#65676B]">Per lead (form)</p>
             )}
           </div>
         ),
@@ -992,14 +1109,14 @@ export function AdsManager({
         id: 'budget',
         header: ({ column }) => <SortHeader label="Budget" sorted={column.getIsSorted()} />,
         cell: ({ getValue }) => (
-          <span className="text-[13px] text-[#1C1E21]">{getValue() ?? 'Using campaign budget'}</span>
+          <span className="text-[13px] text-[#050505]">{getValue() ?? 'Using campaign budget'}</span>
         ),
       }),
       helper.accessor('spend', {
         id: 'spend',
         header: ({ column }) => <SortHeader label="Amount spent" sorted={column.getIsSorted()} />,
         cell: ({ getValue }) => (
-          <span className="block text-right text-[13px] tabular-nums text-[#1C1E21]">
+          <span className="block text-right text-[13px] tabular-nums text-[#050505]">
             {money(getValue(), currency)}
           </span>
         ),
@@ -1010,7 +1127,7 @@ export function AdsManager({
         cell: ({ getValue }) => {
           const v = getValue();
           return (
-            <span className="block text-right text-[13px] tabular-nums text-[#1C1E21]">
+            <span className="block text-right text-[13px] tabular-nums text-[#050505]">
               {v == null ? '—' : numberFmt.format(v)}
             </span>
           );
@@ -1026,7 +1143,7 @@ export function AdsManager({
         id: 'ends',
         header: ({ column }) => <SortHeader label="Ends" sorted={column.getIsSorted()} />,
         cell: ({ getValue }) => (
-          <span className="text-[13px] text-[#1C1E21]">{getValue()}</span>
+          <span className="text-[13px] text-[#050505]">{getValue()}</span>
         ),
       }),
       helper.display({
@@ -1072,21 +1189,21 @@ export function AdsManager({
       helper.display({
         id: 'schedule',
         header: ({ column }) => <SortHeader label="Schedule" sorted={column.getIsSorted()} />,
-        cell: () => <span className="text-[13px] text-[#1C1E21]">Ongoing</span>,
+        cell: () => <span className="text-[13px] text-[#050505]">Ongoing</span>,
         enableSorting: false,
       }),
       helper.display({
         id: 'attribution',
         header: () => <SortHeader label="Attribution setting" sorted={false} />,
         cell: () => (
-          <span className="text-[13px] text-[#1C1E21]">7-day click or 1-day view</span>
+          <span className="text-[13px] text-[#050505]">7-day click or 1-day view</span>
         ),
         enableSorting: false,
       }),
       helper.display({
         id: 'bidStrategy',
         header: () => <SortHeader label="Bid strategy" sorted={false} />,
-        cell: () => <span className="text-[13px] text-[#1C1E21]">Highest volume</span>,
+        cell: () => <span className="text-[13px] text-[#050505]">Highest volume</span>,
         enableSorting: false,
       }),
       helper.display({
@@ -1199,6 +1316,33 @@ export function AdsManager({
         : selectedAdIds.length;
   const hasSelection = selectedCount > 0;
 
+  function selectedOrFirstRow(): ManagerRow | null {
+    const id =
+      level === 'campaigns'
+        ? selectedCampaignIds[0]
+        : level === 'adsets'
+          ? selectedAdSetIds[0]
+          : selectedAdIds[0];
+    if (id) {
+      const found = rows.find((r) => r.id === id);
+      if (found) return found;
+    }
+    return rows[0] ?? null;
+  }
+
+  function openSelectedInMeta() {
+    openMetaTool('campaigns', accountId);
+  }
+
+  function editSelected() {
+    const row = selectedOrFirstRow();
+    if (row) {
+      openDetail(row);
+      return;
+    }
+    openSelectedInMeta();
+  }
+
   const totals = useMemo(() => {
     const source = level === 'ads' ? filteredAds.map(adToRow) : rows;
     return {
@@ -1226,101 +1370,59 @@ export function AdsManager({
         : 'Ads';
 
   const stickyCell =
-    'sticky z-20 bg-white group-hover:bg-[#F7F8FA] group-data-[selected=true]:bg-[#E7F3FF]';
+    'sticky z-20 bg-white group-hover:bg-[#F0F2F5] group-data-[selected=true]:bg-[#E7F3FF]';
 
   const levelTitle =
     level === 'campaigns' ? 'Campaigns' : level === 'adsets' ? 'Ad sets' : 'Ads';
 
   return (
-    <div className="meta-ads-manager flex min-h-[calc(100vh-3rem)] bg-[#F0F2F5] text-[#1C1E21]">
-      {/* Meta icon rail */}
-      <aside className="flex w-12 shrink-0 flex-col items-center gap-1 border-r border-[#1C1E21] bg-[#1C1E21] py-3">
-        <div className="mb-2 flex size-8 items-center justify-center rounded-full bg-[#1877F2] text-[11px] font-bold text-white">
-          ∞
+    <div className="meta-ads-manager flex min-h-[calc(100vh-3rem)] gap-0 bg-[#E4E6EB] text-[#050505]">
+      {/* Meta secondary nav only — cleaner than triple sidebars */}
+      <aside className="hidden w-[210px] shrink-0 flex-col border-r border-[#DADDE1] bg-white lg:flex">
+        <div className="flex items-center gap-2 border-b border-[#DADDE1] px-4 py-3.5">
+          <div className="flex size-7 items-center justify-center rounded-lg bg-[#1877F2] text-[11px] font-bold text-white">
+            Ads
+          </div>
+          <span className="text-[15px] font-bold tracking-tight text-[#050505]">Ads Manager</span>
         </div>
-        {(
-          [
-            { icon: Home, label: 'Home' },
-            { icon: LayoutGrid, label: 'Ads Manager', active: true },
-            { icon: Bell, label: 'Notifications', badge: '31' },
-            { icon: BarChart3, label: 'Reporting' },
-            { icon: Users, label: 'Audiences' },
-            { icon: CreditCard, label: 'Billing' },
-            { icon: Megaphone, label: 'Ads' },
-          ] as const
-        ).map((item) => {
-          const Icon = item.icon;
-          return (
-            <button
-              key={item.label}
-              type="button"
-              title={item.label}
-              className={cn(
-                'relative flex size-9 items-center justify-center rounded-lg text-[#B0B3B8] transition hover:bg-white/10 hover:text-white',
-                'active' in item && item.active && 'bg-[#1877F2] text-white'
-              )}
-            >
-              <Icon className="size-4" />
-              {'badge' in item && item.badge && (
-                <span className="absolute -top-0.5 -right-0.5 rounded-full bg-[#F02849] px-1 text-[9px] font-bold text-white">
-                  {item.badge}
-                </span>
-              )}
-            </button>
-          );
-        })}
-        <div className="mt-auto flex flex-col gap-1">
-          <button type="button" title="Help" className="flex size-9 items-center justify-center rounded-lg text-[#B0B3B8] hover:bg-white/10 hover:text-white">
-            <CircleHelp className="size-4" />
-          </button>
-          <button type="button" title="Settings" className="flex size-9 items-center justify-center rounded-lg text-[#B0B3B8] hover:bg-white/10 hover:text-white">
-            <Settings className="size-4" />
-          </button>
-        </div>
-      </aside>
-
-      {/* Meta secondary nav */}
-      <aside className="hidden w-[220px] shrink-0 flex-col border-r border-[#CED0D4] bg-white lg:flex">
-        <div className="flex items-center gap-2 border-b border-[#CED0D4] px-3 py-3">
-          <span className="text-[15px] font-bold text-[#1C1E21]">Ads Manager</span>
-          <span className="relative ml-auto">
-            <Bell className="size-4 text-[#606770]" />
-            <span className="absolute -top-1.5 -right-2 rounded-full bg-[#F02849] px-1 text-[9px] font-bold text-white">
-              35
-            </span>
-          </span>
-        </div>
-        <nav className="flex-1 space-y-0.5 p-2">
+        <nav className="flex-1 space-y-0.5 p-2.5">
           {META_NAV.map((item) => {
             const Icon =
-              item.label === 'Account overview'
+              item.key === 'overview'
                 ? Gauge
-                : item.label === 'Campaigns'
+                : item.key === 'campaigns'
                   ? LayoutGrid
-                  : item.label === 'Ads Reporting'
+                  : item.key === 'reporting'
                     ? BarChart3
-                    : item.label === 'Audiences'
+                    : item.key === 'audiences'
                       ? Users
-                      : item.label === 'Advertising settings'
+                      : item.key === 'settings'
                         ? SlidersHorizontal
-                        : item.label === 'Billing and payments'
+                        : item.key === 'billing'
                           ? CreditCard
-                          : item.label === 'Events Manager'
+                          : item.key === 'events'
                             ? Star
                             : Columns3;
+            const active =
+              (item.key === 'campaigns' && shellView === 'campaigns') ||
+              (item.key === 'overview' && shellView === 'overview');
             return (
               <button
-                key={item.label}
+                key={item.key}
                 type="button"
+                onClick={() => handleNav(item.key)}
                 className={cn(
-                  'flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-[13px] font-medium',
-                  item.active
+                  'flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-[13px] font-medium transition',
+                  active
                     ? 'bg-[#E7F3FF] text-[#1877F2]'
-                    : 'text-[#1C1E21] hover:bg-[#F2F3F5]'
+                    : 'text-[#050505] hover:bg-[#F0F2F5]'
                 )}
               >
-                <Icon className="size-4 shrink-0" />
-                {item.label}
+                <Icon className={cn('size-4 shrink-0', active ? 'text-[#1877F2]' : 'text-[#65676B]')} />
+                <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                {!item.inApp && (
+                  <span className="text-[10px] font-normal text-[#8A8D91]">↗</span>
+                )}
               </button>
             );
           })}
@@ -1328,16 +1430,16 @@ export function AdsManager({
       </aside>
 
       {/* Main workspace */}
-      <div className="flex min-w-0 flex-1 flex-col overflow-hidden bg-white">
+      <div className="m-0 flex min-w-0 flex-1 flex-col overflow-hidden bg-white lg:m-3 lg:rounded-xl lg:border lg:border-[#DADDE1] lg:shadow-sm">
       {/* Top bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#CED0D4] px-3 py-2">
-        <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <h1 className="text-[17px] font-bold text-[#1C1E21]">{levelTitle}</h1>
-          <label className="relative inline-flex max-w-[240px] items-center">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#DADDE1] px-4 py-3">
+        <div className="flex min-w-0 flex-wrap items-center gap-2.5">
+          <h1 className="text-[20px] font-bold tracking-tight text-[#050505]">{levelTitle}</h1>
+          <label className="relative inline-flex max-w-[260px] items-center">
             <select
               value={accountId}
               onChange={(e) => onAccountChange(e.target.value)}
-              className="h-8 max-w-[240px] cursor-pointer appearance-none truncate rounded-md border-0 bg-transparent py-1 pr-6 pl-2 text-[13px] font-medium text-[#1C1E21] outline-none hover:bg-[#F2F3F5]"
+              className="h-9 max-w-[260px] cursor-pointer appearance-none truncate rounded-lg border border-[#DADDE1] bg-[#F5F6F7] py-1 pr-8 pl-3 text-[13px] font-medium text-[#050505] outline-none hover:bg-[#EBEDF0] focus:border-[#1877F2]"
               aria-label="Ad account"
             >
               {accounts.map((account) => (
@@ -1346,9 +1448,9 @@ export function AdsManager({
                 </option>
               ))}
             </select>
-            <ChevronDown className="pointer-events-none absolute top-1/2 right-1 size-3.5 -translate-y-1/2 text-[#606770]" />
+            <ChevronDown className="pointer-events-none absolute top-1/2 right-2.5 size-3.5 -translate-y-1/2 text-[#65676B]" />
           </label>
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-[#F2F3F5] px-2.5 py-1 text-[12px] font-medium text-[#1C1E21]">
+          <span className="inline-flex items-center gap-2 rounded-full border border-[#DADDE1] bg-[#F5F6F7] px-2.5 py-1 text-[12px] font-medium text-[#050505]">
             <span className="inline-flex size-5 items-center justify-center rounded-full border-2 border-[#F5A623] text-[10px] font-bold text-[#F5A623]">
               55
             </span>
@@ -1356,81 +1458,379 @@ export function AdsManager({
           </span>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-[12px] text-[#606770]">Updated just now</span>
+          <span className="text-[12px] text-[#65676B]">
+            {isRefreshing ? 'Updating from Meta…' : 'Updated just now'}
+          </span>
           <button
             type="button"
             onClick={onRefresh}
-            className="rounded-md p-1.5 hover:bg-[#F2F3F5]"
-            aria-label="Refresh"
+            className="inline-flex size-9 items-center justify-center rounded-lg border border-[#DADDE1] bg-white text-[#050505] shadow-sm hover:bg-[#F5F6F7]"
+            aria-label="Refresh Meta data"
+            title="Refresh live Meta campaign data"
           >
-            <RefreshCw className="size-4 text-[#606770]" />
+            <RefreshCw className={cn('size-4', isRefreshing && 'animate-spin')} />
           </button>
-          <ToolbarBtn disabled title="Read-only — drafts are managed in Meta">
+          <ToolbarBtn
+            title="Discard drafts in Meta Ads Manager"
+            onClick={() => openMetaTool('campaigns', accountId)}
+          >
             Discard Drafts
           </ToolbarBtn>
-          <ToolbarBtn primary disabled title="Read-only — publish in Meta Ads Manager">
+          <ToolbarBtn
+            primary
+            title="Review and publish in Meta Ads Manager"
+            onClick={() => openMetaTool('campaigns', accountId)}
+          >
             Review and publish (37)
           </ToolbarBtn>
         </div>
       </div>
 
       {/* Filter pills */}
-      <div className="flex flex-wrap items-center gap-2 border-b border-[#CED0D4] px-3 py-2.5">
+      <div className="flex flex-wrap items-center gap-2 border-b border-[#DADDE1] bg-[#FAFBFC] px-4 py-3">
         <FilterPill
-          active={statusFilter === 'all' && !hadDeliveryOnly}
-          onClick={() => {
-            onStatusFilterChange('all');
-            setHadDeliveryOnly(false);
-          }}
+          active={statusFilter === 'all' && !hadDeliveryOnly && extraFilter === 'none'}
+          onClick={() => clearExtraFilters()}
         >
           All ads
         </FilterPill>
-        <FilterPill>Actions</FilterPill>
+        <div className="relative">
+          <FilterPill
+            active={extraFilter === 'actions'}
+            onClick={() => {
+              setActionsOpen((v) => !v);
+              setSeeMoreOpen(false);
+            }}
+          >
+            Actions
+            <ChevronDown className="size-3" />
+          </FilterPill>
+          {actionsOpen && (
+            <>
+              <button
+                type="button"
+                className="fixed inset-0 z-40 cursor-default"
+                aria-label="Close actions menu"
+                onClick={() => setActionsOpen(false)}
+              />
+              <div className="absolute top-full left-0 z-50 mt-1 w-56 rounded-lg border border-[#DADDE1] bg-white py-1 shadow-xl">
+                <button
+                  type="button"
+                  className="block w-full px-3 py-2 text-left text-[13px] hover:bg-[#F5F6F7]"
+                  onClick={() => {
+                    setExtraFilter('actions');
+                    setHadDeliveryOnly(false);
+                    setActionsOpen(false);
+                  }}
+                >
+                  Has recommendations
+                </button>
+                <button
+                  type="button"
+                  className="block w-full px-3 py-2 text-left text-[13px] hover:bg-[#F5F6F7]"
+                  onClick={() => {
+                    setExtraFilter('with_issues');
+                    setHadDeliveryOnly(false);
+                    setActionsOpen(false);
+                  }}
+                >
+                  With issues
+                </button>
+                <button
+                  type="button"
+                  className="block w-full px-3 py-2 text-left text-[13px] text-[#1877F2] hover:bg-[#F5F6F7]"
+                  onClick={() => {
+                    setExtraFilter('none');
+                    setActionsOpen(false);
+                    openMetaTool('campaigns', accountId);
+                  }}
+                >
+                  Open actions in Meta ↗
+                </button>
+              </div>
+            </>
+          )}
+        </div>
         <FilterPill
-          active={statusFilter === 'active'}
+          active={statusFilter === 'active' && extraFilter === 'none'}
           onClick={() => {
             onStatusFilterChange('active');
             setHadDeliveryOnly(false);
+            setExtraFilter('none');
           }}
         >
           Active ads
         </FilterPill>
         <FilterPill
-          active={hadDeliveryOnly}
-          onClick={() => setHadDeliveryOnly((v) => !v)}
+          active={hadDeliveryOnly && extraFilter === 'none'}
+          onClick={() => {
+            setHadDeliveryOnly((v) => !v);
+            setExtraFilter('none');
+          }}
         >
           Had delivery
         </FilterPill>
         <FilterPill
-          active={statusFilter === 'paused'}
+          active={statusFilter === 'paused' && extraFilter === 'none'}
           onClick={() => {
             onStatusFilterChange('paused');
             setHadDeliveryOnly(false);
+            setExtraFilter('none');
           }}
         >
           Paused
         </FilterPill>
-        <FilterPill>+ See more</FilterPill>
-        <div className="ml-auto">
-          <ToolbarBtn>Create a view</ToolbarBtn>
+        <div className="relative">
+          <FilterPill
+            active={extraFilter === 'learning' || extraFilter === 'zero_results'}
+            onClick={() => {
+              setSeeMoreOpen((v) => !v);
+              setActionsOpen(false);
+            }}
+          >
+            + See more
+            <ChevronDown className="size-3" />
+          </FilterPill>
+          {seeMoreOpen && (
+            <>
+              <button
+                type="button"
+                className="fixed inset-0 z-40 cursor-default"
+                aria-label="Close see more menu"
+                onClick={() => setSeeMoreOpen(false)}
+              />
+              <div className="absolute top-full left-0 z-50 mt-1 w-56 rounded-lg border border-[#DADDE1] bg-white py-1 shadow-xl">
+                <button
+                  type="button"
+                  className="block w-full px-3 py-2 text-left text-[13px] hover:bg-[#F5F6F7]"
+                  onClick={() => {
+                    setExtraFilter('learning');
+                    setHadDeliveryOnly(false);
+                    onStatusFilterChange('all');
+                    setSeeMoreOpen(false);
+                    goCampaigns();
+                  }}
+                >
+                  Learning
+                </button>
+                <button
+                  type="button"
+                  className="block w-full px-3 py-2 text-left text-[13px] hover:bg-[#F5F6F7]"
+                  onClick={() => {
+                    setExtraFilter('zero_results');
+                    setHadDeliveryOnly(false);
+                    onStatusFilterChange('all');
+                    setSeeMoreOpen(false);
+                    goCampaigns();
+                  }}
+                >
+                  No results
+                </button>
+                <button
+                  type="button"
+                  className="block w-full px-3 py-2 text-left text-[13px] hover:bg-[#F5F6F7]"
+                  onClick={() => {
+                    clearExtraFilters();
+                    setSeeMoreOpen(false);
+                  }}
+                >
+                  Clear extra filters
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+        <div className="relative ml-auto">
+          <ToolbarBtn
+            title="Create a saved view"
+            onClick={() => {
+              setCreateViewOpen((v) => !v);
+              setBreakdownOpen(false);
+              setGroupingOpen(false);
+            }}
+          >
+            Create a view
+            <ChevronDown className="size-3" />
+          </ToolbarBtn>
+          {createViewOpen && (
+            <>
+              <button
+                type="button"
+                className="fixed inset-0 z-40 cursor-default"
+                aria-label="Close create view"
+                onClick={() => setCreateViewOpen(false)}
+              />
+              <div className="absolute top-full right-0 z-50 mt-1 w-64 rounded-lg border border-[#DADDE1] bg-white py-1 shadow-xl">
+                <button
+                  type="button"
+                  className="block w-full px-3 py-2 text-left text-[13px] hover:bg-[#F5F6F7]"
+                  onClick={() => {
+                    setColumnsOpen(true);
+                    setCreateViewOpen(false);
+                    setViewNotice('Customise columns, then Save to keep this view.');
+                  }}
+                >
+                  Customise columns for this view
+                </button>
+                <button
+                  type="button"
+                  className="block w-full px-3 py-2 text-left text-[13px] hover:bg-[#F5F6F7]"
+                  onClick={() => {
+                    try {
+                      localStorage.setItem(
+                        `ads-view:${accountId}`,
+                        JSON.stringify({
+                          statusFilter,
+                          hadDeliveryOnly,
+                          extraFilter,
+                          breakdown,
+                          grouping,
+                          visibility,
+                          savedAt: Date.now(),
+                        })
+                      );
+                      setViewNotice('View saved for this ad account.');
+                    } catch {
+                      setViewNotice('Could not save view in this browser.');
+                    }
+                    setCreateViewOpen(false);
+                  }}
+                >
+                  Save current filters & columns
+                </button>
+                <button
+                  type="button"
+                  className="block w-full px-3 py-2 text-left text-[13px] hover:bg-[#F5F6F7]"
+                  onClick={() => {
+                    try {
+                      const raw = localStorage.getItem(`ads-view:${accountId}`);
+                      if (!raw) {
+                        setViewNotice('No saved view yet — save one first.');
+                        setCreateViewOpen(false);
+                        return;
+                      }
+                      const saved = JSON.parse(raw) as {
+                        statusFilter?: AdsStatusFilter;
+                        hadDeliveryOnly?: boolean;
+                        extraFilter?: ExtraFilter;
+                        breakdown?: typeof breakdown;
+                        grouping?: typeof grouping;
+                        visibility?: ColumnVisibilityState;
+                      };
+                      if (saved.statusFilter) onStatusFilterChange(saved.statusFilter);
+                      if (typeof saved.hadDeliveryOnly === 'boolean') {
+                        setHadDeliveryOnly(saved.hadDeliveryOnly);
+                      }
+                      if (saved.extraFilter) setExtraFilter(saved.extraFilter);
+                      if (saved.breakdown) setBreakdown(saved.breakdown);
+                      if (saved.grouping) setGrouping(saved.grouping);
+                      if (saved.visibility) setVisibility(saved.visibility);
+                      setViewNotice('Saved view applied.');
+                    } catch {
+                      setViewNotice('Could not load saved view.');
+                    }
+                    setCreateViewOpen(false);
+                    goCampaigns();
+                  }}
+                >
+                  Apply saved view
+                </button>
+              </div>
+            </>
+          )}
         </div>
       </div>
+      {viewNotice && (
+        <div className="flex items-center justify-between gap-2 border-b border-[#BED3F5] bg-[#E7F3FF] px-3 py-1.5 text-[12px] text-[#1877F2]">
+          <span>{viewNotice}</span>
+          <button type="button" className="font-semibold" onClick={() => setViewNotice(null)}>
+            Dismiss
+          </button>
+        </div>
+      )}
 
       {/* Search */}
-      <div className="border-b border-[#CED0D4] px-3 py-2">
+      {shellView === 'overview' ? (
+        <div className="flex-1 overflow-auto bg-[#F0F2F5] p-4">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h2 className="text-[17px] font-bold text-[#050505]">Account overview</h2>
+              <p className="text-[13px] text-[#65676B]">
+                Live Meta Marketing API data for {data.account.name} ({actNumber(accountId)})
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <ToolbarBtn onClick={goCampaigns}>View campaigns</ToolbarBtn>
+              <ToolbarBtn primary onClick={() => openMetaTool('overview', accountId)}>
+                Open in Meta ↗
+              </ToolbarBtn>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            {(
+              [
+                { label: 'Amount spent', value: money(data.totals.spend, currency) },
+                { label: 'Impressions', value: numberFmt.format(data.totals.impressions) },
+                { label: 'Reach', value: numberFmt.format(data.totals.reach) },
+                { label: 'Clicks', value: numberFmt.format(data.totals.clicks) },
+                { label: 'CTR', value: `${data.totals.ctr.toFixed(2)}%` },
+                { label: 'CPC', value: money(data.totals.cpc, currency) },
+                { label: 'Leads', value: numberFmt.format(data.totals.leads) },
+                {
+                  label: 'Cost per lead',
+                  value:
+                    data.totals.costPerLead == null
+                      ? '—'
+                      : money(data.totals.costPerLead, currency),
+                },
+              ] as const
+            ).map((stat) => (
+              <div
+                key={stat.label}
+                className="rounded-lg border border-[#DADDE1] bg-white p-4 shadow-sm"
+              >
+                <p className="text-[11px] font-semibold tracking-wide text-[#65676B] uppercase">
+                  {stat.label}
+                </p>
+                <p className="mt-2 text-2xl font-semibold tabular-nums text-[#050505]">
+                  {stat.value}
+                </p>
+              </div>
+            ))}
+          </div>
+          <div className="mt-4 rounded-lg border border-[#DADDE1] bg-white p-4 text-[13px] text-[#65676B]">
+            <p>
+              <span className="font-semibold text-[#050505]">Campaigns:</span>{' '}
+              {numberFmt.format(data.campaigns.length)} ·{' '}
+              <span className="font-semibold text-[#050505]">Ad sets:</span>{' '}
+              {numberFmt.format(data.adSets.length)} ·{' '}
+              <span className="font-semibold text-[#050505]">Ads:</span>{' '}
+              {numberFmt.format(data.ads.length)} ·{' '}
+              <span className="font-semibold text-[#050505]">Currency:</span> {data.account.currency}
+            </p>
+            <p className="mt-2">
+              Connected with <code className="rounded bg-[#F5F6F7] px-1">META_SYSTEM_USER_TOKEN</code>{' '}
+              (read-only). Reporting, Audiences, Billing and other tools open in Meta for this ad
+              account.
+            </p>
+          </div>
+        </div>
+      ) : (
+      <>
+      <div className="border-b border-[#DADDE1] px-4 py-3">
         <label className="relative block">
-          <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-[#8A8D91]" />
+          <Search className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-[#8A8D91]" />
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Describe what you're looking for"
-            className="h-9 w-full rounded-md border border-[#CED0D4] bg-white pr-3 pl-9 text-[13px] text-[#1C1E21] outline-none placeholder:text-[#8A8D91] focus:border-[#1877F2]"
+            className="h-10 w-full rounded-lg border border-[#DADDE1] bg-[#F5F6F7] pr-3 pl-10 text-[13px] text-[#050505] outline-none placeholder:text-[#8A8D91] focus:border-[#1877F2] focus:bg-white"
           />
         </label>
       </div>
 
       {/* Tabs + date */}
-      <div className="flex flex-wrap items-end justify-between gap-2 border-b border-[#CED0D4] px-2 pt-1">
+      <div className="flex flex-wrap items-end justify-between gap-2 border-b border-[#DADDE1] px-3 pt-1">
         <div className="flex min-w-0 flex-wrap items-end gap-0" role="tablist">
           {(
             [
@@ -1474,10 +1874,10 @@ export function AdsManager({
                 aria-selected={active}
                 onClick={() => setLevel(tab.id)}
                 className={cn(
-                  'inline-flex items-center gap-1.5 border-b-2 px-3 py-2.5 text-[13px] font-semibold transition',
+                  'inline-flex items-center gap-1.5 rounded-t-lg border-b-2 px-3.5 py-3 text-[13px] font-semibold transition',
                   active
-                    ? 'border-[#1877F2] bg-[#E7F3FF]/50 text-[#1877F2]'
-                    : 'border-transparent text-[#606770] hover:bg-[#F2F3F5]'
+                    ? 'border-[#1877F2] bg-[#E7F3FF]/60 text-[#1877F2]'
+                    : 'border-transparent text-[#65676B] hover:bg-[#F5F6F7] hover:text-[#050505]'
                 )}
               >
                 <Icon className="size-3.5 shrink-0" />
@@ -1500,67 +1900,241 @@ export function AdsManager({
       </div>
 
       {/* Toolbar */}
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#CED0D4] px-3 py-2">
-        <div className="flex flex-wrap items-center gap-1.5">
-          <ToolbarBtn success title="Create campaigns in Meta Ads Manager">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#DADDE1] bg-white px-4 py-2.5">
+        <div className="flex flex-wrap items-center gap-2">
+          <ToolbarBtn
+            success
+            title="Create campaign in Meta Ads Manager"
+            onClick={() => openMetaTool('create', accountId)}
+          >
             <Plus className="size-3.5" />
             Create
           </ToolbarBtn>
-          <ToolbarBtn disabled={!hasSelection} title="Read-only — duplicate in Meta">
+          <ToolbarBtn
+            title={
+              hasSelection
+                ? 'Duplicate selected in Meta Ads Manager'
+                : 'Duplicate campaigns in Meta Ads Manager'
+            }
+            onClick={openSelectedInMeta}
+          >
             <Copy className="size-3.5" />
             Duplicate
             <ChevronDown className="size-3" />
           </ToolbarBtn>
-          <ToolbarBtn
-            disabled={!hasSelection}
-            title="Open details"
-            onClick={() => {
-              const id =
-                level === 'campaigns'
-                  ? selectedCampaignIds[0]
-                  : level === 'adsets'
-                    ? selectedAdSetIds[0]
-                    : selectedAdIds[0];
-              const row = rows.find((r) => r.id === id);
-              if (row) openDetail(row);
-            }}
-          >
+          <ToolbarBtn title="Edit selected (or first row)" onClick={editSelected}>
             <Pencil className="size-3.5" />
             Edit
             <ChevronDown className="size-3" />
           </ToolbarBtn>
-          <ToolbarBtn disabled={!hasSelection} title="Read-only">
+          <ToolbarBtn
+            title="Delete / archive in Meta Ads Manager"
+            onClick={openSelectedInMeta}
+          >
             <Trash2 className="size-3.5" />
           </ToolbarBtn>
-          <ToolbarBtn disabled={!hasSelection} title="Read-only — A/B test in Meta">
+          <ToolbarBtn title="A/B test in Meta Ads Manager" onClick={openSelectedInMeta}>
             <FlaskConical className="size-3.5" />
             A/B test
           </ToolbarBtn>
-          <ToolbarBtn disabled={!hasSelection}>
-            More
-            <ChevronDown className="size-3" />
-          </ToolbarBtn>
+          <div className="relative">
+            <ToolbarBtn
+              title="More actions"
+              onClick={() => setMoreOpen((v) => !v)}
+            >
+              More
+              <ChevronDown className="size-3" />
+            </ToolbarBtn>
+            {moreOpen && (
+              <>
+                <button
+                  type="button"
+                  className="fixed inset-0 z-40 cursor-default"
+                  aria-label="Close more menu"
+                  onClick={() => setMoreOpen(false)}
+                />
+                <div className="absolute top-full left-0 z-50 mt-1 w-56 rounded-lg border border-[#DADDE1] bg-white py-1 shadow-xl">
+                  <button
+                    type="button"
+                    className="block w-full px-3 py-2 text-left text-[13px] hover:bg-[#F5F6F7]"
+                    onClick={() => {
+                      setMoreOpen(false);
+                      openSelectedInMeta();
+                    }}
+                  >
+                    Open in Meta Ads Manager ↗
+                  </button>
+                  <button
+                    type="button"
+                    className="block w-full px-3 py-2 text-left text-[13px] hover:bg-[#F5F6F7]"
+                    onClick={() => {
+                      setMoreOpen(false);
+                      onRefresh?.();
+                    }}
+                  >
+                    Refresh campaign data
+                  </button>
+                  <button
+                    type="button"
+                    className="block w-full px-3 py-2 text-left text-[13px] hover:bg-[#F5F6F7]"
+                    onClick={() => {
+                      setMoreOpen(false);
+                      setColumnsOpen(true);
+                    }}
+                  >
+                    Customise columns
+                  </button>
+                  <button
+                    type="button"
+                    className="block w-full px-3 py-2 text-left text-[13px] hover:bg-[#F5F6F7]"
+                    onClick={() => {
+                      setMoreOpen(false);
+                      openMetaTool('reporting', accountId);
+                    }}
+                  >
+                    Ads reporting ↗
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
-        <div className="flex flex-wrap items-center gap-1.5">
+        <div className="flex flex-wrap items-center gap-2">
           <ToolbarBtn onClick={() => setColumnsOpen(true)}>
             Columns
             <ChevronDown className="size-3" />
           </ToolbarBtn>
-          <ToolbarBtn>
-            Breakdown
-            <ChevronDown className="size-3" />
-          </ToolbarBtn>
-          <ToolbarBtn>
-            Grouping
-            <ChevronDown className="size-3" />
-          </ToolbarBtn>
+          <div className="relative">
+            <ToolbarBtn
+              title="Breakdown"
+              onClick={() => {
+                setBreakdownOpen((v) => !v);
+                setGroupingOpen(false);
+                setMoreOpen(false);
+              }}
+            >
+              Breakdown{breakdown !== 'none' ? `: ${breakdown}` : ''}
+              <ChevronDown className="size-3" />
+            </ToolbarBtn>
+            {breakdownOpen && (
+              <>
+                <button
+                  type="button"
+                  className="fixed inset-0 z-40 cursor-default"
+                  aria-label="Close breakdown"
+                  onClick={() => setBreakdownOpen(false)}
+                />
+                <div className="absolute top-full right-0 z-50 mt-1 w-52 rounded-lg border border-[#DADDE1] bg-white py-1 shadow-xl">
+                  {(
+                    [
+                      { id: 'none' as const, label: 'No breakdown' },
+                      { id: 'delivery' as const, label: 'By delivery' },
+                      { id: 'results' as const, label: 'By results' },
+                    ] as const
+                  ).map((opt) => (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      className={cn(
+                        'block w-full px-3 py-2 text-left text-[13px] hover:bg-[#F5F6F7]',
+                        breakdown === opt.id && 'bg-[#E7F3FF] font-semibold text-[#1877F2]'
+                      )}
+                      onClick={() => {
+                        setBreakdown(opt.id);
+                        setBreakdownOpen(false);
+                        setViewNotice(
+                          opt.id === 'none'
+                            ? 'Breakdown cleared.'
+                            : `Breakdown: ${opt.label.toLowerCase()}.`
+                        );
+                      }}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    className="block w-full border-t border-[#E4E6EB] px-3 py-2 text-left text-[13px] text-[#1877F2] hover:bg-[#F5F6F7]"
+                    onClick={() => {
+                      setBreakdownOpen(false);
+                      openMetaTool('campaigns', accountId);
+                    }}
+                  >
+                    Open breakdown in Meta ↗
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+          <div className="relative">
+            <ToolbarBtn
+              title="Grouping"
+              onClick={() => {
+                setGroupingOpen((v) => !v);
+                setBreakdownOpen(false);
+                setMoreOpen(false);
+              }}
+            >
+              Grouping{grouping !== 'none' ? `: ${grouping}` : ''}
+              <ChevronDown className="size-3" />
+            </ToolbarBtn>
+            {groupingOpen && (
+              <>
+                <button
+                  type="button"
+                  className="fixed inset-0 z-40 cursor-default"
+                  aria-label="Close grouping"
+                  onClick={() => setGroupingOpen(false)}
+                />
+                <div className="absolute top-full right-0 z-50 mt-1 w-52 rounded-lg border border-[#DADDE1] bg-white py-1 shadow-xl">
+                  {(
+                    [
+                      { id: 'none' as const, label: 'No grouping' },
+                      { id: 'status' as const, label: 'By status' },
+                      { id: 'objective' as const, label: 'By objective / parent' },
+                    ] as const
+                  ).map((opt) => (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      className={cn(
+                        'block w-full px-3 py-2 text-left text-[13px] hover:bg-[#F5F6F7]',
+                        grouping === opt.id && 'bg-[#E7F3FF] font-semibold text-[#1877F2]'
+                      )}
+                      onClick={() => {
+                        setGrouping(opt.id);
+                        setGroupingOpen(false);
+                        setViewNotice(
+                          opt.id === 'none'
+                            ? 'Grouping cleared.'
+                            : `Grouping: ${opt.label.toLowerCase()}.`
+                        );
+                      }}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    className="block w-full border-t border-[#E4E6EB] px-3 py-2 text-left text-[13px] text-[#1877F2] hover:bg-[#F5F6F7]"
+                    onClick={() => {
+                      setGroupingOpen(false);
+                      openMetaTool('campaigns', accountId);
+                    }}
+                  >
+                    Open grouping in Meta ↗
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
       {/* Ads pager */}
       {level === 'ads' && filteredAds.length > ADS_PAGE_SIZE && (
-        <div className="flex items-center justify-between gap-2 border-b border-[#CED0D4] bg-[#F7F8FA] px-3 py-1.5">
-          <p className="text-[12px] text-[#606770]">
+        <div className="flex items-center justify-between gap-2 border-b border-[#DADDE1] bg-[#F7F8FA] px-3 py-1.5">
+          <p className="text-[12px] text-[#65676B]">
             Showing {pagination.pageIndex * ADS_PAGE_SIZE + 1}–
             {Math.min((pagination.pageIndex + 1) * ADS_PAGE_SIZE, filteredAds.length)} of{' '}
             {filteredAds.length} ads
@@ -1570,7 +2144,7 @@ export function AdsManager({
               type="button"
               disabled={!table.getCanPreviousPage()}
               onClick={() => table.previousPage()}
-              className="inline-flex size-8 items-center justify-center rounded-md border border-[#CED0D4] bg-white disabled:opacity-40"
+              className="inline-flex size-8 items-center justify-center rounded-md border border-[#DADDE1] bg-white disabled:opacity-40"
               aria-label="Previous ads"
             >
               <ChevronLeft className="size-4" />
@@ -1579,7 +2153,7 @@ export function AdsManager({
               type="button"
               disabled={!table.getCanNextPage()}
               onClick={() => table.nextPage()}
-              className="inline-flex size-8 items-center justify-center rounded-md border border-[#CED0D4] bg-white disabled:opacity-40"
+              className="inline-flex size-8 items-center justify-center rounded-md border border-[#DADDE1] bg-white disabled:opacity-40"
               aria-label="Next ads"
             >
               <ChevronRight className="size-4" />
@@ -1593,7 +2167,7 @@ export function AdsManager({
         <table className="w-max min-w-full border-collapse text-left text-[13px]">
           <thead className="sticky top-0 z-30">
             {table.getHeaderGroups().map((group) => (
-              <tr key={group.id} className="border-b border-[#CED0D4] bg-[#F5F6F7]">
+              <tr key={group.id} className="border-b border-[#DADDE1] bg-[#F5F6F7]">
                 {group.headers.map((header) => {
                   const sticky =
                     header.column.id === 'select' ||
@@ -1611,7 +2185,7 @@ export function AdsManager({
                     <th
                       key={header.id}
                       className={cn(
-                        'whitespace-nowrap px-3 py-2 text-[11px] font-semibold tracking-wide text-[#606770] uppercase',
+                        'whitespace-nowrap px-3 py-2 text-[11px] font-semibold tracking-wide text-[#65676B] uppercase',
                         sticky && 'sticky z-40 bg-[#F5F6F7]',
                         header.column.id === 'name' && 'shadow-[2px_0_4px_-2px_rgba(0,0,0,0.12)]'
                       )}
@@ -1630,7 +2204,7 @@ export function AdsManager({
                       {header.isPlaceholder ? null : header.column.getCanSort() ? (
                         <button
                           type="button"
-                          className="inline-flex items-center gap-1 hover:text-[#1C1E21]"
+                          className="inline-flex items-center gap-1 hover:text-[#050505]"
                           onClick={header.column.getToggleSortingHandler()}
                         >
                           <table.FlexRender header={header} />
@@ -1649,7 +2223,7 @@ export function AdsManager({
               <tr>
                 <td
                   colSpan={table.getVisibleLeafColumns().length}
-                  className="px-4 py-12 text-center text-sm text-[#606770]"
+                  className="px-4 py-12 text-center text-sm text-[#65676B]"
                 >
                   No {entityLabel} match the current filters.
                 </td>
@@ -1660,7 +2234,7 @@ export function AdsManager({
                   key={row.id}
                   data-selected={row.getIsSelected() || undefined}
                   className={cn(
-                    'group border-b border-[#E4E6EB] hover:bg-[#F7F8FA]',
+                    'group cursor-pointer border-b border-[#E4E6EB] transition-colors hover:bg-[#F0F2F5]',
                     row.getIsSelected() && 'bg-[#E7F3FF]'
                   )}
                   onClick={() => openDetail(row.original)}
@@ -1682,7 +2256,7 @@ export function AdsManager({
                       <td
                         key={cell.id}
                         className={cn(
-                          'px-3 py-2.5 align-middle',
+                          'px-3 py-3 align-middle',
                           sticky && stickyCell,
                           cell.column.id === 'name' &&
                             'shadow-[2px_0_4px_-2px_rgba(0,0,0,0.08)]'
@@ -1703,7 +2277,7 @@ export function AdsManager({
             )}
           </tbody>
           <tfoot className="sticky bottom-0 z-30">
-            <tr className="border-t border-[#CED0D4] bg-[#F0F2F5] font-medium">
+            <tr className="border-t border-[#DADDE1] bg-[#F0F2F5] font-medium">
               <td className={cn(stickyCell, 'sticky left-0 z-40 bg-[#F0F2F5] px-3 py-2.5')} />
               <td
                 className={cn(stickyCell, 'sticky z-40 bg-[#F0F2F5] px-3 py-2.5')}
@@ -1712,7 +2286,7 @@ export function AdsManager({
               <td
                 className={cn(
                   stickyCell,
-                  'sticky z-40 bg-[#F0F2F5] px-3 py-2.5 text-[12px] text-[#1C1E21] shadow-[2px_0_4px_-2px_rgba(0,0,0,0.08)]'
+                  'sticky z-40 bg-[#F0F2F5] px-3 py-2.5 text-[12px] text-[#050505] shadow-[2px_0_4px_-2px_rgba(0,0,0,0.08)]'
                 )}
                 style={{ left: 96 }}
               >
@@ -1739,14 +2313,14 @@ export function AdsManager({
                     content = (
                       <span className="block text-right text-[12px] tabular-nums">
                         {money(totals.spend, currency)}{' '}
-                        <span className="font-normal text-[#606770]">Total Spent</span>
+                        <span className="font-normal text-[#65676B]">Total Spent</span>
                       </span>
                     );
                   else if (col.id === 'impressions')
                     content = (
                       <span className="block text-right tabular-nums">
                         {numberFmt.format(totals.impressions)}{' '}
-                        <span className="font-normal text-[#606770]">Total</span>
+                        <span className="font-normal text-[#65676B]">Total</span>
                       </span>
                     );
                   else if (col.id === 'reach')
@@ -1762,7 +2336,7 @@ export function AdsManager({
         </table>
       </div>
 
-      <div className="flex items-center justify-between border-t border-[#CED0D4] px-3 py-2 text-[12px] text-[#606770]">
+      <div className="flex items-center justify-between border-t border-[#DADDE1] px-3 py-2 text-[12px] text-[#65676B]">
         <span>
           {numberFmt.format(totals.count)} {entityLabel}
           {level === 'ads' && pageCount > 1
@@ -1771,6 +2345,8 @@ export function AdsManager({
         </span>
         <span className="text-[11px]">Horizontal scroll for more columns · first 3 stay fixed</span>
       </div>
+      </>
+      )}
 
       <ColumnsModal
         open={columnsOpen}

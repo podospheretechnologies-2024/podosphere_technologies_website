@@ -1,7 +1,7 @@
 'use client';
 
 import dayjs from 'dayjs';
-import { X } from 'lucide-react';
+import { Mail, Phone, User, X } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Button } from '@/shared/components/ui/button';
 import { cn } from '@/shared/lib/cn';
@@ -16,6 +16,21 @@ import type {
 
 const count = new Intl.NumberFormat('en-IN');
 
+const CONTACT_FIELD_KEYS = new Set([
+  'full_name',
+  'full name',
+  'name',
+  'first_name',
+  'last_name',
+  'phone_number',
+  'phone',
+  'email',
+  'work_email',
+  'company_name',
+  'company',
+  'website',
+]);
+
 function money(value: number, currency: string, digits = 0) {
   return new Intl.NumberFormat('en-IN', {
     style: 'currency',
@@ -24,15 +39,75 @@ function money(value: number, currency: string, digits = 0) {
   }).format(value);
 }
 
-function Field({ label, value }: { label: string; value: ReactNode }) {
+/** Turn snake_case / question keys into readable labels. */
+function humanizeLabel(raw: string): string {
+  const trimmed = raw.trim();
+  if (!trimmed) return 'Field';
+  const withoutPunctuation = trimmed.replace(/\?+$/, '');
+  return withoutPunctuation
+    .replace(/[_/]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+/** Clean underscore-heavy answer values for display. */
+function humanizeValue(raw: string): string {
+  const text = raw.trim();
+  if (!text) return '—';
+  if (text.includes('@') || text.startsWith('http') || /^\+?\d[\d\s-]{6,}$/.test(text)) {
+    return text;
+  }
+  return text
+    .split(/[,|]/)
+    .map((part) =>
+      part
+        .trim()
+        .replace(/_/g, ' ')
+        .replace(/\b\w/g, (char) => char.toUpperCase())
+    )
+    .filter(Boolean)
+    .join(', ');
+}
+
+function fieldKey(name: string) {
+  return name.trim().toLowerCase().replace(/\?+$/, '');
+}
+
+function isContactField(name: string) {
+  const key = fieldKey(name);
+  if (CONTACT_FIELD_KEYS.has(key)) return true;
+  return /name|phone|email|company|website|mobile/.test(key);
+}
+
+function Field({
+  label,
+  value,
+  className,
+}: {
+  label: string;
+  value: ReactNode;
+  className?: string;
+}) {
   return (
-    <div className="border-border bg-surface-muted/30 rounded-xl border px-3 py-2.5">
-      <p className="text-muted-foreground text-[10px] font-medium tracking-wide uppercase">
+    <div className={cn('border-border bg-surface rounded-xl border px-3.5 py-3', className)}>
+      <p className="text-muted-foreground text-[10px] font-semibold tracking-wide uppercase">
         {label}
       </p>
-      <div className="text-foreground mt-1 text-sm break-words whitespace-pre-wrap">
+      <div className="text-foreground mt-1.5 text-sm leading-relaxed break-words whitespace-pre-wrap">
         {value === null || value === undefined || value === '' ? '—' : value}
       </div>
+    </div>
+  );
+}
+
+function MetricChip({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="bg-surface-muted/50 min-w-0 flex-1 rounded-xl px-3 py-2.5 text-center">
+      <p className="text-muted-foreground text-[10px] font-semibold tracking-wide uppercase">
+        {label}
+      </p>
+      <p className="text-foreground mt-1 text-sm font-semibold tabular-nums">{value}</p>
     </div>
   );
 }
@@ -65,6 +140,101 @@ function asAdItem(ad: AdsAdItem | AdsLiveAd): AdsAdItem {
     leads: ad.leads,
     costPerLead: ad.costPerLead,
   };
+}
+
+function LeadCard({ lead }: { lead: AdsLeadItem }) {
+  const contact = lead.fields.filter((field) => isContactField(field.name));
+  const survey = lead.fields.filter((field) => !isContactField(field.name));
+
+  const nameField = contact.find((field) => /name/.test(fieldKey(field.name)));
+  const phoneField = contact.find((field) => /phone|mobile/.test(fieldKey(field.name)));
+  const emailField = contact.find((field) => /email/.test(fieldKey(field.name)));
+  const companyField = contact.find((field) => /company/.test(fieldKey(field.name)));
+
+  const displayName = nameField?.values[0]
+    ? humanizeValue(nameField.values[0])
+    : 'Lead';
+
+  return (
+    <li className="border-border bg-surface overflow-hidden rounded-2xl border shadow-sm">
+      <div className="border-border flex flex-wrap items-start justify-between gap-2 border-b bg-[#F7F8FA] px-4 py-3">
+        <div className="min-w-0">
+          <p className="text-foreground flex items-center gap-1.5 text-sm font-semibold">
+            <User className="text-primary size-3.5 shrink-0" />
+            <span className="truncate">{displayName}</span>
+          </p>
+          {companyField?.values[0] && (
+            <p className="text-muted-foreground mt-0.5 truncate text-xs">
+              {humanizeValue(companyField.values[0])}
+            </p>
+          )}
+        </div>
+        <p className="text-muted-foreground shrink-0 text-[11px] tabular-nums">
+          {lead.createdTime ? dayjs(lead.createdTime).format('D MMM · h:mm A') : '—'}
+        </p>
+      </div>
+
+      <div className="space-y-3 px-4 py-3">
+        {(phoneField || emailField) && (
+          <div className="flex flex-wrap gap-2">
+            {phoneField?.values[0] && (
+              <a
+                href={`tel:${phoneField.values[0].replace(/\s/g, '')}`}
+                className="bg-primary/8 text-foreground inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium"
+              >
+                <Phone className="size-3" />
+                {phoneField.values[0]}
+              </a>
+            )}
+            {emailField?.values[0] && (
+              <a
+                href={`mailto:${emailField.values[0]}`}
+                className="bg-primary/8 text-foreground inline-flex max-w-full items-center gap-1.5 truncate rounded-full px-2.5 py-1 text-xs font-medium"
+              >
+                <Mail className="size-3 shrink-0" />
+                <span className="truncate">{emailField.values[0]}</span>
+              </a>
+            )}
+          </div>
+        )}
+
+        {survey.length > 0 && (
+          <div className="grid gap-2 sm:grid-cols-2">
+            {survey.map((field) => (
+              <div
+                key={`${lead.id}-${field.name}`}
+                className="bg-surface-muted/40 rounded-xl px-3 py-2.5"
+              >
+                <p className="text-muted-foreground text-[10px] font-semibold tracking-wide uppercase">
+                  {humanizeLabel(field.name)}
+                </p>
+                <p className="text-foreground mt-1 text-xs leading-relaxed">
+                  {field.values.map(humanizeValue).join(', ')}
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {contact
+          .filter(
+            (field) =>
+              field !== nameField &&
+              field !== phoneField &&
+              field !== emailField &&
+              field !== companyField
+          )
+          .map((field) => (
+            <div key={`${lead.id}-${field.name}`} className="text-xs">
+              <span className="text-muted-foreground">{humanizeLabel(field.name)}: </span>
+              <span className="text-foreground font-medium">
+                {field.values.map(humanizeValue).join(', ')}
+              </span>
+            </div>
+          ))}
+      </div>
+    </li>
+  );
 }
 
 export function AdsDetailPanel({
@@ -129,7 +299,7 @@ export function AdsDetailPanel({
                     : 'Lead details'}
             </p>
             <h2 className="text-foreground mt-1 text-lg font-semibold leading-snug">{title}</h2>
-            {subtitle && <p className="text-muted-foreground mt-1 text-xs">{subtitle}</p>}
+            {subtitle && <p className="text-muted-foreground mt-1 text-xs leading-relaxed">{subtitle}</p>}
           </div>
           <Button variant="secondary" size="sm" onClick={onClose} aria-label="Close details">
             <X className="size-4" />
@@ -153,7 +323,7 @@ export function AdsDetailPanel({
               <div>
                 <h3 className="text-sm font-semibold">Current period</h3>
                 <p className="text-muted-foreground text-xs">
-                  Totals for the selected date range (from Meta insights).
+                  Totals for the selected date range from Meta.
                 </p>
               </div>
               {history.isLoading && (
@@ -163,16 +333,16 @@ export function AdsDetailPanel({
                 <p className="text-danger text-sm">{history.error.message}</p>
               )}
               {history.data && (
-                <div className="grid grid-cols-2 gap-2">
-                  <Field label="Spend" value={money(history.data.totals.spend, currency)} />
-                  <Field
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  <MetricChip label="Spend" value={money(history.data.totals.spend, currency)} />
+                  <MetricChip
                     label="Impressions"
                     value={count.format(history.data.totals.impressions)}
                   />
-                  <Field label="Reach" value={count.format(history.data.totals.reach)} />
-                  <Field label="Clicks" value={count.format(history.data.totals.clicks)} />
-                  <Field label="CTR" value={`${history.data.totals.ctr.toFixed(2)}%`} />
-                  <Field
+                  <MetricChip label="Clicks" value={count.format(history.data.totals.clicks)} />
+                  <MetricChip label="Leads" value={count.format(history.data.totals.leads)} />
+                  <MetricChip label="CTR" value={`${history.data.totals.ctr.toFixed(2)}%`} />
+                  <MetricChip
                     label="CPC"
                     value={
                       history.data.totals.cpc
@@ -180,8 +350,8 @@ export function AdsDetailPanel({
                         : '—'
                     }
                   />
-                  <Field label="Leads" value={count.format(history.data.totals.leads)} />
-                  <Field
+                  <MetricChip label="Reach" value={count.format(history.data.totals.reach)} />
+                  <MetricChip
                     label="Cost / lead"
                     value={
                       history.data.totals.costPerLead === null
@@ -197,10 +367,8 @@ export function AdsDetailPanel({
           {selection.kind !== 'lead' && (
             <section className="space-y-3">
               <div>
-                <h3 className="text-sm font-semibold">Historical daily data</h3>
-                <p className="text-muted-foreground text-xs">
-                  Day-by-day performance for the selected range.
-                </p>
+                <h3 className="text-sm font-semibold">Daily history</h3>
+                <p className="text-muted-foreground text-xs">Day-by-day for the selected range.</p>
               </div>
               {history.isLoading && (
                 <p className="text-muted-foreground text-sm">Loading history…</p>
@@ -213,29 +381,29 @@ export function AdsDetailPanel({
                   <table className="w-full text-left text-xs">
                     <thead className="bg-surface-muted/60 text-muted-foreground tracking-wide uppercase">
                       <tr>
-                        <th className="px-3 py-2 font-semibold">Date</th>
-                        <th className="px-3 py-2 text-right font-semibold">Spend</th>
-                        <th className="px-3 py-2 text-right font-semibold">Clicks</th>
-                        <th className="px-3 py-2 text-right font-semibold">CTR</th>
-                        <th className="px-3 py-2 text-right font-semibold">Leads</th>
+                        <th className="px-3 py-2.5 font-semibold">Date</th>
+                        <th className="px-3 py-2.5 text-right font-semibold">Spend</th>
+                        <th className="px-3 py-2.5 text-right font-semibold">Clicks</th>
+                        <th className="px-3 py-2.5 text-right font-semibold">CTR</th>
+                        <th className="px-3 py-2.5 text-right font-semibold">Leads</th>
                       </tr>
                     </thead>
                     <tbody>
                       {history.data.history.map((point) => (
-                        <tr key={point.date} className="border-border border-t">
-                          <td className="px-3 py-2 tabular-nums">
+                        <tr key={point.date} className="border-border hover:bg-surface-muted/30 border-t">
+                          <td className="px-3 py-2.5 tabular-nums">
                             {dayjs(point.date).format('D MMM YYYY')}
                           </td>
-                          <td className="px-3 py-2 text-right tabular-nums">
+                          <td className="px-3 py-2.5 text-right tabular-nums">
                             {money(point.spend, currency, 2)}
                           </td>
-                          <td className="px-3 py-2 text-right tabular-nums">
+                          <td className="px-3 py-2.5 text-right tabular-nums">
                             {count.format(point.clicks)}
                           </td>
-                          <td className="px-3 py-2 text-right tabular-nums">
+                          <td className="px-3 py-2.5 text-right tabular-nums">
                             {point.ctr.toFixed(2)}%
                           </td>
-                          <td className="px-3 py-2 text-right tabular-nums">
+                          <td className="px-3 py-2.5 text-right tabular-nums">
                             {count.format(point.leads)}
                           </td>
                         </tr>
@@ -249,33 +417,17 @@ export function AdsDetailPanel({
 
           {selection.kind === 'ad' && relatedLeads.length > 0 && (
             <section className="space-y-3">
-              <div>
-                <h3 className="text-sm font-semibold">Leads for this ad</h3>
-                <p className="text-muted-foreground text-xs">
-                  {relatedLeads.length} lead{relatedLeads.length === 1 ? '' : 's'} retrieved
-                </p>
+              <div className="flex items-end justify-between gap-2">
+                <div>
+                  <h3 className="text-sm font-semibold">Leads</h3>
+                  <p className="text-muted-foreground text-xs">
+                    {relatedLeads.length} lead{relatedLeads.length === 1 ? '' : 's'} from this ad
+                  </p>
+                </div>
               </div>
-              <ul className="space-y-2">
+              <ul className="space-y-3">
                 {relatedLeads.map((lead) => (
-                  <li
-                    key={lead.id}
-                    className="border-border bg-surface-muted/25 rounded-xl border px-3 py-2.5 text-xs"
-                  >
-                    <p className="font-medium">
-                      {lead.createdTime
-                        ? dayjs(lead.createdTime).format('D MMM YYYY · h:mm A')
-                        : '—'}
-                    </p>
-                    <ul className="text-muted-foreground mt-1.5 space-y-0.5">
-                      {lead.fields.map((field) => (
-                        <li key={`${lead.id}-${field.name}`}>
-                          <span className="text-foreground font-medium">{field.name}</span>
-                          {' · '}
-                          {field.values.join(', ')}
-                        </li>
-                      ))}
-                    </ul>
-                  </li>
+                  <LeadCard key={lead.id} lead={lead} />
                 ))}
               </ul>
             </section>
@@ -287,47 +439,78 @@ export function AdsDetailPanel({
 }
 
 function AdDetails({ ad, currency }: { ad: AdsAdItem; currency: string }) {
+  const live = ad.status === 'ACTIVE';
   return (
-    <section className="space-y-3">
-      <h3 className="text-sm font-semibold">Creative & placement</h3>
-      <div className="border-border bg-surface-muted relative aspect-[1.91/1] overflow-hidden rounded-xl border">
-        {ad.thumbnailUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={ad.thumbnailUrl} alt="" className="h-full w-full object-cover" />
-        ) : (
-          <div className="text-muted-foreground flex h-full items-center justify-center text-xs">
-            No creative preview
-          </div>
-        )}
+    <section className="space-y-4">
+      <div className="border-border relative overflow-hidden rounded-2xl border">
+        <div className="bg-surface-muted aspect-[1.91/1]">
+          {ad.thumbnailUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={ad.thumbnailUrl} alt="" className="h-full w-full object-cover" />
+          ) : (
+            <div className="text-muted-foreground flex h-full items-center justify-center text-xs">
+              No creative preview
+            </div>
+          )}
+        </div>
         <span
           className={cn(
-            'absolute top-2.5 left-2.5 rounded-full px-2 py-0.5 text-[10px] font-semibold text-white',
-            ad.status === 'ACTIVE' ? 'bg-success' : 'bg-muted-foreground'
+            'absolute top-3 left-3 rounded-full px-2.5 py-1 text-[11px] font-semibold text-white shadow',
+            live ? 'bg-success' : 'bg-muted-foreground'
           )}
         >
-          {ad.status === 'ACTIVE' ? 'Live' : ad.status.replace(/_/g, ' ')}
+          {live ? 'Live' : ad.status.replace(/_/g, ' ')}
         </span>
       </div>
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-        <Field label="Ad id" value={ad.id} />
-        <Field label="Status" value={ad.status} />
-        <Field label="Campaign" value={ad.campaignName} />
-        <Field label="Ad set" value={ad.adsetName} />
-        <Field label="Headline" value={ad.headline} />
-        <Field label="Description" value={ad.description} />
-        <div className="sm:col-span-2">
-          <Field label="Primary text" value={ad.primaryText} />
-        </div>
-        <Field label="Spend (list)" value={money(ad.spend, currency)} />
-        <Field label="Impressions" value={count.format(ad.impressions)} />
-        <Field label="Clicks" value={count.format(ad.clicks)} />
-        <Field label="CTR" value={`${ad.ctr.toFixed(2)}%`} />
-        <Field label="CPC" value={ad.cpc ? money(ad.cpc, currency, 2) : '—'} />
-        <Field label="Leads" value={count.format(ad.leads)} />
-        <Field
+
+      <div className="flex flex-wrap gap-2">
+        <MetricChip label="Spend" value={money(ad.spend, currency)} />
+        <MetricChip label="Leads" value={count.format(ad.leads)} />
+        <MetricChip
           label="Cost / lead"
           value={ad.costPerLead === null ? '—' : money(ad.costPerLead, currency)}
         />
+        <MetricChip label="CTR" value={`${ad.ctr.toFixed(2)}%`} />
+      </div>
+
+      {(ad.headline || ad.description || ad.primaryText) && (
+        <div className="border-border space-y-3 rounded-2xl border p-4">
+          {ad.headline && (
+            <div>
+              <p className="text-muted-foreground text-[10px] font-semibold tracking-wide uppercase">
+                Headline
+              </p>
+              <p className="text-foreground mt-1 text-sm font-semibold leading-snug">{ad.headline}</p>
+            </div>
+          )}
+          {ad.description && (
+            <div>
+              <p className="text-muted-foreground text-[10px] font-semibold tracking-wide uppercase">
+                Description
+              </p>
+              <p className="text-foreground mt-1 text-sm leading-relaxed">{ad.description}</p>
+            </div>
+          )}
+          {ad.primaryText && (
+            <div>
+              <p className="text-muted-foreground text-[10px] font-semibold tracking-wide uppercase">
+                Primary text
+              </p>
+              <p className="text-foreground mt-1 text-sm leading-relaxed whitespace-pre-wrap">
+                {ad.primaryText}
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+        <Field label="Campaign" value={ad.campaignName} />
+        <Field label="Ad set" value={ad.adsetName} />
+        <Field label="Impressions" value={count.format(ad.impressions)} />
+        <Field label="Clicks" value={count.format(ad.clicks)} />
+        <Field label="CPC" value={ad.cpc ? money(ad.cpc, currency, 2) : '—'} />
+        <Field label="Ad ID" value={<span className="font-mono text-xs">{ad.id}</span>} />
       </div>
     </section>
   );
@@ -342,28 +525,28 @@ function CampaignDetails({
 }) {
   return (
     <section className="space-y-3">
-      <h3 className="text-sm font-semibold">Campaign</h3>
+      <div className="flex flex-wrap gap-2">
+        <MetricChip label="Spend" value={money(campaign.spend, currency)} />
+        <MetricChip label="Leads" value={count.format(campaign.leads)} />
+        <MetricChip label="Impressions" value={count.format(campaign.impressions)} />
+        <MetricChip label="CTR" value={`${campaign.ctr.toFixed(2)}%`} />
+      </div>
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-        <Field label="Campaign id" value={campaign.id} />
-        <Field label="Status" value={campaign.status} />
-        <Field label="Objective" value={campaign.objective} />
-        <Field label="Budget" value={campaign.budgetLabel ?? 'Ad set budget'} />
-        <Field label="Spend" value={money(campaign.spend, currency)} />
-        <Field label="Impressions" value={count.format(campaign.impressions)} />
-        <Field label="Clicks" value={count.format(campaign.clicks)} />
-        <Field label="CTR" value={`${campaign.ctr.toFixed(2)}%`} />
+        <Field label="Status" value={campaign.status.replace(/_/g, ' ')} />
         <Field
-          label="CPC"
-          value={campaign.cpc ? money(campaign.cpc, currency, 2) : '—'}
+          label="Objective"
+          value={campaign.objective.replace(/^OUTCOME_/, '').replace(/_/g, ' ')}
         />
-        <Field label="Leads" value={count.format(campaign.leads)} />
+        <Field label="Budget" value={campaign.budgetLabel ?? 'Ad set budget'} />
         <Field
           label="Cost / lead"
           value={
             campaign.costPerLead === null ? '—' : money(campaign.costPerLead, currency)
           }
         />
+        <Field label="Clicks" value={count.format(campaign.clicks)} />
         <Field label="Landing page views" value={count.format(campaign.landingPageViews)} />
+        <Field label="Campaign ID" value={<span className="font-mono text-xs">{campaign.id}</span>} />
       </div>
     </section>
   );
@@ -376,23 +559,22 @@ function AdSetDetails({ adset, currency }: { adset: AdsAdSetItem; currency: stri
       : '—';
   return (
     <section className="space-y-3">
-      <h3 className="text-sm font-semibold">Ad set</h3>
+      <div className="flex flex-wrap gap-2">
+        <MetricChip label="Spend" value={money(adset.spend, currency)} />
+        <MetricChip label="Leads" value={count.format(adset.leads)} />
+        <MetricChip
+          label="Cost / lead"
+          value={adset.costPerLead === null ? '—' : money(adset.costPerLead, currency)}
+        />
+      </div>
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-        <Field label="Ad set id" value={adset.id} />
-        <Field label="Status" value={adset.status} />
+        <Field label="Status" value={adset.status.replace(/_/g, ' ')} />
         <Field label="Campaign" value={adset.campaignName} />
         <Field label="Age" value={age} />
         <Field label="Locations" value={adset.targeting.locations.join(', ') || '—'} />
         <Field label="Interests" value={adset.targeting.interests.join(', ') || '—'} />
-        <div className="sm:col-span-2">
-          <Field label="Behaviors" value={adset.targeting.behaviors.join(', ') || '—'} />
-        </div>
-        <Field label="Spend" value={money(adset.spend, currency)} />
-        <Field label="Leads" value={count.format(adset.leads)} />
-        <Field
-          label="Cost / lead"
-          value={adset.costPerLead === null ? '—' : money(adset.costPerLead, currency)}
-        />
+        <Field label="Behaviors" value={adset.targeting.behaviors.join(', ') || '—'} />
+        <Field label="Ad set ID" value={<span className="font-mono text-xs">{adset.id}</span>} />
       </div>
     </section>
   );
@@ -401,9 +583,7 @@ function AdSetDetails({ adset, currency }: { adset: AdsAdSetItem; currency: stri
 function LeadDetails({ lead }: { lead: AdsLeadItem }) {
   return (
     <section className="space-y-3">
-      <h3 className="text-sm font-semibold">Lead</h3>
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-        <Field label="Lead id" value={lead.id} />
         <Field
           label="Created"
           value={
@@ -413,20 +593,8 @@ function LeadDetails({ lead }: { lead: AdsLeadItem }) {
         <Field label="Ad" value={lead.adName} />
         <Field label="Ad set" value={lead.adsetName} />
         <Field label="Campaign" value={lead.campaignName} />
-        <Field label="Form id" value={lead.formId} />
       </div>
-      <div className="space-y-2">
-        <h4 className="text-xs font-semibold tracking-wide uppercase">Form answers</h4>
-        {lead.fields.length === 0 ? (
-          <p className="text-muted-foreground text-sm">No form fields.</p>
-        ) : (
-          <div className="grid grid-cols-1 gap-2">
-            {lead.fields.map((field) => (
-              <Field key={field.name} label={field.name} value={field.values.join(', ')} />
-            ))}
-          </div>
-        )}
-      </div>
+      <LeadCard lead={lead} />
     </section>
   );
 }

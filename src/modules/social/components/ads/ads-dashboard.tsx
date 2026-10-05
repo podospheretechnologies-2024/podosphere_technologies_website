@@ -95,25 +95,24 @@ export function AdsDashboard() {
         </div>
       )}
       {overview.data && (
-        <div className={overview.isValidating ? 'opacity-70 transition' : 'transition'}>
-          <AdsManager
-            key={overview.data.account.id}
-            data={overview.data}
-            accounts={accounts}
-            accountId={accountId ?? overview.data.account.id}
-            onAccountChange={setSelected}
-            statusFilter={statusFilter}
-            onStatusFilterChange={setStatusFilter}
-            datePreset={datePreset}
-            since={since}
-            until={until}
-            onSelectPreset={selectPreset}
-            onSince={setSince}
-            onUntil={setUntil}
-            onSelectDetail={setDetail}
-            onRefresh={() => void overview.mutate()}
-          />
-        </div>
+        <AdsManager
+          key={overview.data.account.id}
+          data={overview.data}
+          accounts={accounts}
+          accountId={accountId ?? overview.data.account.id}
+          onAccountChange={setSelected}
+          statusFilter={statusFilter}
+          onStatusFilterChange={setStatusFilter}
+          datePreset={datePreset}
+          since={since}
+          until={until}
+          onSelectPreset={selectPreset}
+          onSince={setSince}
+          onUntil={setUntil}
+          onSelectDetail={setDetail}
+          onRefresh={() => void overview.mutate()}
+          isRefreshing={overview.isValidating}
+        />
       )}
 
       {detail && accountId && overview.data && (
