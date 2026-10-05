@@ -439,7 +439,7 @@ function buildStatus(connection: Awaited<ReturnType<typeof googleSheetsRepositor
       picture: connection.picture,
       lastSyncedAt: connection.lastSyncedAt?.toISOString() ?? null,
       spreadsheetCount: spreadsheets.length,
-      rowCount: spreadsheets.reduce((sum, sheet) => sum + sheet.rowCount, 0),
+      rowCount: spreadsheets.reduce((sum: number, sheet: GoogleSpreadsheetItem) => sum + sheet.rowCount, 0),
     },
     spreadsheets,
   };
