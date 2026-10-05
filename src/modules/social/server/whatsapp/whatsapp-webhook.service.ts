@@ -4,6 +4,7 @@ import { getServerEnv } from '@/shared/lib/env';
 import { prisma } from '@/shared/lib/prisma';
 import { HttpError } from '@/shared/server/http-error';
 import { whatsappChatRepository } from './whatsapp-chat.repository';
+import { podoCrmWhatsAppSyncService } from '../podocrm/podocrm-whatsapp-sync.service';
 
 const DEFAULT_PODOCRM_WHATSAPP_WEBHOOK_URL =
   'https://podocrm.podospheretechnologies.com/api/whatsapp/webhook';
@@ -211,6 +212,13 @@ export const whatsappWebhookService = {
         for (const status of value.statuses ?? []) {
           if (status.id && status.status) {
             await whatsappChatRepository.updateMessageStatus(status.id, status.status);
+            void podoCrmWhatsAppSyncService.relayStatus({
+              phoneNumberId: value.metadata?.phone_number_id ?? null,
+              wamid: status.id,
+              status: status.status,
+              recipientId: status.recipient_id ?? null,
+              timestamp: status.timestamp ?? null,
+            });
           }
         }
 

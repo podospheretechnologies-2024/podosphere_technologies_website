@@ -39,6 +39,8 @@ const serverEnvSchema = z.object({
   PODOCRM_WHATSAPP_WEBHOOK_URL: z.url().optional(),
   // Set to "false" to disable forwarding. Default: on in production (uses URL or built-in default).
   PODOCRM_WHATSAPP_FORWARD: z.enum(['true', 'false']).optional(),
+  // PodoCRM API base for WhatsApp sync link/ping/echo (no trailing slash required).
+  PODOCRM_API_BASE_URL: z.url().optional(),
   // Google Sheets plug (OAuth). Optional — Connect stays disabled until both are set.
   GOOGLE_CLIENT_ID: z.string().optional(),
   GOOGLE_CLIENT_SECRET: z.string().optional(),

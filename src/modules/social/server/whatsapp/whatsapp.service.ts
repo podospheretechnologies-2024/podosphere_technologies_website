@@ -12,6 +12,7 @@ import type {
   WhatsAppTemplate,
 } from '../../types/whatsapp';
 import { whatsappChatRepository } from './whatsapp-chat.repository';
+import { podoCrmWhatsAppSyncService } from '../podocrm/podocrm-whatsapp-sync.service';
 import {
   GraphApiError,
   graphGet,
@@ -331,6 +332,15 @@ export const whatsappService = {
         ? input.text
         : `Template: ${input.templateName}${input.variables.length ? ` (${input.variables.join(', ')})` : ''}`;
     await recordOutbound(organizationId, input.to, preview, result.messageId, result.waId);
+
+    void podoCrmWhatsAppSyncService.echoOutbound(organizationId, {
+      wamid: result.messageId,
+      to: result.waId ?? input.to,
+      type: input.type,
+      text: input.type === 'text' ? input.text : undefined,
+      templateName: input.type === 'template' ? input.templateName : undefined,
+      language: input.type === 'template' ? input.language : undefined,
+    });
 
     return result;
   },

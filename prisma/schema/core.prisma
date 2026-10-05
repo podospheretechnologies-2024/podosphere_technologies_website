@@ -25,6 +25,7 @@ model Organization {
   whatsappConversations WhatsAppConversation[]
   whatsappMessages      WhatsAppMessage[]
   googleSheetsConnection SocialGoogleSheetsConnection?
+  podoCrmWhatsAppSync   SocialPodoCrmWhatsAppSync?
 
   @@map("organizations")
 }

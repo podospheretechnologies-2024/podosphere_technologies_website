@@ -421,3 +421,23 @@ model SocialGoogleSpreadsheet {
   @@index([connectionId])
   @@map("social_google_spreadsheets")
 }
+
+// PodoCRM WhatsApp sync link (redeem PSL-… code from CRM Connectors).
+model SocialPodoCrmWhatsAppSync {
+  id                 String   @id @default(uuid())
+  organizationId     String   @unique
+  /// Encrypted HMAC secret from CRM link response — never return plaintext to the UI.
+  syncSecret         String   @db.Text
+  phoneNumberId      String
+  podocrmCompanyId   String
+  podocrmBaseUrl     String   @db.VarChar(512)
+  linkedAt           DateTime @default(now())
+  lastPingAt         DateTime?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([phoneNumberId])
+  @@map("social_podocrm_whatsapp_sync")
+}

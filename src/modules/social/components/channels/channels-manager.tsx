@@ -16,6 +16,7 @@ import {
 import type { AvailableProvider, ChannelItem } from '../../types/integration';
 import { AddChannelDialog } from './add-channel-dialog';
 import { ChannelCard, type ChannelAction } from './channel-card';
+import { PodoCrmWhatsAppLinkCard } from './podocrm-whatsapp-link-card';
 import { ProviderMark } from './provider-mark';
 
 interface ChannelsManagerProps {
@@ -114,6 +115,8 @@ export function ChannelsManager({ connected, connectError }: ChannelsManagerProp
 
   return (
     <div className="space-y-6">
+      <PodoCrmWhatsAppLinkCard />
+
       <div className="border-border bg-surface flex flex-wrap items-center gap-x-8 gap-y-3 rounded-xl border px-5 py-4 shadow-sm">
         {stats.map((stat) => (
           <div key={stat.label}>
