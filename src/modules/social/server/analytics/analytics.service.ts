@@ -15,9 +15,13 @@ import { fetchMetaHistoryForChannel, type MetaHistoryPost } from './meta-history
 import { fetchPostMetrics } from './post-metrics';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-const METRICS_CONCURRENCY = 8;
-const CHANNEL_SYNC_CONCURRENCY = 3;
-const MAX_POSTS_WITH_METRICS = 150;
+/** Keep under typical reverse-proxy 60s limits (504). */
+const ANALYTICS_BUDGET_MS = 45_000;
+const META_HISTORY_BUDGET_MS = 28_000;
+const METRICS_CONCURRENCY = 4;
+const CHANNEL_SYNC_CONCURRENCY = 4;
+/** Full insight enrichment is expensive (esp. Instagram); seed counts cover the rest. */
+const MAX_POSTS_WITH_INSIGHTS = 24;
 
 const emptyMetrics = (): AnalyticsPostMetrics => ({
   likes: null,
@@ -53,6 +57,35 @@ function mergeMetrics(
   };
 }
 
+function hasSeedCounts(metrics: AnalyticsPostMetrics): boolean {
+  return (
+    metrics.likes !== null ||
+    metrics.comments !== null ||
+    metrics.shares !== null ||
+    metrics.reach !== null ||
+    metrics.impressions !== null
+  );
+}
+
+function remainingMs(deadline: number): number {
+  return Math.max(0, deadline - Date.now());
+}
+
+async function withBudget<T>(budgetMs: number, work: Promise<T>, fallback: T): Promise<T> {
+  if (budgetMs <= 0) return fallback;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      work,
+      new Promise<T>((resolve) => {
+        timer = setTimeout(() => resolve(fallback), budgetMs);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 async function mapPool<T, R>(items: T[], concurrency: number, mapper: (item: T) => Promise<R>) {
   if (items.length === 0) return [] as R[];
   const results: R[] = new Array(items.length);
@@ -80,6 +113,7 @@ function providerNameOf(identifier: string) {
 
 export const analyticsService = {
   async summary(organizationId: string, query: AnalyticsQuery): Promise<AnalyticsSummary> {
+    const deadline = Date.now() + ANALYTICS_BUDGET_MS;
     const start = new Date(query.startDate);
     const end = new Date(query.endDate);
     if (end <= start) {
@@ -129,18 +163,30 @@ export const analyticsService = {
     }
 
     // Sync historical posts from Meta for every FB / IG channel (includes pre-website posts).
+    // Per-channel budget so one slow account cannot 504 the whole analytics request.
     const metaChannels = channelRows.filter(
       (row) => row.providerIdentifier === 'facebook' || row.providerIdentifier === 'instagram'
     );
+    const perChannelBudget = Math.min(
+      7_000,
+      Math.max(2_500, Math.floor(META_HISTORY_BUDGET_MS / Math.max(1, metaChannels.length)))
+    );
     const metaByChannel = await mapPool(metaChannels, CHANNEL_SYNC_CONCURRENCY, async (row) => {
-      const history = await fetchMetaHistoryForChannel(
-        {
-          providerIdentifier: row.providerIdentifier,
-          internalId: row.internalId,
-          accessToken: row.accessToken,
-        },
-        start,
-        end
+      if (remainingMs(deadline) < 1_000) {
+        return { channelId: row.id, history: [] as MetaHistoryPost[] };
+      }
+      const history = await withBudget(
+        Math.min(perChannelBudget, remainingMs(deadline)),
+        fetchMetaHistoryForChannel(
+          {
+            providerIdentifier: row.providerIdentifier,
+            internalId: row.internalId,
+            accessToken: row.accessToken,
+          },
+          start,
+          end
+        ),
+        [] as MetaHistoryPost[]
       );
       return { channelId: row.id, history };
     });
@@ -208,36 +254,52 @@ export const analyticsService = {
       (a, b) => b.publishDate.getTime() - a.publishDate.getTime()
     );
 
-    const posts: AnalyticsPost[] = await mapPool(
-      mergedList.slice(0, MAX_POSTS_WITH_METRICS),
-      METRICS_CONCURRENCY,
-      async (row) => {
+    // Prefer list/seed counts (fast). Only Graph-enrich posts that have no seed metrics.
+    const insightTargets = mergedList
+      .filter((row) => row.releaseId && !hasSeedCounts(row.seedMetrics))
+      .slice(0, MAX_POSTS_WITH_INSIGHTS);
+
+    const insightBudget = remainingMs(deadline);
+    const enriched = await withBudget(
+      insightBudget,
+      mapPool(insightTargets, METRICS_CONCURRENCY, async (row) => {
         const { metrics, unavailable } = await fetchPostMetrics(
           row.providerIdentifier,
           row.releaseId,
           row.accessToken
         );
-        const mergedMetrics = mergeMetrics(metrics, row.seedMetrics);
-        const hasAny = Object.values(mergedMetrics).some((value) => value !== null);
-        const channelRow = channelRows.find((entry) => entry.id === row.channelId);
         return {
           id: row.id,
-          content: row.content,
-          publishDate: row.publishDate.toISOString(),
-          releaseUrl: row.releaseUrl,
-          thumbnailUrl: row.thumbnailUrl,
-          channel: {
-            id: row.channelId,
-            name: channelRow?.name ?? 'Channel',
-            picture: channelRow?.picture ?? null,
-            providerIdentifier: row.providerIdentifier,
-            providerName: providerNameOf(row.providerIdentifier),
-          },
-          metrics: mergedMetrics,
-          metricsUnavailable: unavailable && !hasAny,
+          metrics: mergeMetrics(metrics, row.seedMetrics),
+          unavailable,
         };
-      }
+      }),
+      [] as { id: string; metrics: AnalyticsPostMetrics; unavailable: boolean }[]
     );
+    const enrichedById = new Map(enriched.map((entry) => [entry.id, entry]));
+
+    const posts: AnalyticsPost[] = mergedList.map((row) => {
+      const extra = enrichedById.get(row.id);
+      const mergedMetrics = extra?.metrics ?? row.seedMetrics;
+      const hasAny = Object.values(mergedMetrics).some((value) => value !== null);
+      const channelRow = channelRows.find((entry) => entry.id === row.channelId);
+      return {
+        id: row.id,
+        content: row.content,
+        publishDate: row.publishDate.toISOString(),
+        releaseUrl: row.releaseUrl,
+        thumbnailUrl: row.thumbnailUrl,
+        channel: {
+          id: row.channelId,
+          name: channelRow?.name ?? 'Channel',
+          picture: channelRow?.picture ?? null,
+          providerIdentifier: row.providerIdentifier,
+          providerName: providerNameOf(row.providerIdentifier),
+        },
+        metrics: mergedMetrics,
+        metricsUnavailable: Boolean(extra?.unavailable && !hasAny),
+      };
+    });
 
     // Reset published counts from synced Meta + app posts in range.
     for (const channel of channels.values()) {
@@ -259,16 +321,6 @@ export const analyticsService = {
         saved: addMetric(channel.metrics.saved, post.metrics.saved),
         clicks: addMetric(channel.metrics.clicks, post.metrics.clicks),
       };
-    }
-
-    // Include Meta posts beyond the metrics cap in published counts (without extra Graph calls).
-    if (mergedList.length > MAX_POSTS_WITH_METRICS) {
-      const counted = new Set(posts.map((post) => post.id));
-      for (const row of mergedList.slice(MAX_POSTS_WITH_METRICS)) {
-        if (counted.has(row.id)) continue;
-        const channel = channels.get(row.channelId);
-        if (channel) channel.published += 1;
-      }
     }
 
     const published = [...channels.values()].reduce((sum, channel) => sum + channel.published, 0);

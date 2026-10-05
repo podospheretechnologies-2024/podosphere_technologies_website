@@ -49,7 +49,7 @@ interface InstagramMediaItem {
 }
 
 const PAGE_SIZE = 25;
-const MAX_PAGES_PER_CHANNEL = 8;
+const MAX_PAGES_PER_CHANNEL = 4;
 
 function graphConfig(): GraphConfig {
   const env = getServerEnv();

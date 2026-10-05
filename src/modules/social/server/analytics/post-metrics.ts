@@ -139,13 +139,11 @@ async function instagramMetrics(
     if (!(error instanceof GraphApiError)) throw error;
   }
 
-  // Meta rotates IG insight metric names; try several lifetime sets used by feed / reels / stories.
+  // Meta rotates IG insight metric names; try a short list (avoid serial Graph storms).
   const metricSets = [
     'reach,saved,shares,total_interactions,views,likes,comments',
     'reach,saved,shares,total_interactions,views',
-    'impressions,reach,saved,shares,total_interactions,views,video_views',
     'impressions,reach,engagement,saved',
-    'reach,total_interactions,views',
   ];
 
   for (const metricSet of metricSets) {
@@ -168,30 +166,11 @@ async function instagramMetrics(
         firstInsight(insights.data, ['total_interactions', 'engagement']);
       metrics.views =
         metrics.views ?? firstInsight(insights.data, ['views', 'video_views', 'plays']);
-      if (Object.values(metrics).some((value) => value !== null)) break;
+      if (metrics.reach !== null || metrics.impressions !== null || metrics.views !== null) {
+        break;
+      }
     } catch {
       // Try the next metric set.
-    }
-  }
-
-  // Some media types accept insights without an explicit period.
-  if (metrics.reach === null && metrics.impressions === null && metrics.views === null) {
-    try {
-      const insights = await graphGet<GraphList<InsightRow>>(
-        config,
-        `${releaseId}/insights`,
-        token,
-        { metric: 'reach,saved,shares,total_interactions,views' }
-      );
-      metrics.reach = metrics.reach ?? insightValue(insights.data, 'reach');
-      metrics.saved = metrics.saved ?? insightValue(insights.data, 'saved');
-      metrics.shares = metrics.shares ?? insightValue(insights.data, 'shares');
-      metrics.engagement =
-        metrics.engagement ?? insightValue(insights.data, 'total_interactions');
-      metrics.views = metrics.views ?? insightValue(insights.data, 'views');
-      metrics.impressions = metrics.impressions ?? metrics.views;
-    } catch {
-      // Keep field-level like/comment counts if present.
     }
   }
 
@@ -228,7 +207,7 @@ export async function fetchPostMetrics(
     return await Promise.race([
       fetchMetrics,
       new Promise<typeof fallback>((resolve) => {
-        setTimeout(() => resolve(fallback), 12_000);
+        setTimeout(() => resolve(fallback), 6_000);
       }),
     ]);
   } catch {
