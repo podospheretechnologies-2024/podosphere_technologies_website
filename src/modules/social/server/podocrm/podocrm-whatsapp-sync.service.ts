@@ -14,13 +14,81 @@ const LINK_TIMEOUT_MS = 15_000;
 const SIGNED_TIMEOUT_MS = 8_000;
 
 interface LinkApiResponse {
+  success?: boolean;
   sync_secret?: string;
+  syncSecret?: string;
   phone_number_id?: string;
+  phoneNumberId?: string;
   podocrm_company_id?: string;
+  podocrmCompanyId?: string;
+  company_id?: string;
+  companyId?: string;
   podocrm_base_url?: string;
+  podocrmBaseUrl?: string;
+  base_url?: string;
+  baseUrl?: string;
+  data?: LinkApiResponse;
   error?: string;
   code?: string;
   message?: string;
+}
+
+function pickString(...values: unknown[]): string | undefined {
+  for (const value of values) {
+    if (typeof value === 'string' && value.trim()) {
+      return value.trim();
+    }
+  }
+  return undefined;
+}
+
+function parseLinkPayload(payload: LinkApiResponse): {
+  syncSecret?: string;
+  phoneNumberId?: string;
+  companyId?: string;
+  baseUrl?: string;
+} {
+  const root = payload.data && typeof payload.data === 'object' ? payload.data : payload;
+  return {
+    syncSecret: pickString(
+      root.sync_secret,
+      root.syncSecret,
+      root.sync_token,
+      root.syncToken,
+      root.secret,
+      payload.sync_secret,
+      payload.syncSecret,
+      (payload as { sync_token?: string }).sync_token,
+      (payload as { syncToken?: string }).syncToken,
+      (payload as { secret?: string }).secret
+    ),
+    phoneNumberId: pickString(
+      root.phone_number_id,
+      root.phoneNumberId,
+      payload.phone_number_id,
+      payload.phoneNumberId
+    ),
+    companyId: pickString(
+      root.podocrm_company_id,
+      root.podocrmCompanyId,
+      root.company_id,
+      root.companyId,
+      payload.podocrm_company_id,
+      payload.podocrmCompanyId,
+      payload.company_id,
+      payload.companyId
+    ),
+    baseUrl: pickString(
+      root.podocrm_base_url,
+      root.podocrmBaseUrl,
+      root.base_url,
+      root.baseUrl,
+      payload.podocrm_base_url,
+      payload.podocrmBaseUrl,
+      payload.base_url,
+      payload.baseUrl
+    ),
+  };
 }
 
 function apiBase(): string {
@@ -113,21 +181,29 @@ export const podoCrmWhatsAppSyncService = {
     }
 
     const payload = (await response.json().catch(() => ({}))) as LinkApiResponse;
-    if (!response.ok) {
+    if (!response.ok || payload.success === false) {
       const detail =
         payload.message ||
         payload.error ||
         payload.code ||
         (response.status === 404 ? 'LINK_CODE_INVALID — generate a new code in PodoCRM' : 'Link failed');
-      throw new HttpError(response.status === 404 ? 404 : 502, String(detail));
+      throw new HttpError(
+        response.status === 404 || payload.code === 'LINK_CODE_INVALID' ? 404 : 502,
+        String(detail)
+      );
     }
 
-    const syncSecret = payload.sync_secret?.trim();
-    const phoneNumberId = payload.phone_number_id?.trim();
-    const companyId = payload.podocrm_company_id?.trim();
-    const baseUrl = (payload.podocrm_base_url?.trim() || apiBase()).replace(/\/$/, '');
+    const parsed = parseLinkPayload(payload);
+    const syncSecret = parsed.syncSecret;
+    const phoneNumberId = parsed.phoneNumberId;
+    const companyId = parsed.companyId;
+    const baseUrl = (parsed.baseUrl || apiBase()).replace(/\/$/, '');
     if (!syncSecret || !phoneNumberId || !companyId) {
-      throw new HttpError(502, 'PodoCRM link response was missing sync_secret / phone_number_id / company id');
+      const keys = Object.keys(payload.data && typeof payload.data === 'object' ? payload.data : payload);
+      throw new HttpError(
+        502,
+        `PodoCRM link response was missing sync_secret / phone_number_id / company id (got keys: ${keys.join(', ') || 'none'})`
+      );
     }
 
     await podoCrmWhatsAppSyncRepository.upsert({
