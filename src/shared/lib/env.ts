@@ -35,6 +35,10 @@ const serverEnvSchema = z.object({
   WHATSAPP_PHONE_NUMBER_ID: z.string().optional(),
   // Needed to list message templates; sending plain text works without it.
   WHATSAPP_WABA_ID: z.string().optional(),
+  // Route B: forward Meta WhatsApp webhooks to PodoCRM (Meta URL stays on Social).
+  PODOCRM_WHATSAPP_WEBHOOK_URL: z.url().optional(),
+  // Set to "false" to disable forwarding. Default: on in production (uses URL or built-in default).
+  PODOCRM_WHATSAPP_FORWARD: z.enum(['true', 'false']).optional(),
   // Google Sheets plug (OAuth). Optional — Connect stays disabled until both are set.
   GOOGLE_CLIENT_ID: z.string().optional(),
   GOOGLE_CLIENT_SECRET: z.string().optional(),

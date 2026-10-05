@@ -5,6 +5,10 @@ import { prisma } from '@/shared/lib/prisma';
 import { HttpError } from '@/shared/server/http-error';
 import { whatsappChatRepository } from './whatsapp-chat.repository';
 
+const DEFAULT_PODOCRM_WHATSAPP_WEBHOOK_URL =
+  'https://podocrm.podospheretechnologies.com/api/whatsapp/webhook';
+const PODOCRM_FORWARD_TIMEOUT_MS = 8_000;
+
 interface WebhookContact {
   profile?: { name?: string };
   wa_id: string;
@@ -89,6 +93,29 @@ async function resolveOrganizationId(waId: string): Promise<string> {
   return org.id;
 }
 
+/** Resolve PodoCRM forward target, or null when forwarding is disabled. */
+function podoCrmForwardTarget(): string | null {
+  const env = getServerEnv();
+  if (env.PODOCRM_WHATSAPP_FORWARD === 'false') {
+    return null;
+  }
+
+  const url = env.PODOCRM_WHATSAPP_WEBHOOK_URL ?? DEFAULT_PODOCRM_WHATSAPP_WEBHOOK_URL;
+
+  if (env.PODOCRM_WHATSAPP_FORWARD === 'true') {
+    return url;
+  }
+
+  // Default: forward in production; in other envs only when URL is explicitly set.
+  if (env.NODE_ENV === 'production') {
+    return url;
+  }
+  if (env.PODOCRM_WHATSAPP_WEBHOOK_URL) {
+    return url;
+  }
+  return null;
+}
+
 export const whatsappWebhookService = {
   verify(mode: string | null, token: string | null, challenge: string | null): string {
     const expected = getServerEnv().META_WEBHOOK_VERIFY_TOKEN;
@@ -116,6 +143,46 @@ export const whatsappWebhookService = {
     const b = Buffer.from(provided, 'utf8');
     if (a.length !== b.length || !timingSafeEqual(a, b)) {
       throw new HttpError(401, 'Invalid Meta signature');
+    }
+  },
+
+  /**
+   * Route B: forward the exact Meta webhook body + signature to PodoCRM.
+   * Fire-and-forget safe — never throws to the caller.
+   */
+  async forwardToPodoCrm(rawBody: string, signatureHeader: string | null): Promise<void> {
+    const url = podoCrmForwardTarget();
+    if (!url) {
+      return;
+    }
+
+    try {
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      if (signatureHeader) {
+        headers['X-Hub-Signature-256'] = signatureHeader;
+      }
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers,
+        body: rawBody,
+        signal: AbortSignal.timeout(PODOCRM_FORWARD_TIMEOUT_MS),
+      });
+
+      if (!response.ok) {
+        const detail = await response.text().catch(() => '');
+        console.error(
+          `[whatsapp] forwarded webhook to PodoCRM status=${response.status}${detail ? ` body=${detail.slice(0, 200)}` : ''}`
+        );
+        return;
+      }
+
+      console.info(`[whatsapp] forwarded webhook to PodoCRM status=${response.status}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'unknown error';
+      console.error(`[whatsapp] forwarded webhook to PodoCRM error=${message}`);
     }
   },
 

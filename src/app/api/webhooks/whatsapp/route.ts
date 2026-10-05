@@ -21,12 +21,18 @@ export async function GET(request: NextRequest) {
 }
 
 // Inbound WhatsApp messages for the business number.
+// Route B: after Social ingest, forward the same raw body + signature to PodoCRM.
 export async function POST(request: NextRequest) {
   try {
     const rawBody = await request.text();
-    whatsappWebhookService.assertSignature(rawBody, request.headers.get('x-hub-signature-256'));
+    const signatureHeader = request.headers.get('x-hub-signature-256');
+    whatsappWebhookService.assertSignature(rawBody, signatureHeader);
     const payload = JSON.parse(rawBody) as Parameters<typeof whatsappWebhookService.ingest>[0];
     const result = await whatsappWebhookService.ingest(payload);
+
+    // Do not block Meta's 200 on CRM availability — forward in the background.
+    void whatsappWebhookService.forwardToPodoCrm(rawBody, signatureHeader);
+
     return Response.json({ ok: true, ...result });
   } catch (error) {
     return errorResponse(error);
