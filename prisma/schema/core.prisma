@@ -24,6 +24,7 @@ model Organization {
   socialAiUsages      SocialAiUsage[]
   whatsappConversations WhatsAppConversation[]
   whatsappMessages      WhatsAppMessage[]
+  googleSheetsConnection SocialGoogleSheetsConnection?
 
   @@map("organizations")
 }

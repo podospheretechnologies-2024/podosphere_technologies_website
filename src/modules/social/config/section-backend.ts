@@ -56,6 +56,7 @@ export function getSectionBackendEndpoints(
       return [
         { label: 'Webhooks', url: '/api/social/webhooks' },
         { label: 'Autoposts', url: '/api/social/autoposts' },
+        { label: 'Google Sheets', url: '/api/social/google-sheets' },
       ];
     case 'channels':
       return [{ label: 'Integrations', url: '/api/social/integrations' }];

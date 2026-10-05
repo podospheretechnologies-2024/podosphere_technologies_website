@@ -377,3 +377,47 @@ model WhatsAppMessage {
   @@index([organizationId, timestamp])
   @@map("whatsapp_messages")
 }
+
+// Google Sheets plug: one OAuth connection per organization.
+model SocialGoogleSheetsConnection {
+  id              String    @id @default(uuid())
+  organizationId  String    @unique
+  email           String
+  name            String?
+  picture         String?   @db.VarChar(2048)
+  accessToken     String    @db.Text
+  refreshToken    String?   @db.Text
+  tokenExpiration DateTime?
+  scopes          String    @db.Text
+  lastSyncedAt    DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  organization Organization              @relation(fields: [organizationId], references: [id])
+  spreadsheets SocialGoogleSpreadsheet[]
+
+  @@map("social_google_sheets_connections")
+}
+
+// Cached spreadsheet + row data for the connected Google account.
+model SocialGoogleSpreadsheet {
+  id             String    @id @default(uuid())
+  connectionId   String
+  spreadsheetId  String
+  name           String
+  url            String    @db.VarChar(2048)
+  modifiedTime   DateTime?
+  sheetNames     Json
+  headers        Json
+  rows           Json
+  rowCount       Int       @default(0)
+  syncedAt       DateTime  @default(now())
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  connection SocialGoogleSheetsConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+
+  @@unique([connectionId, spreadsheetId])
+  @@index([connectionId])
+  @@map("social_google_spreadsheets")
+}

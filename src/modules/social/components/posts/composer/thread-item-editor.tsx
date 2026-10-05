@@ -8,6 +8,7 @@ import {
   Clock,
   ImagePlus,
   Plug,
+  Sheet,
   Smile,
   Sparkles,
   Trash2,
@@ -22,6 +23,7 @@ import { MEDIA_FORMAT_OPTIONS, type MediaFormat } from '../../../config/media';
 import { POST_MAX_MEDIA } from '../../../config/posts';
 import type { PostMedia } from '../../../types/post';
 import { ProviderMark } from '../../channels/provider-mark';
+import { GeneratePostFromSheetsDialog } from './generate-post-from-sheets-dialog';
 import { MediaPicker } from './media-picker';
 
 export interface ThreadItemDraft {
@@ -44,6 +46,8 @@ interface ThreadItemEditorProps {
   index: number;
   maxLength: number | null;
   channelLimits?: ChannelLimitRow[];
+  /** Posting date (datetime-local) used to auto-match Google Sheets rows. */
+  postDate?: string;
   canMoveUp?: boolean;
   canMoveDown?: boolean;
   onChange: (item: ThreadItemDraft) => void;
@@ -265,6 +269,7 @@ export function ThreadItemEditor({
   index,
   maxLength,
   channelLimits = [],
+  postDate,
   canMoveUp,
   canMoveDown,
   onChange,
@@ -276,6 +281,7 @@ export function ThreadItemEditor({
   const [delayOpen, setDelayOpen] = useState(false);
   const [limitsOpen, setLimitsOpen] = useState(false);
   const [emojiOpen, setEmojiOpen] = useState(false);
+  const [generateOpen, setGenerateOpen] = useState(false);
   const [customDelay, setCustomDelay] = useState(
     item.delay > 0 && !DELAY_PRESETS.some((p) => p.minutes === item.delay)
       ? String(item.delay)
@@ -476,6 +482,11 @@ export function ThreadItemEditor({
             label="Design Media"
             icon={<Wand2 className="size-3.5" />}
             disabled
+          />
+          <ToolbarButton
+            label="Generate Post"
+            icon={<Sheet className="size-3.5" />}
+            onClick={() => setGenerateOpen(true)}
           />
           <ToolbarButton label="Integrations" icon={<Plug className="size-3.5" />} disabled />
           <ToolbarButton label="AI Image" icon={<Sparkles className="size-3.5" />} disabled />
@@ -718,6 +729,13 @@ export function ThreadItemEditor({
             media: [...item.media, ...additions].map((entry) => ({ ...entry, format })),
           });
         }}
+      />
+
+      <GeneratePostFromSheetsDialog
+        open={generateOpen}
+        postDate={postDate ?? new Date().toISOString()}
+        onClose={() => setGenerateOpen(false)}
+        onApply={(content) => onChange({ ...item, content })}
       />
     </div>
   );

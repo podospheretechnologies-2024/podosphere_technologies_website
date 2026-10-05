@@ -1,7 +1,7 @@
 'use client';
 
 import { Calendar, ChevronDown, Repeat, Tag } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/shared/components/ui/button';
 import { Input } from '@/shared/components/ui/input';
 import { Modal } from '@/shared/components/ui/modal';
@@ -12,6 +12,7 @@ import { useChannels } from '../../../hooks/use-channels';
 import { usePostGroup } from '../../../hooks/use-posts';
 import { useSignatures } from '../../../hooks/use-settings';
 import { splitIntoThread } from '../../../lib/ai.client';
+import { fetchGoogleSheetsContent } from '../../../lib/google-sheets.client';
 import { nextPostSlot, savePost, toDateTimeLocal } from '../../../lib/posts.client';
 import type { AvailableProvider, ChannelItem } from '../../../types/integration';
 import type { PostGroup, PostMedia } from '../../../types/post';
@@ -145,6 +146,8 @@ function ComposerForm({
   const [error, setError] = useState<string | null>(null);
   const { data: aiStatus } = useAiStatus();
   const busy = saving !== null || splitting;
+  const lastSheetAutoContentRef = useRef<string | null>(null);
+  const skipSheetAuto = Boolean(group || initialItems?.length);
 
   const maxLengthByProvider = new Map(
     providers.map((provider) => [provider.identifier, provider.maxLength])
@@ -194,6 +197,41 @@ function ComposerForm({
   function updateItem(updated: ThreadItemDraft) {
     setItems((current) => current.map((item) => (item.key === updated.key ? updated : item)));
   }
+
+  // Auto-fill the first post body from Google Sheets when the schedule date changes.
+  useEffect(() => {
+    if (skipSheetAuto || !open || !date) return;
+    const day = date.slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return;
+
+    let cancelled = false;
+    fetchGoogleSheetsContent(day)
+      .then((match) => {
+        if (cancelled || !match.row?.content.trim()) return;
+        const content = match.row.content.trim();
+        setItems((current) => {
+          const [first, ...rest] = current;
+          if (!first) return current;
+          const currentText = first.content.trim();
+          const previousAuto = lastSheetAutoContentRef.current;
+          if (currentText && previousAuto === null) {
+            return current;
+          }
+          if (currentText && previousAuto !== null && currentText !== previousAuto) {
+            return current;
+          }
+          lastSheetAutoContentRef.current = content;
+          return [{ ...first, content }, ...rest];
+        });
+      })
+      .catch(() => {
+        // Sheets not connected — ignore silently in composer.
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [date, open, skipSheetAuto]);
 
   function moveItem(from: number, to: number) {
     setItems((current) => {
@@ -335,6 +373,7 @@ function ComposerForm({
                       index={index}
                       maxLength={maxLength}
                       channelLimits={channelLimits}
+                      postDate={date}
                       canMoveUp={index > 0}
                       canMoveDown={index < items.length - 1}
                       onChange={updateItem}

@@ -35,6 +35,9 @@ const serverEnvSchema = z.object({
   WHATSAPP_PHONE_NUMBER_ID: z.string().optional(),
   // Needed to list message templates; sending plain text works without it.
   WHATSAPP_WABA_ID: z.string().optional(),
+  // Google Sheets plug (OAuth). Optional — Connect stays disabled until both are set.
+  GOOGLE_CLIENT_ID: z.string().optional(),
+  GOOGLE_CLIENT_SECRET: z.string().optional(),
 });
 
 export type ServerEnv = z.infer<typeof serverEnvSchema>;

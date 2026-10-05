@@ -3,6 +3,7 @@
 import { useAiStatus } from '../../hooks/use-ai-status';
 import { useChannels } from '../../hooks/use-channels';
 import { AutopostsCard } from './autoposts-card';
+import { GoogleSheetsCard } from './google-sheets-card';
 import { WebhooksCard } from './webhooks-card';
 
 export function AutomationPanel() {
@@ -30,6 +31,7 @@ export function AutomationPanel() {
         aiConfigured={aiStatus?.configured ?? false}
       />
       <WebhooksCard channels={channelsData.channels} />
+      <GoogleSheetsCard />
     </div>
   );
 }
