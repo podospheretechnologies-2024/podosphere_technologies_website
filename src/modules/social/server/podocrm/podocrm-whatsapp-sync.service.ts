@@ -1,17 +1,21 @@
 import 'server-only';
-import { createHmac, randomUUID } from 'node:crypto';
+import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
 import { decrypt, encrypt } from '@/shared/lib/crypto';
 import { getServerEnv } from '@/shared/lib/env';
 import { HttpError } from '@/shared/server/http-error';
 import type {
+  PodoCrmWhatsAppHistorySyncResult,
   PodoCrmWhatsAppLinkResult,
   PodoCrmWhatsAppSyncStatus,
 } from '../../types/podocrm-whatsapp-sync';
+import { whatsappChatRepository } from '../whatsapp/whatsapp-chat.repository';
 import { podoCrmWhatsAppSyncRepository } from './podocrm-whatsapp-sync.repository';
 
 const DEFAULT_PODOCRM_API_BASE = 'https://podocrm.podospheretechnologies.com/api';
 const LINK_TIMEOUT_MS = 15_000;
 const SIGNED_TIMEOUT_MS = 8_000;
+const HISTORY_TIMEOUT_MS = 30_000;
+const HISTORY_BATCH_LIMIT = 400;
 
 interface LinkApiData {
   sync_secret?: string;
@@ -113,11 +117,41 @@ function buildSignature(syncSecret: string, rawBody: string): string {
   return `t=${t},v1=${v1}`;
 }
 
+function parseSignatureHeader(header: string | null): { t: string; v1: string } | null {
+  if (!header) return null;
+  const parts = Object.fromEntries(
+    header.split(',').map((part) => {
+      const [key, ...rest] = part.trim().split('=');
+      return [key, rest.join('=')];
+    })
+  );
+  if (!parts.t || !parts.v1) return null;
+  return { t: parts.t, v1: parts.v1 };
+}
+
+function assertValidSignature(syncSecret: string, rawBody: string, header: string | null): void {
+  const parsed = parseSignatureHeader(header);
+  if (!parsed) {
+    throw new HttpError(401, 'Missing X-Podo-Signature');
+  }
+  const age = Math.abs(Math.floor(Date.now() / 1000) - Number(parsed.t));
+  if (!Number.isFinite(age) || age > 300) {
+    throw new HttpError(401, 'Stale X-Podo-Signature');
+  }
+  const expected = createHmac('sha256', syncSecret).update(`${parsed.t}.${rawBody}`).digest('hex');
+  const a = Buffer.from(expected, 'utf8');
+  const b = Buffer.from(parsed.v1, 'utf8');
+  if (a.length !== b.length || !timingSafeEqual(a, b)) {
+    throw new HttpError(401, 'Invalid X-Podo-Signature');
+  }
+}
+
 async function signedPost(
   podocrmBaseUrl: string,
   path: string,
   syncSecretPlain: string,
-  body: Record<string, unknown>
+  body: Record<string, unknown>,
+  timeoutMs = SIGNED_TIMEOUT_MS
 ): Promise<Response> {
   const base = podocrmBaseUrl.replace(/\/$/, '');
   const url = path.startsWith('http') ? path : `${base}${path.startsWith('/') ? '' : '/'}${path}`;
@@ -129,7 +163,7 @@ async function signedPost(
       'X-Podo-Signature': buildSignature(syncSecretPlain, rawBody),
     },
     body: rawBody,
-    signal: AbortSignal.timeout(SIGNED_TIMEOUT_MS),
+    signal: AbortSignal.timeout(timeoutMs),
   });
 }
 
@@ -244,6 +278,224 @@ export const podoCrmWhatsAppSyncService = {
 
   async unlink(organizationId: string): Promise<void> {
     await podoCrmWhatsAppSyncRepository.delete(organizationId);
+  },
+
+  /**
+   * Partner callback: PodoCRM posts outbound sends here so they appear in Social inbox.
+   * Path matches partner_base_url + /sync/whatsapp/echo.
+   */
+  async ingestPartnerEcho(
+    rawBody: string,
+    signatureHeader: string | null
+  ): Promise<{ stored: boolean }> {
+    let body: {
+      phone_number_id?: string;
+      wamid?: string;
+      to?: string;
+      type?: string;
+      text?: string;
+      template?: { name?: string; language?: string | null };
+      sent_at?: string;
+      sender?: string | null;
+    };
+    try {
+      body = JSON.parse(rawBody) as typeof body;
+    } catch {
+      throw new HttpError(400, 'Invalid JSON body');
+    }
+
+    const phoneNumberId = pickString(body.phone_number_id);
+    const wamid = pickString(body.wamid);
+    const to = pickString(body.to)?.replace(/\D/g, '');
+    if (!phoneNumberId || !wamid || !to) {
+      throw new HttpError(400, 'phone_number_id, wamid, and to are required');
+    }
+
+    const links = await podoCrmWhatsAppSyncRepository.findByPhoneNumberId(phoneNumberId);
+    if (links.length === 0) {
+      throw new HttpError(404, 'No linked PodoCRM sync for this phone_number_id');
+    }
+
+    let matched = false;
+    for (const row of links) {
+      try {
+        assertValidSignature(decrypt(row.syncSecret), rawBody, signatureHeader);
+        matched = true;
+
+        const text =
+          body.type === 'template'
+            ? `Template: ${body.template?.name ?? 'unknown'}`
+            : (body.text ?? '').trim();
+        if (!text) {
+          throw new HttpError(400, 'Message text is empty');
+        }
+
+        const timestamp = body.sent_at ? new Date(body.sent_at) : new Date();
+        const conversation = await whatsappChatRepository.upsertConversation({
+          organizationId: row.organizationId,
+          waId: to,
+          preview: text,
+          timestamp: Number.isNaN(timestamp.getTime()) ? new Date() : timestamp,
+          inbound: false,
+        });
+        await whatsappChatRepository.createMessage({
+          organizationId: row.organizationId,
+          conversationId: conversation.id,
+          wamid,
+          direction: 'outbound',
+          type: body.type === 'template' ? 'template' : 'text',
+          body: text,
+          status: 'sent',
+          source: 'podocrm',
+          senderLabel: pickString(body.sender) || 'PodoCRM',
+          timestamp: Number.isNaN(timestamp.getTime()) ? new Date() : timestamp,
+        });
+        return { stored: true };
+      } catch (error) {
+        if (error instanceof HttpError && error.status === 401) {
+          continue;
+        }
+        throw error;
+      }
+    }
+
+    if (!matched) {
+      throw new HttpError(401, 'Invalid X-Podo-Signature');
+    }
+    return { stored: false };
+  },
+
+  /**
+   * Push existing Social WhatsApp messages into PodoCRM so old chats appear there.
+   * Prefers batch `/sync/whatsapp/history`; falls back to per-message echo for outbound.
+   */
+  async syncHistory(organizationId: string): Promise<PodoCrmWhatsAppHistorySyncResult> {
+    const row = await podoCrmWhatsAppSyncRepository.findByOrganization(organizationId);
+    if (!row) {
+      throw new HttpError(400, 'Link PodoCRM first, then sync chat history.');
+    }
+
+    const messages = await whatsappChatRepository.listRecentWithConversation(
+      organizationId,
+      HISTORY_BATCH_LIMIT
+    );
+    if (messages.length === 0) {
+      return { attempted: 0, synced: 0, mode: 'batch', skipped: 0 };
+    }
+
+    const secret = decrypt(row.syncSecret);
+    const workspaceId = organizationId.slice(0, 64);
+    const payloadMessages = messages.map((message) => {
+      const waId = message.conversation.waId;
+      const isInbound = message.direction === 'inbound';
+      const isTemplate = message.type === 'template' || message.body.startsWith('Template:');
+      const entry: Record<string, unknown> = {
+        wamid: message.wamid ?? `social-${message.id}`,
+        direction: isInbound ? 'inbound' : 'outbound',
+        type: isTemplate ? 'template' : 'text',
+        text: message.body,
+        sent_at: message.timestamp.toISOString(),
+        contact_name: message.conversation.contactName ?? null,
+        status: message.status ?? null,
+      };
+      if (isInbound) {
+        entry.from = waId;
+        entry.to = row.phoneNumberId;
+        entry.sender = null;
+      } else {
+        entry.to = waId;
+        entry.from = row.phoneNumberId;
+        entry.sender = 'PodoSocial';
+        if (isTemplate) {
+          const match = /^Template:\s*([^\s(]+)/i.exec(message.body);
+          entry.template = {
+            name: match?.[1] ?? 'unknown',
+            language: null,
+          };
+        }
+      }
+      return entry;
+    });
+
+    try {
+      const response = await signedPost(
+        row.podocrmBaseUrl,
+        '/sync/whatsapp/history',
+        secret,
+        {
+          event_id: randomUUID(),
+          phone_number_id: row.phoneNumberId,
+          workspace_id: workspaceId,
+          messages: payloadMessages,
+        },
+        HISTORY_TIMEOUT_MS
+      );
+      if (response.ok) {
+        console.info(
+          `[podocrm-sync] history batch ok status=${response.status} count=${payloadMessages.length}`
+        );
+        return {
+          attempted: payloadMessages.length,
+          synced: payloadMessages.length,
+          mode: 'batch',
+          skipped: 0,
+        };
+      }
+      console.error(
+        `[podocrm-sync] history batch failed status=${response.status}; falling back to echo`
+      );
+    } catch (error) {
+      console.error(
+        `[podocrm-sync] history batch error=${error instanceof Error ? error.message : 'unknown'}; falling back to echo`
+      );
+    }
+
+    // Fallback: replay outbound via echo (inbound already arrives via webhook forward going forward).
+    let synced = 0;
+    let skipped = 0;
+    for (const message of messages) {
+      if (message.direction !== 'outbound' || !message.wamid) {
+        skipped += 1;
+        continue;
+      }
+      const isTemplate = message.type === 'template' || message.body.startsWith('Template:');
+      try {
+        const body: Record<string, unknown> = {
+          event_id: randomUUID(),
+          phone_number_id: row.phoneNumberId,
+          wamid: message.wamid,
+          to: message.conversation.waId,
+          type: isTemplate ? 'template' : 'text',
+          sent_at: message.timestamp.toISOString(),
+          sender: 'PodoSocial',
+        };
+        if (isTemplate) {
+          const match = /^Template:\s*([^\s(]+)/i.exec(message.body);
+          body.template = { name: match?.[1] ?? 'unknown', language: null };
+        } else {
+          body.text = message.body;
+        }
+        const response = await signedPost(row.podocrmBaseUrl, '/sync/whatsapp/echo', secret, body);
+        if (response.ok) {
+          synced += 1;
+        } else {
+          skipped += 1;
+          console.error(`[podocrm-sync] history echo failed status=${response.status}`);
+        }
+      } catch (error) {
+        skipped += 1;
+        console.error(
+          `[podocrm-sync] history echo error=${error instanceof Error ? error.message : 'unknown'}`
+        );
+      }
+    }
+
+    return {
+      attempted: messages.length,
+      synced,
+      mode: 'echo-fallback',
+      skipped,
+    };
   },
 
   /** Fire-and-forget echo of outbound Social replies into PodoCRM. */

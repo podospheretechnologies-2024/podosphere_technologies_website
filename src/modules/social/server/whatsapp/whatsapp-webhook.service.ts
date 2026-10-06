@@ -17,6 +17,7 @@ interface WebhookContact {
 
 interface WebhookMessage {
   from: string;
+  to?: string;
   id: string;
   timestamp: string;
   type: string;
@@ -38,6 +39,7 @@ interface WebhookValue {
   metadata?: { phone_number_id?: string; display_phone_number?: string };
   contacts?: WebhookContact[];
   messages?: WebhookMessage[];
+  message_echoes?: WebhookMessage[];
   statuses?: WebhookStatus[];
 }
 
@@ -197,7 +199,12 @@ export const whatsappWebhookService = {
     for (const entry of payload.entry ?? []) {
       for (const change of entry.changes ?? []) {
         // With several apps on the WABA, apps that don't own the thread get inbound copies as 'standby'.
-        if (change.field !== 'messages' && change.field !== 'standby') {
+        // message_echoes = outbound copies when another app (e.g. PodoCRM) sent on the same number.
+        if (
+          change.field !== 'messages' &&
+          change.field !== 'standby' &&
+          change.field !== 'message_echoes'
+        ) {
           continue;
         }
         const value = change.value;
@@ -249,6 +256,40 @@ export const whatsappWebhookService = {
             type: message.type,
             body,
             status: 'received',
+            source: 'customer',
+            timestamp,
+          });
+          stored += 1;
+        }
+
+        // Outbound echoes from other apps (CRM) on the same WhatsApp number.
+        for (const echo of value.message_echoes ?? []) {
+          const body = messageBody(echo);
+          const recipientWaId = echo.to?.replace(/\D/g, '') || null;
+          if (!body || !recipientWaId) {
+            continue;
+          }
+          const timestamp = new Date(Number(echo.timestamp) * 1000);
+          const organizationId = await resolveOrganizationId(recipientWaId);
+          const conversation = await whatsappChatRepository.upsertConversation({
+            organizationId,
+            waId: recipientWaId,
+            contactName: nameByWaId.get(recipientWaId) ?? null,
+            preview: body,
+            timestamp,
+            inbound: false,
+          });
+          // If Social already stored this wamid, keep podosocial; otherwise label as CRM/external.
+          await whatsappChatRepository.createMessage({
+            organizationId,
+            conversationId: conversation.id,
+            wamid: echo.id,
+            direction: 'outbound',
+            type: echo.type,
+            body,
+            status: 'sent',
+            source: 'podocrm',
+            senderLabel: 'PodoCRM',
             timestamp,
           });
           stored += 1;

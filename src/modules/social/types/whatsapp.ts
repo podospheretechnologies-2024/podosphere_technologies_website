@@ -71,6 +71,10 @@ export interface WhatsAppChatMessage {
   type: string;
   body: string;
   status: string | null;
+  /** customer | podosocial | podocrm | unknown */
+  source: 'customer' | 'podosocial' | 'podocrm' | 'unknown' | null;
+  /** Outbound display name, e.g. "Sushant (PodoCRM)" */
+  senderLabel: string | null;
   timestamp: string;
 }
 

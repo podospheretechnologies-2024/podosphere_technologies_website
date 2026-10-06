@@ -1,6 +1,6 @@
 'use client';
 
-import { Link2, Unlink } from 'lucide-react';
+import { History, Link2, Unlink } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '@/shared/components/ui/button';
 import { Card } from '@/shared/components/ui/card';
@@ -8,6 +8,7 @@ import { Input } from '@/shared/components/ui/input';
 import { usePodoCrmWhatsAppSync } from '../../hooks/use-podocrm-whatsapp-sync';
 import {
   linkPodoCrmWhatsApp,
+  syncPodoCrmWhatsAppHistory,
   unlinkPodoCrmWhatsApp,
 } from '../../lib/podocrm-whatsapp-sync.client';
 
@@ -23,7 +24,7 @@ function formatWhen(iso: string | null) {
 export function PodoCrmWhatsAppLinkCard() {
   const { data, error, isLoading, mutate } = usePodoCrmWhatsAppSync();
   const [code, setCode] = useState('');
-  const [busy, setBusy] = useState<'link' | 'unlink' | null>(null);
+  const [busy, setBusy] = useState<'link' | 'unlink' | 'history' | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -42,6 +43,30 @@ export function PodoCrmWhatsAppLinkCard() {
       await mutate();
     } catch (err) {
       setActionError(err instanceof Error ? err.message : 'Could not link PodoCRM');
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function syncHistory() {
+    setActionError(null);
+    setNotice(null);
+    setBusy('history');
+    try {
+      const result = await syncPodoCrmWhatsAppHistory();
+      if (result.attempted === 0) {
+        setNotice('No WhatsApp messages in PodoSocial to sync yet.');
+      } else if (result.mode === 'batch') {
+        setNotice(`Synced ${result.synced} message(s) to PodoCRM. Refresh CRM chats to see history.`);
+      } else {
+        setNotice(
+          `Synced ${result.synced} outbound message(s) via echo` +
+            (result.skipped ? ` (${result.skipped} skipped)` : '') +
+            '. Refresh CRM chats to review.'
+        );
+      }
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Could not sync chat history');
     } finally {
       setBusy(null);
     }
@@ -76,8 +101,8 @@ export function PodoCrmWhatsAppLinkCard() {
           <p className="text-muted-foreground mt-1 text-sm leading-relaxed">
             Paste a one-time sync code from PodoCRM → Connectors → WhatsApp → PodoSocial sync
             (e.g. <code className="text-xs">PSL-9R76E-PPAD2</code>). This is not on the chat page.
-            Codes expire in about 15 minutes. Only new traffic syncs after linking — history does
-            not.
+            Codes expire in about 15 minutes. After linking, use <strong>Sync chat history</strong> to
+            push existing Social chats into CRM. New messages continue to sync automatically.
           </p>
         </div>
       </div>
@@ -110,7 +135,17 @@ export function PodoCrmWhatsAppLinkCard() {
               <dd className="text-foreground mt-0.5">{formatWhen(data.lastPingAt) ?? 'Not yet'}</dd>
             </div>
           </dl>
-          <div className="pt-1">
+          <div className="flex flex-wrap gap-2 pt-1">
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              disabled={busy !== null}
+              onClick={() => void syncHistory()}
+            >
+              <History className="size-3.5" />
+              {busy === 'history' ? 'Syncing history…' : 'Sync chat history'}
+            </Button>
             <Button
               type="button"
               size="sm"

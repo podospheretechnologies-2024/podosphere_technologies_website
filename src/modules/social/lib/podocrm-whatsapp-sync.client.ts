@@ -1,5 +1,6 @@
 import { apiFetch } from '@/shared/lib/fetcher';
 import type {
+  PodoCrmWhatsAppHistorySyncResult,
   PodoCrmWhatsAppLinkResult,
   PodoCrmWhatsAppSyncStatus,
 } from '../types/podocrm-whatsapp-sync';
@@ -14,6 +15,13 @@ export function linkPodoCrmWhatsApp(code: string) {
   return apiFetch<PodoCrmWhatsAppLinkResult>(PODOCRM_WHATSAPP_SYNC_ROUTE, {
     method: 'POST',
     body: JSON.stringify({ code }),
+  });
+}
+
+export function syncPodoCrmWhatsAppHistory() {
+  return apiFetch<PodoCrmWhatsAppHistorySyncResult>(PODOCRM_WHATSAPP_SYNC_ROUTE, {
+    method: 'POST',
+    body: JSON.stringify({ action: 'sync-history' }),
   });
 }
 

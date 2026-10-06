@@ -1,6 +1,8 @@
 import 'server-only';
 import { prisma } from '@/shared/lib/prisma';
 
+export type WhatsAppMessageSource = 'customer' | 'podosocial' | 'podocrm' | 'unknown';
+
 export interface UpsertConversationInput {
   organizationId: string;
   waId: string;
@@ -18,6 +20,8 @@ export interface CreateMessageInput {
   type?: string;
   body: string;
   status?: string | null;
+  source?: WhatsAppMessageSource | null;
+  senderLabel?: string | null;
   timestamp: Date;
 }
 
@@ -48,6 +52,19 @@ export const whatsappChatRepository = {
       orderBy: { timestamp: 'asc' },
       take: 500,
     });
+  },
+
+  /** Most recent messages across chats (for PodoCRM history backfill), oldest→newest. */
+  async listRecentWithConversation(organizationId: string, take = 400) {
+    const rows = await prisma.whatsAppMessage.findMany({
+      where: { organizationId },
+      include: {
+        conversation: { select: { waId: true, contactName: true } },
+      },
+      orderBy: { timestamp: 'desc' },
+      take,
+    });
+    return rows.reverse();
   },
 
   async upsertConversation(input: UpsertConversationInput) {
@@ -87,6 +104,17 @@ export const whatsappChatRepository = {
     if (input.wamid) {
       const existing = await prisma.whatsAppMessage.findUnique({ where: { wamid: input.wamid } });
       if (existing) {
+        const needsSource = !existing.source && input.source;
+        const needsSender = !existing.senderLabel && input.senderLabel;
+        if (needsSource || needsSender) {
+          return prisma.whatsAppMessage.update({
+            where: { id: existing.id },
+            data: {
+              source: needsSource ? input.source : existing.source,
+              senderLabel: needsSender ? input.senderLabel : existing.senderLabel,
+            },
+          });
+        }
         return existing;
       }
     }
@@ -99,6 +127,8 @@ export const whatsappChatRepository = {
         type: input.type ?? 'text',
         body: input.body,
         status: input.status ?? null,
+        source: input.source ?? null,
+        senderLabel: input.senderLabel?.slice(0, 191) ?? null,
         timestamp: input.timestamp,
       },
     });

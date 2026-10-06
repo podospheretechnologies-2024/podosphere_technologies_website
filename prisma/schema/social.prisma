@@ -367,6 +367,10 @@ model WhatsAppMessage {
   type           String   @default("text")
   body           String   @db.Text
   status         String? // sent | delivered | read | failed
+  /// Where the message originated: customer | podosocial | podocrm | unknown
+  source         String?
+  /// Display name for outbound (e.g. "Sushant (PodoCRM)")
+  senderLabel    String?  @db.VarChar(191)
   timestamp      DateTime
   createdAt      DateTime @default(now())
 

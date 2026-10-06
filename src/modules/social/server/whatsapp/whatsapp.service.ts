@@ -220,6 +220,13 @@ function toConversationItem(
 function toChatMessage(
   row: Awaited<ReturnType<typeof whatsappChatRepository.listMessages>>[number]
 ): WhatsAppChatMessage {
+  const source =
+    row.source === 'customer' ||
+    row.source === 'podosocial' ||
+    row.source === 'podocrm' ||
+    row.source === 'unknown'
+      ? row.source
+      : null;
   return {
     id: row.id,
     wamid: row.wamid,
@@ -227,6 +234,8 @@ function toChatMessage(
     type: row.type,
     body: row.body,
     status: row.status,
+    source,
+    senderLabel: row.senderLabel ?? null,
     timestamp: row.timestamp.toISOString(),
   };
 }
@@ -236,7 +245,8 @@ async function recordOutbound(
   to: string,
   body: string,
   messageId: string,
-  waId: string | null
+  waId: string | null,
+  senderLabel?: string | null
 ) {
   const contactId = waId ?? to;
   const timestamp = new Date();
@@ -255,6 +265,8 @@ async function recordOutbound(
     type: 'text',
     body,
     status: 'sent',
+    source: 'podosocial',
+    senderLabel: senderLabel ?? 'PodoSocial',
     timestamp,
   });
 }
@@ -307,7 +319,11 @@ export const whatsappService = {
     };
   },
 
-  async send(organizationId: string, input: SendWhatsAppInput): Promise<SendWhatsAppResult> {
+  async send(
+    organizationId: string,
+    input: SendWhatsAppInput,
+    options?: { senderName?: string | null }
+  ): Promise<SendWhatsAppResult> {
     const creds = credentials();
     const message =
       input.type === 'text'
@@ -331,7 +347,17 @@ export const whatsappService = {
       input.type === 'text'
         ? input.text
         : `Template: ${input.templateName}${input.variables.length ? ` (${input.variables.join(', ')})` : ''}`;
-    await recordOutbound(organizationId, input.to, preview, result.messageId, result.waId);
+    const senderLabel = options?.senderName
+      ? `${options.senderName} (PodoSocial)`
+      : 'PodoSocial';
+    await recordOutbound(
+      organizationId,
+      input.to,
+      preview,
+      result.messageId,
+      result.waId,
+      senderLabel
+    );
 
     void podoCrmWhatsAppSyncService.echoOutbound(organizationId, {
       wamid: result.messageId,
@@ -340,6 +366,7 @@ export const whatsappService = {
       text: input.type === 'text' ? input.text : undefined,
       templateName: input.type === 'template' ? input.templateName : undefined,
       language: input.type === 'template' ? input.language : undefined,
+      sender: senderLabel,
     });
 
     return result;

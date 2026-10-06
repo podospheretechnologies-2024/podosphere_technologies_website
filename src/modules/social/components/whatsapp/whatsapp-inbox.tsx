@@ -35,6 +35,18 @@ function initials(name: string | null | undefined, waId: string) {
   return source.slice(0, 2).toUpperCase();
 }
 
+function outboundOriginLabel(message: {
+  source: string | null;
+  senderLabel: string | null;
+}): string | null {
+  if (message.senderLabel?.trim()) {
+    return message.senderLabel.trim();
+  }
+  if (message.source === 'podosocial') return 'PodoSocial';
+  if (message.source === 'podocrm') return 'PodoCRM';
+  return null;
+}
+
 export function WhatsAppInbox({ number }: { number: WhatsAppNumber }) {
   const {
     data: conversations = [],
@@ -249,6 +261,7 @@ export function WhatsAppInbox({ number }: { number: WhatsAppNumber }) {
                 )}
                 {detail.messages.map((message) => {
                   const outbound = message.direction === 'outbound';
+                  const origin = outbound ? outboundOriginLabel(message) : null;
                   return (
                     <div
                       key={message.id}
@@ -262,6 +275,16 @@ export function WhatsAppInbox({ number }: { number: WhatsAppNumber }) {
                             : 'bg-surface border-border text-foreground rounded-bl-md border'
                         )}
                       >
+                        {origin && (
+                          <p
+                            className={cn(
+                              'mb-1 text-[10px] font-semibold tracking-wide uppercase',
+                              outbound ? 'text-white/80' : 'text-muted-foreground'
+                            )}
+                          >
+                            {origin}
+                          </p>
+                        )}
                         <p>{message.body}</p>
                         <p
                           className={cn(

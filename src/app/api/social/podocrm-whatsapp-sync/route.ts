@@ -16,8 +16,14 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const organization = await getCurrentOrganization();
-    const body = podoCrmWhatsAppLinkSchema.parse(await request.json());
-    return Response.json(await podoCrmWhatsAppSyncService.link(organization.id, body.code));
+    const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
+
+    if (body.action === 'sync-history') {
+      return Response.json(await podoCrmWhatsAppSyncService.syncHistory(organization.id));
+    }
+
+    const parsed = podoCrmWhatsAppLinkSchema.parse(body);
+    return Response.json(await podoCrmWhatsAppSyncService.link(organization.id, parsed.code));
   } catch (error) {
     return errorResponse(error);
   }
