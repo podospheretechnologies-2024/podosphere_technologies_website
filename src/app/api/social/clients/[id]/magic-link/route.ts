@@ -24,11 +24,7 @@ export async function POST(req: Request, props: { params: Promise<{ id: string }
     }
 
     const approver = customer.approvers[0];
-    const token = await approvalService.generateMagicLink(approver.id);
-
-    // Return the full magic link URL
-    const env = getServerEnv();
-    const magicLink = `${env.APP_URL}/api/approver/verify?token=${token}`;
+    const magicLink = await approvalService.generateMagicLink(approver.id);
 
     return NextResponse.json({ magicLink });
   } catch (error: any) {
