@@ -112,6 +112,57 @@ async function syncDailyInsights() {
   }
 }
 
+async function syncCompetitors() {
+  console.log('[analytics-worker] Syncing competitor stats...');
+  const competitors = await prisma.socialCompetitor.findMany();
+  
+  if (competitors.length === 0) return;
+
+  const config = getGraphConfig();
+
+  for (const comp of competitors) {
+    try {
+      // Find ANY connected integration for this org/customer to use its token
+      const integration = await prisma.socialIntegration.findFirst({
+        where: {
+          organizationId: comp.organizationId,
+          ...(comp.customerId ? { customerId: comp.customerId } : {}),
+          providerIdentifier: 'meta',
+          deletedAt: null,
+          internalId: { not: null }
+        }
+      });
+
+      if (!integration) {
+        console.warn(`[analytics-worker] No valid Meta integration found to track competitor ${comp.name}`);
+        continue;
+      }
+
+      const token = decrypt(integration.accessToken);
+      
+      const res = await graphGet<any>(
+        config,
+        `${integration.internalId}`,
+        token,
+        { fields: `business_discovery.username(${comp.externalId}){followers_count,media_count}` }
+      );
+
+      const discovery = res?.business_discovery;
+      if (discovery) {
+        await prisma.competitorSnapshot.create({
+          data: {
+            competitorId: comp.id,
+            followers: discovery.followers_count || 0,
+            postsCount: discovery.media_count || 0,
+          }
+        });
+      }
+    } catch (e) {
+      console.error(`[analytics-worker] Failed syncing competitor ${comp.name}`, e);
+    }
+  }
+}
+
 function processJob(job: Job) {
   switch (job.name) {
     case ANALYTICS_JOB.syncPosts:
@@ -121,7 +172,7 @@ function processJob(job: Job) {
     case ANALYTICS_JOB.captureStories:
       return captureStories();
     case ANALYTICS_JOB.syncDailyInsights:
-      return syncDailyInsights();
+      return syncDailyInsights().then(syncCompetitors);
     case ANALYTICS_JOB.backfill:
       console.log('[analytics-worker] Running channel backfill...');
       return Promise.resolve();
