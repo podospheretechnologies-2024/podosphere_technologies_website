@@ -43,6 +43,31 @@ export const socialSections = {
     href: `${SOCIAL_BASE_PATH}/whatsapp`,
     description: 'Chats, replies and templates from your WhatsApp business number.',
   },
+  inbox: {
+    label: 'Inbox',
+    href: `${SOCIAL_BASE_PATH}/inbox`,
+    description: 'Facebook Page and Instagram messages and comments.',
+  },
+  leads: {
+    label: 'Leads',
+    href: `${SOCIAL_BASE_PATH}/leads`,
+    description: 'Lead-form submissions from connected Pages.',
+  },
+  reports: {
+    label: 'Reports',
+    href: `${SOCIAL_BASE_PATH}/reports`,
+    description: 'Automated monthly client reports.',
+  },
+  billing: {
+    label: 'Billing',
+    href: `${SOCIAL_BASE_PATH}/billing`,
+    description: 'Plans, Razorpay checkout and limits.',
+  },
+  api: {
+    label: 'API',
+    href: `${SOCIAL_BASE_PATH}/api`,
+    description: 'Public API keys for /api/v1.',
+  },
   settings: {
     label: 'Settings',
     href: `${SOCIAL_BASE_PATH}/settings`,

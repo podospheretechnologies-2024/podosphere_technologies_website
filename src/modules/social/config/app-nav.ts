@@ -2,7 +2,10 @@ import type { LucideIcon } from 'lucide-react';
 import {
   CalendarDays,
   ChartColumn,
+  CreditCard,
   Image as ImageIcon,
+  Inbox,
+  KeyRound,
   Megaphone,
   MessageCircle,
   Plug,
@@ -10,6 +13,8 @@ import {
   Settings,
   Sparkles,
   Users,
+  FileText,
+  Contact,
 } from 'lucide-react';
 import { SOCIAL_BASE_PATH } from './navigation';
 
@@ -85,6 +90,36 @@ export const socialAppNav: SocialAppNavItem[] = [
     label: 'Clients',
     href: `${SOCIAL_BASE_PATH}/clients`,
     icon: Users,
+  },
+  {
+    key: 'inbox',
+    label: 'Inbox',
+    href: `${SOCIAL_BASE_PATH}/inbox`,
+    icon: Inbox,
+  },
+  {
+    key: 'leads',
+    label: 'Leads',
+    href: `${SOCIAL_BASE_PATH}/leads`,
+    icon: Contact,
+  },
+  {
+    key: 'reports',
+    label: 'Reports',
+    href: `${SOCIAL_BASE_PATH}/reports`,
+    icon: FileText,
+  },
+  {
+    key: 'billing',
+    label: 'Billing',
+    href: `${SOCIAL_BASE_PATH}/billing`,
+    icon: CreditCard,
+  },
+  {
+    key: 'api',
+    label: 'API',
+    href: `${SOCIAL_BASE_PATH}/api`,
+    icon: KeyRound,
   },
 ];
 

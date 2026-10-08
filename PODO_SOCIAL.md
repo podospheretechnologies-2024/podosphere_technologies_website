@@ -727,6 +727,42 @@ The detailed schema and build order for access control and stored Meta data are 
   - [ ] Publishing, Meta sync and the workers
   - [ ] Ads tenant isolation
 
+### Meta data sync review + handoff plan (8 Oct 2026)
+
+> Review only, **no code was changed**. Another AI/developer will implement this. Read `AGENTS.md` first (Next.js 16).
+> Files: `src/modules/social/server/integrations/providers/meta/graph-client.ts`,
+> `src/modules/social/server/analytics/analytics.worker.ts`, `src/modules/social/server/ads/ads.worker.ts`.
+
+**How Meta data flows today:** all calls go through `graphGet` / `graphPost` (adds `appsecret_proof`, throws `GraphApiError`
+with Meta's error code; code 190 = expired token). Two BullMQ workers (analytics, ads) pull data into MySQL.
+Responses are typed `any`, and raw payloads are not logged or stored.
+
+**Problems found**
+1. 🔴 **Analytics worker finds no accounts.** It queries `providerIdentifier: 'meta'` (`analytics.worker.ts` lines ~26, ~79, ~130),
+   but saved identifiers are `facebook` and `instagram`. Post sync, daily follower sync and competitor sync therefore do nothing.
+   Also: `/media` exists only on Instagram (Facebook Pages need `/posts`), and competitor `business_discovery` needs the
+   **Instagram** business ID, not the Page ID.
+2. 🟡 `syncPostMetrics`, `captureStories` and `backfill` are empty stubs (they only log).
+3. 🟡 Pagination ignored: only the first 20 items are read; `paging.next` is dropped.
+4. 🟡 No rate-limit handling: `x-app-usage` / `x-business-use-case-usage` headers are not read; no retry or backoff.
+5. 🔴 Ads sync reads campaigns only (no ad sets or ads) and uses the single global `META_SYSTEM_USER_TOKEN` with no tenant check.
+6. 🟡 No sync status: no last-success time or last error per account, so the UI cannot show freshness.
+7. 🟡 Dates use server-local midnight (`setHours(0,0,0,0)`) instead of the account's timezone.
+8. 🟡 `any` types on Meta responses; add zod schemas for the shapes we read.
+
+**Implementation order (suggested)**
+- [ ] Step 1: fix the identifier bug; split sync into Facebook (`/posts`) and Instagram (`/media`); add pagination, Meta error
+      handling (190 = mark integration as needing reconnect, rate limits = back off) and per-account sync status (table + UI badge)
+- [ ] Step 2: implement post-metrics sync (reach, saves, impressions). Needs `read_insights` and `instagram_manage_insights` on the token
+- [ ] Step 3: new features on top of the stored data
+  - [ ] Page + Instagram webhooks (`/api/webhooks/meta`: comments, messages, leadgen) feeding a unified inbox
+  - [ ] Lead-form sync from `leadgen_forms` (needs `leads_retrieval`)
+  - [ ] Ad set and ad level sync, using tenant-owned ad accounts only (see phase 0/1 security gates)
+- [ ] Verify with `pnpm meta:check` (read-only, ~15 Graph calls) before and after; follow the test-account safety rules in section 8
+
+**Rules for whoever implements this:** never touch client Pages or ad accounts; read-only Graph calls while testing;
+no tokens or secrets in this file; keep tenant isolation (`organizationId` from the session, never from the body).
+
 ### Session: 6 Oct 2026 (Meta + WhatsApp check, read-only)
 
 Checked with the Meta Social Technologies MCP and read-only Graph API `GET` calls. **Nothing was changed.**
@@ -937,20 +973,21 @@ first five agency interviews instead of claiming that no competitor offers it.
 | Area | Status | What exists |
 |---|---|---|
 | Publish and schedule | 🟡 Core built | Composer, calendar drag-to-reschedule, BullMQ worker, FB Page + IG (post, reel, story), LinkedIn provider; controlled production validation still required |
-| AI Studio | 🟡 Partial | Claude posts, thread splitting, images and link-to-post; brand-kit storage exists but the current app has no exposed brand-kit editor/API |
+| AI Studio | 🟡 Partial | Claude posts, copilot chat, approval drafts, brand-kit editor |
 | Automation | ✅ Built | Signatures, tags, templates, webhooks, RSS autopost, Google Sheets to post |
 | Analytics | 🟡 Live API | Page/IG metrics and post metrics work, but requests still depend on live Meta calls; durable MySQL sync/backfill is missing |
 | Ads | 🔴 Security blocker | Ads Manager-style UI works, but one global system-user token exposes every shared ad account to every logged-in organization |
-| WhatsApp | ✅ Own number | Inbox, texts + templates, webhooks forwarded to PodoCRM, PodoCRM reply sync |
+| WhatsApp | 🟡 Own number + signup | Inbox, texts, template submit, Embedded Signup, broadcasts. Meta App Review and approved templates still required |
+| Page and Instagram inbox, leads | 🟡 Built | Webhook `/api/webhooks/meta` stores messages, comments and leadgen events |
 | Multi-client | 🔴 Unsafe for pilots | Organizations + customer grouping exist; roles are not enforced and there is no per-client member access |
 | Approval queue | ❌ Missing | Planned Phase 2, nothing in schema |
 | Audit log | ❌ Missing | No durable record of connects, disconnects, publishes, deletes, approvals or impersonation |
 | Data deletion | 🔴 Incomplete | Callback verifies Meta's signed request and returns a code, but does not delete data or persist request status |
-| Client reports | ❌ Missing | Planned (AI weekly reports) |
+| Client reports | 🟡 Built | Monthly report from posts, leads and inbox; AI writes it when Claude is configured |
 | White-label | ❌ Missing | No custom domain / logo / email branding |
-| Billing and plans | ❌ Missing | No subscriptions, plan limits or payment gateway |
-| Public API | ❌ Missing | Designed (section 9), not built |
-| YouTube, Google Business Profile | ❌ Missing | No provider yet |
+| Billing and plans | 🟡 Built | Razorpay orders, plan limits, webhook. Needs live Razorpay keys |
+| Public API | 🟡 Built | `/api/v1` posts, analytics, leads, WhatsApp send. Agency Pro. Docs at `/docs/api` |
+| YouTube, Google Business Profile | 🟡 Built | OAuth connect and publish when GOOGLE_CLIENT_ID is set |
 
 The Meta app is **Live** (6 Oct 2026), but only `openid` has Advanced Access: App Review has not been done (section 17,
 6 Oct). Until the required permissions pass review, only people with a role on the app can use those permissions.

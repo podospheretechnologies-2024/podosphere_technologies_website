@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { WhatsAppGrowthTools } from '@/modules/social/components/whatsapp/whatsapp-growth-tools';
 import { WhatsAppPanel } from '@/modules/social/components/whatsapp/whatsapp-panel';
 import { socialSections } from '@/modules/social/config/navigation';
 import { PageHeader } from '@/shared/components/ui/page-header';
@@ -13,6 +14,7 @@ export default function WhatsAppPage() {
   return (
     <div className="space-y-5">
       <PageHeader title={label} description={description} />
+      <WhatsAppGrowthTools />
       <WhatsAppPanel />
     </div>
   );
