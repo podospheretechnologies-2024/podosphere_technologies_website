@@ -129,7 +129,6 @@ async function syncCompetitors() {
           ...(comp.customerId ? { customerId: comp.customerId } : {}),
           providerIdentifier: 'meta',
           deletedAt: null,
-          internalId: { not: null }
         }
       });
 
