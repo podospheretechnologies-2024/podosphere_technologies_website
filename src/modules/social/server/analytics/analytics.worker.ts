@@ -23,17 +23,17 @@ function getGraphConfig(): GraphConfig {
 async function syncPosts() {
   console.log('[analytics-worker] Syncing posts (external posts + basic counts)...');
   const integrations = await prisma.socialIntegration.findMany({ 
-    where: { provider: 'meta', deletedAt: null } 
+    where: { providerIdentifier: 'meta', deletedAt: null } 
   });
   const config = getGraphConfig();
 
   for (const integration of integrations) {
-    if (!integration.igId) continue;
+    if (!integration.internalId) continue;
     try {
       const token = decrypt(integration.accessToken);
       const res = await graphGet<GraphList<any>>(
         config,
-        `${integration.igId}/media`,
+        `${integration.internalId}/media`,
         token,
         { fields: 'id,caption,media_type,media_url,permalink,timestamp,like_count,comments_count', limit: 20 }
       );
@@ -76,17 +76,17 @@ async function captureStories() {
 async function syncDailyInsights() {
   console.log('[analytics-worker] Syncing daily insights (followers, profile views)...');
   const integrations = await prisma.socialIntegration.findMany({ 
-    where: { provider: 'meta', deletedAt: null } 
+    where: { providerIdentifier: 'meta', deletedAt: null } 
   });
   const config = getGraphConfig();
 
   for (const integration of integrations) {
-    if (!integration.igId) continue;
+    if (!integration.internalId) continue;
     try {
       const token = decrypt(integration.accessToken);
       const res = await graphGet<any>(
         config,
-        `${integration.igId}`,
+        `${integration.internalId}`,
         token,
         { fields: 'followers_count' }
       );

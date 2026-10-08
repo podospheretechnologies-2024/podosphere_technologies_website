@@ -27,7 +27,6 @@ export const customerService = {
       data: {
         organizationId: ctx.organization.id,
         name,
-        email,
       }
     });
   }

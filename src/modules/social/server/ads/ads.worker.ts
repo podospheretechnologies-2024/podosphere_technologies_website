@@ -30,7 +30,7 @@ async function syncStructure() {
       const res = await graphGet<GraphList<any>>(
         config,
         `${account.externalId}/campaigns`,
-        token,
+        token as string,
         { fields: 'id,name,effective_status,objective,daily_budget' }
       );
       
@@ -66,7 +66,7 @@ async function syncInsights() {
       const res = await graphGet<GraphList<any>>(
         config,
         `${account.externalId}/insights`,
-        token,
+        token as string,
         { 
           level: 'campaign', 
           date_preset: 'today', 
