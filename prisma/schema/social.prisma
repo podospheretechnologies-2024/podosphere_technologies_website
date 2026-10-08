@@ -594,3 +594,33 @@ model AdInsightDaily {
   @@index([adAccountId, date])
   @@map("ad_insights_daily")
 }
+
+model SocialCompetitor {
+  id             String    @id @default(uuid())
+  organizationId String
+  customerId     String?   @map("customer_id")
+  name           String
+  platform       String    // "instagram" or "facebook"
+  externalId     String    // The public ID or Username of the competitor
+  createdAt      DateTime  @default(now())
+
+  snapshots      CompetitorSnapshot[]
+
+  @@index([organizationId])
+  @@index([customerId])
+  @@map("social_competitors")
+}
+
+model CompetitorSnapshot {
+  id             String    @id @default(uuid())
+  competitorId   String
+  date           DateTime  @default(now())
+  followers      Int
+  postsCount     Int?
+  engagementRate Float?
+
+  competitor     SocialCompetitor @relation(fields: [competitorId], references: [id], onDelete: Cascade)
+
+  @@index([competitorId])
+  @@map("competitor_snapshots")
+}

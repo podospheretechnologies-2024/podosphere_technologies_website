@@ -10,6 +10,7 @@ const oauthStateSchema = z.object({
   providerIdentifier: z.string(),
   codeVerifier: z.string(),
   refreshIntegrationId: z.string().optional(),
+  customerId: z.string().optional(),
 });
 
 export type OAuthState = z.infer<typeof oauthStateSchema>;

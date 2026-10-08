@@ -5,7 +5,10 @@ import { prisma } from '@/shared/lib/prisma';
 
 export const metadata = { title: 'Approvals Portal | Podo Social' };
 
-export default async function ApproverPortalPage() {
+export default async function ApproverPortalPage(props: { searchParams: Promise<{ tab?: string, connected?: string }> }) {
+  const searchParams = await props.searchParams;
+  const tab = searchParams.tab || 'posts';
+
   const cookieStore = await cookies();
   const token = cookieStore.get('approver_session')?.value;
 
@@ -86,49 +89,130 @@ export default async function ApproverPortalPage() {
           </div>
         )}
 
-        <div className="mb-8">
-          <h2 className="text-2xl font-bold">Posts waiting for your approval</h2>
-          <p className="text-gray-500 mt-1">Review your upcoming social media content.</p>
+        {/* Navigation Tabs */}
+        <div className="flex items-center gap-6 border-b border-gray-200 mb-8">
+          <a
+            href="/approver/portal?tab=posts"
+            className={`pb-3 font-medium text-sm transition-colors border-b-2 ${
+              tab === 'posts' ? 'border-gray-900 text-gray-900' : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            Posts for Approval
+          </a>
+          <a
+            href="/approver/portal?tab=channels"
+            className={`pb-3 font-medium text-sm transition-colors border-b-2 ${
+              tab === 'channels' ? 'border-gray-900 text-gray-900' : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            My Channels
+          </a>
         </div>
 
-        {drafts.length === 0 ? (
-          <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
-            <h3 className="text-lg font-medium text-gray-900 mb-1">All caught up!</h3>
-            <p className="text-gray-500">There are no posts currently waiting for your approval.</p>
+        {searchParams.connected && (
+          <div className="mb-6 p-4 bg-green-50 text-green-800 border border-green-200 rounded-lg text-sm font-medium">
+            Successfully connected: {searchParams.connected}
           </div>
-        ) : (
-          <div className="grid gap-6 md:grid-cols-2">
-            {drafts.map((draft) => (
-              <div key={draft.id} className="bg-white rounded-xl border border-gray-200 p-6 flex flex-col">
-                <div className="flex items-center gap-3 mb-4">
-                  {draft.integration.picture ? (
-                    <img src={draft.integration.picture} alt="" className="w-8 h-8 rounded-full" />
-                  ) : (
-                    <div className="w-8 h-8 rounded-full bg-gray-100" />
-                  )}
-                  <div>
-                    <div className="text-sm font-medium">{draft.integration.name}</div>
-                    <div className="text-xs text-gray-500">
-                      Scheduled for {draft.publishDate.toLocaleDateString()}
+        )}
+
+        {tab === 'posts' ? (
+          <>
+            <div className="mb-8">
+              <h2 className="text-2xl font-bold">Posts waiting for your approval</h2>
+              <p className="text-gray-500 mt-1">Review your upcoming social media content.</p>
+            </div>
+
+            {drafts.length === 0 ? (
+              <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
+                <h3 className="text-lg font-medium text-gray-900 mb-1">All caught up!</h3>
+                <p className="text-gray-500">There are no posts currently waiting for your approval.</p>
+              </div>
+            ) : (
+              <div className="grid gap-6 md:grid-cols-2">
+                {drafts.map((draft) => (
+                  <div key={draft.id} className="bg-white rounded-xl border border-gray-200 p-6 flex flex-col">
+                    <div className="flex items-center gap-3 mb-4">
+                      {draft.integration.picture ? (
+                        <img src={draft.integration.picture} alt="" className="w-8 h-8 rounded-full" />
+                      ) : (
+                        <div className="w-8 h-8 rounded-full bg-gray-100" />
+                      )}
+                      <div>
+                        <div className="text-sm font-medium">{draft.integration.name}</div>
+                        <div className="text-xs text-gray-500">
+                          Scheduled for {draft.publishDate.toLocaleDateString()}
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <p className="text-sm text-gray-700 whitespace-pre-wrap mb-6 flex-grow">
+                      {draft.content}
+                    </p>
+
+                    <div className="flex gap-3 pt-4 border-t border-gray-100 mt-auto">
+                      <button className="flex-1 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 transition">
+                        Request Edit
+                      </button>
+                      <button className="flex-1 py-2 bg-black text-white rounded-lg text-sm font-medium hover:bg-gray-800 transition">
+                        Approve
+                      </button>
                     </div>
                   </div>
-                </div>
-                
-                <p className="text-sm text-gray-700 whitespace-pre-wrap mb-6 flex-grow">
-                  {draft.content}
-                </p>
-
-                <div className="flex gap-3 pt-4 border-t border-gray-100 mt-auto">
-                  <button className="flex-1 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 transition">
-                    Request Edit
-                  </button>
-                  <button className="flex-1 py-2 bg-black text-white rounded-lg text-sm font-medium hover:bg-gray-800 transition">
-                    Approve
-                  </button>
-                </div>
+                ))}
               </div>
-            ))}
-          </div>
+            )}
+          </>
+        ) : (
+          <>
+            <div className="flex items-center justify-between mb-8">
+              <div>
+                <h2 className="text-2xl font-bold">Connected Channels</h2>
+                <p className="text-gray-500 mt-1">Manage the social media accounts connected to your portal.</p>
+              </div>
+              <a
+                href="/api/social/integrations/connect/meta"
+                className="bg-black text-white hover:bg-gray-800 transition rounded-lg px-4 py-2 text-sm font-medium"
+              >
+                + Connect Facebook / IG
+              </a>
+            </div>
+
+            {integrations.length === 0 ? (
+              <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
+                <h3 className="text-lg font-medium text-gray-900 mb-1">No channels connected</h3>
+                <p className="text-gray-500 mb-4">You haven't connected any social media accounts yet.</p>
+                <a
+                  href="/api/social/integrations/connect/meta"
+                  className="inline-flex bg-black text-white hover:bg-gray-800 transition rounded-lg px-4 py-2 text-sm font-medium"
+                >
+                  Connect Account
+                </a>
+              </div>
+            ) : (
+              <div className="grid gap-6 md:grid-cols-2">
+                {integrations.map((integration) => (
+                  <div key={integration.id} className="bg-white rounded-xl border border-gray-200 p-6 flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      {integration.picture ? (
+                        <img src={integration.picture} alt="" className="w-12 h-12 rounded-full border border-gray-100" />
+                      ) : (
+                        <div className="w-12 h-12 rounded-full bg-gray-100" />
+                      )}
+                      <div>
+                        <div className="font-semibold text-gray-900">{integration.name}</div>
+                        <div className="text-sm text-gray-500 capitalize">{integration.providerIdentifier}</div>
+                      </div>
+                    </div>
+                    <div>
+                      <span className="inline-flex items-center gap-1.5 py-1 px-3 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                        Connected
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
         )}
       </main>
     </div>

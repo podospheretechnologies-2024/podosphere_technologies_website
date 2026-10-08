@@ -4,7 +4,7 @@ import { ProviderError } from '@/modules/social/server/integrations/core/provide
 import { callbackQuerySchema } from '@/modules/social/server/integrations/integration.schema';
 import { integrationService } from '@/modules/social/server/integrations/integration.service';
 import { getServerEnv } from '@/shared/lib/env';
-import { getCurrentOrganization } from '@/shared/server/current-organization';
+import { getCurrentOrganizationOrClient } from '@/shared/server/current-organization-or-client';
 import { HttpError } from '@/shared/server/http-error';
 
 function toUserMessage(error: unknown): string {
@@ -20,21 +20,26 @@ export async function GET(
   request: NextRequest,
   ctx: RouteContext<'/api/social/integrations/callback/[provider]'>
 ) {
-  const redirectUrl = new URL(socialSections.channels.href, getServerEnv().APP_URL);
+  let redirectUrl = new URL(socialSections.channels.href, getServerEnv().APP_URL);
 
   try {
     const { provider } = await ctx.params;
-    const organization = await getCurrentOrganization();
+    const { organization } = await getCurrentOrganizationOrClient();
     const query = callbackQuerySchema.safeParse(Object.fromEntries(request.nextUrl.searchParams));
     if (!query.success) {
       throw new HttpError(400, 'Invalid response from the provider');
     }
 
-    const integrations = await integrationService.completeConnect(
+    const { integrations, customerId } = await integrationService.completeConnect(
       organization.id,
       provider,
       query.data
     );
+
+    if (customerId) {
+      redirectUrl = new URL('/approver/portal', getServerEnv().APP_URL);
+    }
+
     redirectUrl.searchParams.set(
       'connected',
       integrations.map((integration) => integration.name).join(', ')

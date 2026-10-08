@@ -113,7 +113,8 @@ export const integrationService = {
   async getConnectUrl(
     organizationId: string,
     identifier: string,
-    refreshIntegrationId?: string
+    refreshIntegrationId?: string,
+    customerId?: string
   ): Promise<ConnectUrlResponse> {
     const provider = getProviderOrThrow(identifier);
     if (!provider.isConfigured()) {
@@ -136,6 +137,7 @@ export const integrationService = {
       providerIdentifier: identifier,
       codeVerifier,
       refreshIntegrationId,
+      customerId,
     });
 
     return { url };
@@ -145,7 +147,7 @@ export const integrationService = {
     organizationId: string,
     identifier: string,
     query: CallbackQuery
-  ): Promise<SocialIntegration[]> {
+  ): Promise<{ integrations: SocialIntegration[], customerId?: string }> {
     if ('error' in query) {
       throw new HttpError(400, query.error_description || 'The connection was cancelled');
     }
@@ -206,6 +208,7 @@ export const integrationService = {
           username: details.username ?? null,
           picture: details.picture ?? null,
           inBetweenSteps: provider.isBetweenSteps,
+          customerId: state.customerId,
           ...toTokenFields(details),
         })
       );
@@ -219,7 +222,7 @@ export const integrationService = {
       metadata: { identifier, count: accounts.length }
     });
     
-    return integrations;
+    return { integrations, customerId: state.customerId };
   },
 
   async setDisabled(organizationId: string, id: string, disabled: boolean): Promise<void> {
