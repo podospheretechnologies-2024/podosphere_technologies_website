@@ -19,7 +19,7 @@ export async function GET(req: Request) {
       maxAge: 7 * 24 * 60 * 60, // 7 days
     });
 
-    return NextResponse.redirect(new URL('/approver/portal', req.url));
+    return NextResponse.redirect(new URL('/approver/portal', process.env.APP_URL || req.url));
   } catch (err) {
     return new NextResponse('Invalid or expired magic link', { status: 401 });
   }
