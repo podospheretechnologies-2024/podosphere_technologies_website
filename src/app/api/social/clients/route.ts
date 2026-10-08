@@ -49,7 +49,7 @@ export async function POST(req: Request) {
     // 3. Link Ad Account if provided
     if (adAccountId) {
       await prisma.adAccount.update({
-        where: { id: adAccountId },
+        where: { externalId: adAccountId },
         data: { customerId: customer.id }
       });
     }
