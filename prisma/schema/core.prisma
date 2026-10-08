@@ -1,3 +1,9 @@
+enum OrganizationStatus {
+  TRIAL
+  ACTIVE
+  SUSPENDED
+}
+
 model Organization {
   id                 String    @id @default(uuid())
   name               String
@@ -7,6 +13,11 @@ model Organization {
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
   deletedAt          DateTime?
+  status             OrganizationStatus @default(ACTIVE)
+  plan               String             @default("agency_starter")
+  maxClients         Int                @default(10)
+  maxUsers           Int                @default(5)
+  maxChannels        Int                @default(20)
 
   users               User[]
   socialIntegrations  SocialIntegration[]
@@ -26,6 +37,10 @@ model Organization {
   whatsappMessages      WhatsAppMessage[]
   googleSheetsConnection SocialGoogleSheetsConnection?
   podoCrmWhatsAppSync   SocialPodoCrmWhatsAppSync?
+  adAccounts            AdAccount[]
+  invitations           Invitation[]
+  clientMembers         SocialClientMember[]
+  clientApprovers       ClientApprover[]
 
   @@map("organizations")
 }
@@ -47,9 +62,47 @@ model User {
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
   deletedAt      DateTime?
+  isPlatformAdmin Boolean  @default(false)
+  lastLoginAt     DateTime?
+
+  clientMemberships SocialClientMember[]
 
   organization Organization @relation(fields: [organizationId], references: [id])
 
   @@index([organizationId])
   @@map("users")
+}
+
+model Invitation {
+  id             String    @id @default(uuid())
+  organizationId String
+  email          String
+  role           UserRole
+  clientAccess   Json
+  tokenHash      String    @unique
+  invitedById    String
+  expiresAt      DateTime
+  acceptedAt     DateTime?
+  createdAt      DateTime  @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId])
+  @@map("invitations")
+}
+
+model AuditLog {
+  id              String   @id @default(uuid())
+  organizationId  String?  
+  actorUserId     String?
+  impersonatorId  String?
+  action          String   
+  targetType      String?
+  targetId        String?
+  metadata        Json?
+  ip              String?  @db.VarChar(64)
+  createdAt       DateTime @default(now())
+
+  @@index([organizationId, createdAt])
+  @@map("audit_logs")
 }

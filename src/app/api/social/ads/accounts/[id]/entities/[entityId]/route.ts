@@ -15,13 +15,13 @@ export async function GET(
   ctx: RouteContext<'/api/social/ads/accounts/[id]/entities/[entityId]'>
 ) {
   try {
-    await getCurrentOrganization();
+    const org = await getCurrentOrganization();
     const params = await ctx.params;
     const accountId = adAccountIdSchema.parse(params.id);
     const entityId = adsEntityIdSchema.parse(params.entityId);
     const kind = adsEntityKindSchema.parse(request.nextUrl.searchParams.get('kind') ?? 'ad');
     const date = adsOverviewQuerySchema.parse(Object.fromEntries(request.nextUrl.searchParams));
-    return Response.json(await adsService.entityHistory(accountId, kind, entityId, date));
+    return Response.json(await adsService.entityHistory(org.id, accountId, kind, entityId, date));
   } catch (error) {
     return errorResponse(error);
   }

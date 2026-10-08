@@ -10,6 +10,10 @@
 > relevant guide in `node_modules/next/dist/docs/` (available after `pnpm install`) and follow `AGENTS.md`.
 > Example: in Next 16, `middleware.ts` is renamed to `proxy.ts`, and `params` / `searchParams` / `cookies()` / `headers()` are async.
 
+> **Current planning note (8 Oct 2026):** `ARCHITECTURE.md` is the source of truth for the current folder/API layout.
+> Sections 17 and earlier contain useful history but also describe older branches. The external-launch gates are in
+> sections 18.7–18.11 and the detailed access/data plan is in `PODO_SOCIAL_ACCOUNTS_AND_DATA.md`.
+
 ---
 
 ## 1. What we're building
@@ -73,30 +77,32 @@ Webflow-style look (scroll reveals, stagger, parallax, hover interactions) with 
 ## 3. Architecture
 
 ```
- Browser ──▶ Next.js (one app, port 3000)
+ Browser ──▶ Next.js 16 app (one web process)
                ├── Pages: (marketing)/  (auth)/  (dashboard)/dashboard/*
-               ├── Route handlers: src/app/api/*      ← JSON API for the UI, webhooks, public /api/v1/*
+               ├── Route handlers: src/app/api/auth/*, api/social/*, api/meta/*, api/webhooks/*
                └── Server modules: src/modules/*/server, src/shared/server
                          │
-                         ├── MySQL 8.4 (Prisma)  ── phpMyAdmin :8086
-                         ├── Redis ── BullMQ worker (pnpm worker): publish, refresh tokens, sync, AI jobs
-                         └── Claude API, Meta Graph API, LinkedIn, Google …
+                         ├── MySQL 8.4 through Prisma 7
+                         ├── Redis ── BullMQ worker: publishing, token refresh, RSS/automation jobs
+                         └── Claude/OpenAI, Meta Graph API, LinkedIn, Google Sheets, PodoCRM
 ```
 
-- Route handlers stay short: validate with zod → `requireUser()` → call a module service → `json(...)`.
-- Anything slow (video publishing, insights sync, token refresh, weekly AI plans) is a **BullMQ job** run by the worker.
-- Webhooks verify the signature, store the raw payload in `webhook_events`, answer `200` fast, then enqueue a job.
+- Route handlers stay short: `getCurrentOrganization()` → validate with zod → call a service → `Response.json(...)`.
+- Services enforce business rules; repositories own Prisma queries. Components and route files do not query Prisma directly.
+- Scheduled publishing, token refresh and automation jobs run in the separate `pnpm worker` process.
+- The current WhatsApp webhook verifies the raw-body signature, stores inbox messages and can forward events to PodoCRM.
+- Page/Instagram webhooks, durable Meta analytics/Ads sync and the general AI agent worker are planned, not built.
 
 ### Conventions
 - **Module-first structure** (Anupam's layout): feature code in `src/modules/<feature>/`, shared code in `src/shared/`.
-  Inside a module: `components/` (UI), `config/`, `server/` (server-only services), plus shared zod schemas/types at the module root.
+  Inside Social: `components/`, `config/`, `hooks/`, `lib/*.client.ts`, `types/` and `server/<feature>/`.
 - **Server-only code** lives in `server/` folders and starts with `import 'server-only'`.
-- **All DB access goes through module services** (`src/modules/*/server/*`). No Prisma calls in components or route files.
-- Route handlers are wrapped in `handle()` from `src/shared/server/http.ts` (same-origin check + JSON errors).
-  Success: `{ data }`. Failure: `{ message, errors? }` with per-field errors on `422`.
+- **DB access goes through repositories/services** in `src/modules/*/server/*`.
+- API failures use `errorResponse()` from `src/shared/server/http-error.ts`; errors are returned as `{ error }`.
 - Env vars go through `getServerEnv()` (`src/shared/lib/env.ts`). Never read `process.env` elsewhere.
-- Every query is scoped by `workspaceId` from the session, never from the request body.
-- Platform tokens are encrypted with AES-256-GCM (`src/shared/server/crypto.ts`) before they're stored. Never return them to the UI.
+- Authenticated requests use `organizationId` from the signed session, never from a request body. The global Ads service is
+  the known exception and is a launch blocker until ad accounts are explicitly assigned to organizations/clients.
+- Platform tokens are encrypted with AES-256-GCM (`src/shared/lib/crypto.ts`) before storage. Never return them to the UI.
 - External platform IDs are always strings (Meta IDs overflow JS numbers). Money is `Decimal`.
 - MySQL tables/columns are snake_case (`@@map` / `@map`), Prisma fields are camelCase.
 
@@ -107,106 +113,86 @@ Webflow-style look (scroll reveals, stagger, parallax, hover interactions) with 
 ```
 podosphere_technologies_website/
 ├── prisma/
-│   ├── schema.prisma                 MySQL schema (source of truth)
+│   ├── schema/                       Prisma multi-file schema: base.prisma, core.prisma, social.prisma
 │   └── migrations/
 ├── prisma.config.ts
 ├── docker-compose.yml                mysql, phpmyadmin, redis
+├── ecosystem.config.cjs              production web + worker processes
 ├── src/
-│   ├── proxy.ts                      optimistic redirect to /login for /dashboard/*
+│   ├── proxy.ts                      redirects unauthenticated dashboard requests
 │   ├── generated/prisma/             Prisma client (gitignored, `pnpm prisma generate`)
 │   ├── app/
-│   │   ├── (marketing)/              landing page (3D hero), privacy/terms/data-deletion (todo)
+│   │   ├── (marketing)/              landing, privacy, terms, data-deletion, support
 │   │   ├── (auth)/login, register/
-│   │   ├── (dashboard)/dashboard/    Anupam's dashboard shell + social/* sections
-│   │   │   └── social/ calendar channels media ai automation analytics settings
+│   │   ├── (dashboard)/dashboard/social/   channels, calendar, media, AI, automation,
+│   │   │                                  analytics, Ads, WhatsApp, settings
 │   │   └── api/
-│   │       ├── auth/login|register|logout/route.ts
-│   │       ├── me/route.ts
-│   │       ├── accounts/route.ts
-│   │       ├── ai/brand-kit/route.ts
-│   │       ├── ai/composer/generate/route.ts
-│   │       ├── auth/meta/start|callback/     (phase 1, next)
-│   │       ├── webhooks/meta|whatsapp/       (phase 3)
-│   │       └── v1/…                          (phase 5, public client API)
+│   │       ├── auth/                         login, register, logout, me
+│   │       ├── social/                       integrations, posts, media, automation, AI,
+│   │       │                                  analytics, Ads, WhatsApp and PodoCRM sync
+│   │       ├── webhooks/whatsapp/            live Meta WhatsApp callback
+│   │       └── meta/data-deletion/           signed Meta deletion callback (incomplete workflow)
 │   ├── modules/
-│   │   ├── auth/        components/ (auth-form, user-menu), server/ (session, auth-service), validators.ts
-│   │   ├── ai/          components/ (ai-studio, caption-generator, brand-kit-form), server/ (claude, prompt,
-│   │   │                composer-service, brand-kit-service), brand-kit.ts, composer.ts
-│   │   ├── social/      config/navigation.ts, components/, server/ (providers: meta, linkedin, …)
-│   │   └── marketing/   components/three/ (hero-scene, hero-scene-lazy)
+│   │   ├── auth/        auth UI, schemas, session and auth service
+│   │   ├── social/      UI, hooks/client functions, shared types/config and server features
+│   │   └── marketing/   landing/legal configuration and components
 │   └── shared/
-│       ├── components/  layout/ (dashboard-shell, nav-link), ui/ (button, card, input, badge, …), motion/, providers.tsx
-│       ├── lib/         env.ts, api-client.ts, cn.ts
-│       ├── server/      db.ts (Prisma), http.ts (handle/json/parseBody), crypto.ts
-│       └── types/
-└── worker/                           BullMQ worker entry (phase 2)
+│       ├── components/  reusable layout, UI and Motion pieces
+│       ├── lib/         Prisma, Redis, queue, crypto, env and browser fetcher
+│       └── server/      current organization, API errors and safe outbound fetch
+└── src/worker/index.ts                BullMQ worker entry
 ```
 
-### Provider adapter interface (every platform implements it)
-```ts
-// src/modules/social/server/providers/types.ts
-export interface SocialProvider {
-  getAuthUrl(state: string): string;
-  exchangeCode(code: string): Promise<ConnectedAccount[]>;
-  refreshToken(account: SocialAccount): Promise<TokenSet>;
-  publish(account: SocialAccount, target: PostTarget): Promise<{ externalPostId: string }>;
-  getInsights(account: SocialAccount, from: Date, to: Date): Promise<InsightPoint[]>;
-  listConversations(account: SocialAccount): Promise<ConversationSummary[]>;
-  sendMessage(account: SocialAccount, threadId: string, text: string): Promise<{ externalId: string }>;
-  fetchLeads(account: SocialAccount, since: Date): Promise<LeadInput[]>;
-}
-```
-A provider that doesn't support a method throws `NotSupportedError` instead of returning fake data.
+### Provider adapter
+`src/modules/social/server/integrations/core/social-provider.interface.ts` defines OAuth URL generation,
+authentication, token refresh, first-post publishing and follow-up comments. Facebook, Instagram and LinkedIn are
+registered today. Analytics, Ads, inbox and lead capabilities are separate services; do not add imaginary methods to
+the provider interface.
 
 ---
 
 ## 5. API routes
 
-Status: ✅ built · ⏳ next
+Status: ✅ built · 🟡 partial/risky · ❌ missing
 
-| Method | Path | Auth | Purpose |
-|---|---|---|---|
-| POST | `/api/auth/register` ✅ | – | Create workspace + owner, sign in |
-| POST | `/api/auth/login` ✅, `/api/auth/logout` ✅ | – / session | Session cookie |
-| GET | `/api/me` ✅ | session | Current user + workspace |
-| GET | `/api/accounts` ✅ | session | Connected social accounts (no tokens) |
-| GET/PUT | `/api/ai/brand-kit` ✅ | session (PUT: owner/admin) | Brand kit |
-| POST | `/api/ai/composer/generate` ✅ | session | "Write with AI": caption per platform |
-| GET | `/api/auth/meta/start` ✅, `/api/auth/meta/callback` ✅ | session (owner/admin) | Facebook Login → long-lived token parked encrypted in a 15-min cookie |
-| GET | `/api/accounts/meta/pages` ✅ | session | Pages from that login, to choose from (no tokens sent to the browser) |
-| POST | `/api/accounts/meta/connect` ✅ | session (owner/admin) | Save the chosen Pages + linked IG accounts (Page tokens encrypted) |
-| DELETE | `/api/accounts/[id]` ✅ | session (owner/admin) | Disconnect an account (and its linked IG account) |
-| GET/POST/PATCH/DELETE | `/api/posts` ⏳ | session | Drafts, publish now, schedule |
-| GET | `/api/analytics` ⏳ | session | Insights by account + date range |
-| GET/POST | `/api/inbox/…` ⏳ | session | Conversations, replies |
-| GET/POST | `/api/ads/campaigns…` ⏳ | session | Campaigns (safety rules in section 8) |
-| GET/POST | `/api/leads…` ⏳ | session | Leads |
-| GET/POST | `/api/webhooks/meta`, `/api/webhooks/whatsapp` ⏳ | Meta signature | Webhooks (GET = verify) |
-| … | `/api/v1/*` ⏳ | API key | Public client API (section 9) |
+| Area | Current routes | Status / important note |
+|---|---|---|
+| Auth | `/api/auth/login`, `/logout`, `/register`, `/me` | 🟡 Works, but registration is public and roles are not enforced |
+| Channels | `/api/social/integrations/*` | 🟡 OAuth/connect/disconnect works; Owner/Admin checks are missing |
+| Content | `/api/social/posts/*`, `/media/*`, `/sets/*`, `/signatures/*`, `/tags/*` | ✅ Core CRUD, calendar and publishing are built |
+| Automation | `/api/social/autoposts/*`, `/webhooks/*`, `/google-sheets/*` | ✅ RSS/webhook/Sheets automation is built |
+| AI | `/api/social/ai`, `/ai/posts`, `/ai/thread`, `/ai/url-posts`, `/ai/image` | 🟡 Generation works; no copilot agent, approval API or brand-kit editor API |
+| Analytics | `/api/social/analytics` | 🟡 Live Meta-backed; durable sync/storage is missing |
+| Ads | `/api/social/ads/accounts/*` | 🔴 Global token and no tenant-owned account assignment; block external access |
+| WhatsApp | `/api/social/whatsapp/*`, `/api/webhooks/whatsapp` | ✅ Own-number inbox/send/templates/webhook flow is built |
+| PodoCRM sync | `/api/social/podocrm-whatsapp-sync`, `/api/sync/whatsapp/echo` | ✅ Link/ping/echo and outbound-reply sync are built |
+| Meta deletion | `/api/meta/data-deletion` | 🔴 Signature/response built; actual deletion and status persistence missing |
+| Page/IG inbox + leads | — | ❌ Not built |
+| Client/public API | `/api/v1/*` | ❌ Not built |
 
 ---
 
 ## 6. Database (MySQL 8.4)
 
-**Source of truth: `prisma/schema.prisma`.** Change the schema there, then run `pnpm db:migrate`.
+**Source of truth: `prisma/schema/*.prisma`.** Prisma is configured for the schema directory in `prisma.config.ts`.
+Change the appropriate schema file, then run `pnpm db:migrate`.
 Browse and edit data in **phpMyAdmin** at http://localhost:8086 (server `mysql`, user `podo` / `podo`).
 
-| Table | What it holds |
+| Tables | What they hold |
 |---|---|
-| `workspaces` | One per brand/client. `ai_autopilot` (JSON), `ai_monthly_budget_usd` |
-| `users` | Belong to a workspace. `role`: owner / admin / member. `password_hash` (bcrypt) |
-| `social_accounts` | Connected Pages / IG / LinkedIn / YouTube / GBP / WhatsApp. Tokens AES-256-GCM encrypted. Unique `(platform, external_id)` |
-| `posts`, `post_targets` | A post and where it goes (one row per account), with per-target status/error |
-| `insights_daily` | One row per account/day/metric. Unique `(social_account_id, date, metric)` |
-| `conversations`, `messages` | Unified inbox. `last_inbound_at` for the WhatsApp 24h window; `ai_label`, `ai_priority` |
-| `leads` | Lead-form leads. `ai_score`, `ai_summary`, `pushed_to_crm_at` |
-| `ad_campaigns` | Synced campaigns with budget/spend |
-| `webhook_events` | Raw webhook payloads for replay/debugging |
-| `api_clients`, `api_usage_logs` | Public client API keys (SHA-256 hash + prefix) and usage |
-| `brand_profiles` | Brand kit per workspace (JSON) |
-| `ai_threads`, `ai_messages` | AI runs and their append-only message history |
-| `ai_actions` | Approval queue + audit log for AI write actions |
-| `ai_usages` | Tokens per AI call → cost + monthly budget |
+| `organizations`, `users` | Tenant and login records; roles exist but are not enforced yet |
+| `social_customers`, `social_integrations` | Client grouping and encrypted connected Facebook/Instagram/LinkedIn channels |
+| `social_posts`, `social_post_errors` | One row per channel/part of a post group, schedule, publish result and errors |
+| `social_media`, `social_tags`, `social_tags_on_posts`, `social_signatures`, `social_sets` | Content assets and reusable composer data |
+| `social_auto_posts`, `social_webhooks`, `social_webhook_integrations`, `social_notifications` | RSS/webhook automation and notifications |
+| `social_brand_kits`, `social_ai_usages` | Brand instructions and AI usage/cost tracking |
+| `whatsapp_conversations`, `whatsapp_messages` | Own-number WhatsApp inbox and message history |
+| `social_google_sheets_connections`, `social_google_spreadsheets` | Google Sheets OAuth connection and selected sheets |
+| `social_podocrm_whatsapp_sync` | PodoCRM synchronization link/state |
+
+Not present yet: ad-account assignments, stored ad entities/insights, stored external posts/profile insights,
+per-client memberships, invitations, client approvers, approval actions, audit logs, deletion requests, public API
+clients/usage, general AI threads/messages/actions and lead tables. See `PODO_SOCIAL_ACCOUNTS_AND_DATA.md` for the plan.
 
 ---
 
@@ -251,7 +237,12 @@ Browse and edit data in **phpMyAdmin** at http://localhost:8086 (server `mysql`,
 |---|---|
 | App name | Podo Social |
 | App ID | `1425390532878774` |
-| Mode | In development (unpublished) |
+| Mode | ✅ **Live** (checked with the Meta MCP, 6 Oct 2026). No Advanced Access yet, so it still only works for people with a role on the app (section 17, 6 Oct) |
+| Category / icon | ✅ BUSINESS / set |
+| Privacy / Terms URL | ✅ `https://social.podospheretechnologies.com/privacy` and `/terms` |
+| Data deletion URL / Support URL | ❌ Not set |
+| Contact email | ⚠️ Set but **not verified** |
+| Compliance | ✅ Compliant, no open violations (6 Oct 2026) |
 | Business portfolio | PodoSphere Technologies |
 | Business ID | `896691718918940` |
 | Business verification | ✅ Verified |
@@ -279,7 +270,7 @@ Browse and edit data in **phpMyAdmin** at http://localhost:8086 (server `mysql`,
 |---|---|
 | Create & manage ads with Marketing API | ✅ Permissions ready |
 | Measure ad performance data with Marketing API | ✅ Done |
-| Connect with customers through WhatsApp | ✅ Phone registered, payment added. Webhook NOT configured yet |
+| Connect with customers through WhatsApp | ✅ Phone registered, payment added. Webhook ✅ subscribed (`whatsapp_business_account`, 32 fields incl. `messages`) to `social.podospheretechnologies.com` |
 | Manage messaging & content on Instagram | ✅ Using **"API setup with Facebook login"** (NOT Instagram login). Content permissions added |
 | Manage everything on your Page | 🟡 Verify permissions |
 | Engage with customers on Messenger | 🟡 Verify `pages_messaging` |
@@ -342,11 +333,13 @@ Like the "bank clients" API token screen in our other product:
   - `<IG_ID>/media?fields=id,caption,comments_count&limit=5`
   - `<IG_ID>/insights?metric=reach&period=day`
 - [x] Record IDs (checked with `pnpm meta:check`, 28 Sep 2026): PodoSphere Technologies Page ID = `259986377195834`, IG Business ID = `17841459370728904` (@podo_sphere). Also in `.env` as `META_PAGE_ID` / `META_IG_ID`.
-- [ ] Record IDs: WhatsApp Phone Number ID = `________`, WABA ID = `________`
-- [ ] App settings → Basic: Privacy URL (`/privacy`), Terms URL (`/terms`), Data deletion URL (`/data-deletion`), Category, Icon; Add platform → Website
+- [x] Record IDs (read-only Graph API check, 6 Oct 2026): WhatsApp number **+91 91191 05802**, Phone Number ID = `1334925169704461`,
+  WABA ID = `1431225448948592`. Also in `.env` as `WHATSAPP_PHONE_NUMBER_ID` / `WHATSAPP_WABA_ID`.
+- [ ] App settings → Basic: ✅ Privacy URL, Terms URL, Category, Icon. Still to do: **Data deletion URL** (`/data-deletion`),
+  **Support URL**, **verify the contact email**; Add platform → Website
 - [ ] Facebook Login for Business → Valid OAuth Redirect URIs: `https://<domain>/api/auth/meta/callback` (+ ngrok URL for local)
 - [ ] Business Settings → System users → create `podo-social-bot` (Admin), assign assets, generate a never-expiring token
-- [ ] WhatsApp webhook: Callback `https://<domain>/api/webhooks/whatsapp`, Verify token = `META_WEBHOOK_VERIFY_TOKEN`
+- [x] WhatsApp webhook: subscribed on `social.podospheretechnologies.com` (seen with the Meta MCP, 6 Oct 2026). Verify token = `META_WEBHOOK_VERIFY_TOKEN`
 - [ ] Meta webhooks for Page (feed, messages, leadgen) + Instagram (comments, messages) → `https://<domain>/api/webhooks/meta`
   (can be subscribed and tested with the Meta MCP, section 12)
 - [ ] Marketing API Access Tier: needs 500 API calls at 85%+ success. The sync jobs will generate these naturally.
@@ -376,45 +369,61 @@ Like the "bank clients" API token screen in our other product:
 ## 11. `.env` keys (values NOT stored here)
 
 One `.env` at the repo root (gitignored). `.env.example` is committed with empty secrets.
-Every key is declared and validated in `src/shared/lib/env.ts`. Nothing secret uses the `NEXT_PUBLIC_` prefix.
+Runtime keys are validated in `src/shared/lib/env.ts`; OAuth provider and maintenance-script keys must also be mirrored
+in `.env.example`. Nothing secret uses the `NEXT_PUBLIC_` prefix. Never print or commit populated values.
 
 ```env
 # App
 APP_URL=http://localhost:3000
 SESSION_SECRET=                 # 32+ random chars: openssl rand -base64 32
-TOKEN_ENCRYPTION_KEY=           # 32 bytes, base64: openssl rand -base64 32 (encrypts platform tokens — never rotate without re-encrypting)
+ENCRYPTION_KEY=                 # 32+ random chars; never rotate without re-encrypting stored channel tokens
 
 # Database (MySQL in docker-compose; phpMyAdmin at http://localhost:8086)
 DATABASE_URL=mysql://podo:podo@localhost:3307/podo_social
 REDIS_URL=redis://localhost:6381
 
-# Meta
-META_APP_ID=1425390532878774
-META_APP_SECRET=
-META_REDIRECT_URI=http://localhost:3000/api/auth/meta/callback
-META_GRAPH_VERSION=v26.0
-META_WEBHOOK_VERIFY_TOKEN=
-META_SYSTEM_USER_TOKEN=
-META_BUSINESS_ID=896691718918940
-META_AD_ACCOUNT_ID=act_623028240126874
-META_TEST_AD_ACCOUNT_IDS=act_623028240126874
+# Local seed + uploads
+SEED_ADMIN_EMAIL=
+SEED_ADMIN_PASSWORD=
+STORAGE_PROVIDER=local
+UPLOAD_DIRECTORY=uploads
 
-# WhatsApp
-WHATSAPP_PHONE_NUMBER_ID=
-WHATSAPP_WABA_ID=
-
-# AI (Claude)
+# AI: Claude text, optional OpenAI images
 ANTHROPIC_API_KEY=
 ANTHROPIC_MODEL=claude-opus-5
 AI_DEFAULT_MONTHLY_BUDGET_USD=50
+OPENAI_API_KEY=
+OPENAI_IMAGE_MODEL=gpt-image-1
 
-# Later
+# Meta
+META_APP_ID=1425390532878774
+META_APP_SECRET=
+META_APP_TOKEN=                 # maintenance scripts only
+META_GRAPH_VERSION=v26.0
+META_WEBHOOK_VERIFY_TOKEN=
+META_BUSINESS_ID=896691718918940
+META_PAGE_ID=259986377195834
+META_IG_ID=17841459370728904
+META_AD_ACCOUNT_ID=act_623028240126874
+META_TEST_AD_ACCOUNT_IDS=act_623028240126874
+META_TEST_USER_TOKEN=           # development only; short-lived
+META_SYSTEM_USER_TOKEN=         # current Ads reader; external use blocked until tenant assignment exists
+
+# WhatsApp
+WHATSAPP_ACCESS_TOKEN=
+WHATSAPP_PHONE_NUMBER_ID=
+WHATSAPP_WABA_ID=
+
+# PodoCRM WhatsApp sync
+PODOCRM_WHATSAPP_WEBHOOK_URL=https://podocrm.podospheretechnologies.com/api/whatsapp/webhook
+PODOCRM_API_BASE_URL=https://podocrm.podospheretechnologies.com/api
+# PODOCRM_WHATSAPP_FORWARD=false
+
+# OAuth providers
 LINKEDIN_CLIENT_ID=
 LINKEDIN_CLIENT_SECRET=
 GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
-PODOCRM_API_URL=
-PODOCRM_API_KEY=
 ```
 
 ---
@@ -436,6 +445,17 @@ Review or revoke access any time at facebook.com → Settings → **Business Int
 | Meta Ads (`meta_ads`) | `https://mcp.facebook.com/ads` | Ad reporting, campaigns/ad sets/ads, catalogs, signals, A/B tests, activity log | **Yes**: can create, edit and pause ads |
 
 All three are **beta** and rolling out gradually ("It looks like this app isn't available" = no access yet).
+
+**Status (6 Oct 2026):**
+- `meta_social_technologies` and `meta_ads`: ✅ connected.
+- WhatsApp Business Tools: ❌ **not yet available for our account**. Meta's login screen says "being gradually rolled
+  out, try again later". Try again in a week or two.
+- The `whatsapp_business_tools` entry in `.mcp.json` is not loaded by Claude Code ("Server not found"), so it was also
+  added at **user scope** as `whatsapp_business` (`claude mcp add --transport http -s user whatsapp_business
+  https://mcp.facebook.com/whatsapp_business_tools`). Use that one in `/mcp`. Local-scope entries can be missed by the
+  VS Code panel because the project path is stored as `D:/…` but the panel looks it up as `d:\…`.
+- Until then, WhatsApp facts can be checked read-only with the app's own token (Graph API `GET` on the Phone Number ID
+  and WABA ID in section 10).
 
 ### Consent rules (important)
 - **Only grant PodoSphere's own assets:** app **Podo Social `1425390532878774`** and business **PodoSphere Technologies
@@ -590,56 +610,43 @@ Comments, DMs, reviews, lead-form answers, and web pages are **untrusted text wr
 - Log every AI action (who/what triggered it, inputs, outputs, approver) in `ai_actions` for audit.
 
 ### 13.5 Brand kit (per workspace)
-The agent's "memory" of each client. Edited in AI Studio → Brand kit (`/dashboard/social/ai`):
+The agent's planned "memory" of each client. `SocialBrandKit` storage and prompt use exist, but the current app does
+not expose the editor/API yet. The eventual AI Studio → Brand kit experience should capture:
 brand name, what they sell, audience, tone of voice, words to use/avoid, emoji/hashtag style, example posts they liked,
 approved FAQ answers, competitors, posting goals, languages (e.g. English + Hindi/Hinglish), and compliance notes.
-It's rendered into the cached system prompt for every run in that workspace.
+The stored kit is rendered into the Claude system prompt for generation calls.
 
 ### 13.6 Tables
-`brand_profiles`, `ai_threads`, `ai_messages`, `ai_actions`, `ai_usages`, plus `workspaces.ai_autopilot` /
-`ai_monthly_budget_usd`, `conversations.ai_label` / `ai_priority`, `leads.ai_score` / `ai_summary`.
-All defined in `prisma/schema.prisma` (section 6).
+Current: `social_brand_kits`, `social_ai_usages` and `organizations.ai_monthly_budget_usd`.
+
+Planned: AI threads/messages/actions, approval/audit records, autopilot settings, inbox labels/priorities and lead
+scores/summaries. These planned models are **not** in the Prisma schema yet.
 
 ### 13.7 Code layout
 ```
-src/modules/ai/
-├── brand-kit.ts                  brand kit fields + zod schema (shared by form, API and prompt)
-├── composer.ts                   platforms, generateCaptionsSchema, postDraftSchema (structured output)
-├── server/
-│   ├── claude.ts                 callClaude(): budget, fallbacks, usage logging, stop_reason checks  ✅
-│   ├── prompt.ts                 cached system prompt (instructions + brand kit)                    ✅
-│   ├── brand-kit-service.ts      get/save brand kit                                                 ✅
-│   ├── composer-service.ts       "Write with AI" (vision when an image URL is given)                ✅
-│   ├── agent-runner.ts           copilot/agent loop: history → tools → save messages/usage          ⏳
-│   ├── tools/                    one file per tool + registry of which tools each thread kind may use ⏳
-│   └── action-executor.ts        executes approved ai_actions through module services               ⏳
-└── components/                   ai-studio, caption-generator, brand-kit-form                       ✅
-worker/jobs/ai/                   plan-weekly-content, triage-conversation, score-lead, analyze-ads, reports ⏳
+src/modules/social/
+├── config/brand-kit.ts                brand-kit field definitions                         ✅
+├── components/ai/                     current AI Studio and generators                    ✅
+├── server/ai/
+│   ├── claude.client.ts                Claude prompt, brand kit and usage logging            ✅
+│   ├── ai.service.ts                   post/thread/URL generation and optional image calls   ✅
+│   ├── brand-kit.service.ts            brand-kit storage service                            ✅
+│   └── agent-runner.ts/tools/actions   copilot + approval implementation                    ❌
+└── worker/jobs/ai/                     weekly plans, triage, scoring, reports                  ❌
 ```
 
-### 13.8 API routes (AI)
-| Method | Path | Purpose |
-|---|---|---|
-| GET/POST | `/api/ai/threads` | List / start copilot threads |
-| POST | `/api/ai/threads/{id}/messages` | Send a user message |
-| GET | `/api/ai/threads/{id}/stream` | SSE stream of the agent's reply + tool steps |
-| POST | `/api/ai/composer/generate` | Captions per platform for a draft (structured `PostDraft`) |
-| POST | `/api/ai/composer/describe-media` | Vision: alt text + caption ideas for uploaded media |
-| GET | `/api/ai/actions?status=pending` | Approval queue |
-| POST | `/api/ai/actions/{id}/approve`, `/reject` | Approve (optionally edited input) / reject |
-| GET/PUT | `/api/ai/brand-kit` | Brand kit |
-| GET | `/api/ai/usage` | Tokens + cost this month vs budget |
+### 13.8 API routes (AI target)
+Current generation routes are listed in section 5 under `/api/social/ai/*`. Copilot threads, SSE streaming,
+approval actions, brand-kit management and usage endpoints below remain planned:
 
-### 13.9 Frontend
-- `/dashboard/social/ai`: copilot chat (streaming text, collapsible "tool steps", inline cards for drafts/analytics).
-  Motion: typing indicator, messages sliding in, `AnimatePresence` for tool steps.
-- `/dashboard/social/ai/approvals`: approval queue. Each card shows what the agent wants to do and why, with an editable preview.
-  Buttons: approve / edit & approve / reject. Keyboard shortcuts for fast review.
-- AI Studio → Brand kit tab: brand kit form. ✅
-- Composer: "✨ Write with AI", "Rewrite for LinkedIn", "Make it shorter", "Translate to Hinglish", "Suggest hashtags".
-- Inbox: AI label + priority chips, "Use AI draft" button on each thread.
-- Leads: AI score badge + summary.
-- Global command bar (`⌘K`): "Ask Podo AI…".
+- `/api/social/ai/threads/*`
+- `/api/social/ai/actions/*`
+- `/api/social/ai/brand-kit`
+- `/api/social/ai/usage`
+
+### 13.9 Frontend target
+The current `/dashboard/social/ai` provides post, thread, URL and image generators. Planned additions are the streaming
+copilot, brand-kit editor, approval queue, composer rewrite actions, inbox AI drafts, lead scores and global command bar.
 
 ### 13.10 Quality checks
 - Keep a small eval set per capability (e.g. 30 real inbox messages with the correct label, 20 briefs with good captions),
@@ -652,11 +659,11 @@ worker/jobs/ai/                   plan-weekly-content, triage-conversation, scor
 
 ```bash
 docker compose up -d               # MySQL :3307, phpMyAdmin :8086, Redis :6381
-cp .env.example .env               # then fill SESSION_SECRET, TOKEN_ENCRYPTION_KEY, ANTHROPIC_API_KEY, META_APP_SECRET
+cp .env.example .env               # then fill SESSION_SECRET, ENCRYPTION_KEY and the provider keys you use
 pnpm install
 pnpm db:migrate                    # create/update tables
 pnpm dev                           # http://localhost:3000
-pnpm worker                        # BullMQ worker (phase 2)
+pnpm worker                        # BullMQ publishing, token-refresh and automation worker
 ```
 - phpMyAdmin: http://localhost:8086 (user `podo` / `podo`, or `root` / `root`)
 - For Meta OAuth and webhooks locally: `ngrok http 3000`, and use the ngrok URL in the Meta dashboard.
@@ -664,53 +671,38 @@ pnpm worker                        # BullMQ worker (phase 2)
 
 ---
 
-## 15. Build phases
+## 15. Implementation status (reviewed 8 Oct 2026)
 
-**Phase 0: stack** ✅
-- Next.js full-stack (TypeScript) + MySQL (Prisma) + phpMyAdmin + Redis in Docker
-- Anupam's module structure and dashboard shell kept; his Postgres schema reverted in favour of the MySQL schema
+**Built and usable for controlled internal testing:**
+- Next.js full-stack app, MySQL/Prisma, Redis/BullMQ worker and production deployment
+- Login/session auth and organization-scoped repositories
+- Composer, calendar, scheduled publishing and Facebook/Instagram/LinkedIn providers
+- Media, tags, signatures, templates, RSS/Google Sheets automation
+- Meta analytics and Ads screens (currently live-API backed), WhatsApp inbox, PodoCRM WhatsApp sync
+- Claude post generation, thread splitting, URL-to-post and optional OpenAI image generation
 
-**Phase 1: foundation**
-- ✅ MySQL schema for every table (section 6)
-- ✅ Auth: register (workspace + owner), login, logout, `/api/me`, session cookie, `proxy.ts`, user menu in the dashboard
-- ✅ AI: `callClaude()`, cached system prompt, brand kit (page + API), "Write with AI" in AI Studio
-- ✅ Landing page with R3F 3D hero + Motion sections
-- ✅ (code) Meta OAuth "Connect Facebook & Instagram" on Channels: log in → **choose Pages** → Pages + linked IG saved
-  with encrypted tokens; disconnect. Never auto-imports all Pages (the login sees 62, mostly clients). ⏳ Needs a live test
-- ⏳ Composer: publish now to a FB Page + IG (image first, then video via a polling job)
-- ✅ Privacy / Terms / Data deletion pages (`/privacy`, `/terms`, `/data-deletion`). ⏳ Fill contact email + address in
-  `src/modules/marketing/config/legal.ts` and get the text reviewed
+**Not safe or complete for outside organizations yet:**
+- Public registration is open, but there is no platform-admin onboarding gate
+- `OWNER` / `ADMIN` / `MEMBER` roles are stored but not enforced by the API
+- Ads uses one global Meta system-user token and is not scoped to assigned organization/client ad accounts
+- No per-client member access, audit log, client approval queue or client portal
+- Analytics/Ads data is not yet fully synced to MySQL; dashboard requests still depend on live Meta calls
+- The Meta data-deletion callback returns a confirmation code but does not yet delete data or persist status
+- Brand-kit storage exists, but the editor/API described earlier in this document is not exposed in the current app
+- Client reports, billing, white-label, public API, YouTube and GBP are not built
 
-**Phase 2: scheduling + multi-platform**
-- BullMQ worker; scheduled posts (delayed jobs, row lock to avoid double-publishing); calendar with drag-to-reschedule
-- Token refresh job; LinkedIn, YouTube (resumable upload), GBP posts
-- **AI:** agent runner + read tools + `create_post_draft`, approval queue, copilot chat with SSE streaming,
-  weekly content plan (drafts land on the calendar as pending approval)
-
-**Phase 3: inbox + leads**
-- Meta webhooks (page messages, IG comments/DMs, leadgen), WhatsApp webhook + replies → `webhook_events` → worker
-- Live inbox via SSE + Redis pub/sub
-- GBP reviews, YouTube comments; leads + optional push to PodoCRM
-- **AI:** inbox triage (label, priority, reply draft; prompt-injection rules in 13.4), lead scoring, FAQ autopilot toggle
-
-**Phase 4: analytics + ads**
-- Nightly insights sync → dashboard charts
-- Meta Marketing API + LinkedIn Ads: campaigns, spend, pause/resume (respect the safety rules in section 8)
-- **AI:** ad analysis → `propose_ad_change` (always approval), weekly/monthly reports (Batch API), trend web search, usage/budget page
-
-**Phase 5: public API**
-- API clients admin page + `withApiKey` + `/api/v1/*` endpoints + `/docs/api`
-- **AI:** `POST /api/v1/ai/captions`, permission `ai:generate`
+The detailed schema and build order for access control and stored Meta data are in
+`PODO_SOCIAL_ACCOUNTS_AND_DATA.md`. Security and tenant isolation take priority over new feature work.
 
 ---
 
-## 16. Later (before going live)
+## 16. External-launch prerequisites
 - [ ] App Review: Advanced Access for each permission (screencast per permission). Check readiness with the Meta MCP.
-- [ ] Switch the Meta app to Live
+- [x] Switch the Meta app to Live (done by 6 Oct 2026; Advanced Access is still missing)
 - [ ] Google Cloud project for YouTube + GBP (OAuth consent verification, YouTube quota increase)
 - [ ] LinkedIn developer app (Community Management API + Marketing/Lead Sync)
-- [ ] Deploy: the Next.js app on a Node host (or Vercel) + the BullMQ worker on a long-running host (it can't run on Vercel)
-      + managed MySQL + managed Redis
+- [x] Initial production deploy at `https://social.podospheretechnologies.com` with the web app, worker, MySQL and Redis
+- [ ] Production readiness: monitoring, backups, tested restores, queue alerts and documented rollback
 
 ---
 
@@ -718,6 +710,45 @@ pnpm worker                        # BullMQ worker (phase 2)
 
 > Update this section after each work session. **Never put tokens, secrets or passwords here**; they live in `.env` only.
 > Re-run the Meta checks any time with `pnpm meta:check` and compare with the results below.
+
+### Session: 6 Oct 2026 (Meta + WhatsApp check, read-only)
+
+Checked with the Meta Social Technologies MCP and read-only Graph API `GET` calls. **Nothing was changed.**
+
+**Podo Social app `1425390532878774`**
+| Check | Result |
+|---|---|
+| Mode | ✅ Live |
+| Category / icon / privacy / terms | ✅ BUSINESS / set / set / set |
+| Data deletion URL, support URL | ❌ Not set |
+| Contact email | ⚠️ Not verified |
+| Business verification | ✅ Passes |
+| Compliance | ✅ Compliant, 0 violations |
+| Webhooks | ✅ `whatsapp_business_account` → `social.podospheretechnologies.com`. ❌ No Page / Instagram subscriptions |
+| API calls (last 30 days) | 0 (quota 240) |
+| App Review | ❌ Only `openid` has Advanced Access. ~60 permissions sit in a draft request, shown as "REJECTED" with **no reasons** and **never reviewed** (= not approved yet). No step (use case, screencast, data use checkup) done. Meta says "cannot submit while a previous submission is in review", which contradicts status "UNSUBMITTED": check the App Review page in the dashboard |
+
+App Review clean-up: remove permissions we don't need from the draft (gaming, Threads, branded content, creator
+marketplace, Live Video, catalog, shopping, `ads_mcp_management`) before submitting.
+
+**WhatsApp (read-only Graph API with `WHATSAPP_ACCESS_TOKEN`)**
+| Check | Result |
+|---|---|
+| Number | +91 91191 05802, "Podosphere Technologies", Cloud API |
+| Phone Number ID / WABA ID | `1334925169704461` / `1431225448948592` |
+| Display name | ✅ Approved |
+| Quality rating | ✅ GREEN |
+| Code verification | ✅ Verified |
+| WABA review / business verification | ✅ Approved / verified |
+| Official business account (green tick) | ❌ No |
+| Message templates | Only `hello_world` (Meta sample). Real templates needed before broadcasts |
+
+**MCP access:** the Meta login granted the MCP **Manage** access to 14 apps, including apps outside PodoSphere
+(Kotech, Gulabi decor, Conversions API Application). Only use Podo Social. Re-consent with fewer apps when possible.
+
+**Secrets check:** all `.md` files and their git history scanned for live keys (Meta `EAA…`, Anthropic, OpenAI, Google,
+GitHub, private keys): **none found**. `.env` is git-ignored; `.env.example` has only empty placeholders and the local
+Docker DB password.
 
 ### Session: 28 Sep 2026
 
@@ -863,3 +894,235 @@ switch it to **MySQL**, and use **Claude** for AI.
 - Drive C: was full (0 GB). Freed ~20 GB by deleting Gradle caches/wrapper/JDKs and the Qwen model cache (all re-downloadable).
   Still large on C: the Android emulator `Pixel_10_Pro_XL` (27 GB) and the LTX-Video model cache (26 GB). Keep ≥15 GB free for Docker.
 - Ports used by this project: MySQL `3307`, phpMyAdmin `8086`, Redis `6381`, app `3000`. (Postiz on this machine uses `5433`, `6380`, `8085`.)
+
+---
+
+## 18. Business plan: selling Podo Social to agencies (6 Oct 2026)
+
+> Copied from the plan doc: https://claude.ai/code/artifact/51a81df4-b2d3-4da9-8c9e-28cb20e683cc
+> Prices are a proposal to test with pilot agencies, not final. Competitor prices are list prices found on 6 Oct 2026.
+
+### 18.1 Summary
+**Sell Podo Social to Indian marketing agencies as one AI dashboard for posts, Meta ads, WhatsApp and leads, priced in
+rupees.** The combination and India-first pricing are the product hypothesis; validate the differentiation with the
+first five agency interviews instead of claiming that no competitor offers it.
+- **Product:** the internal/demo core is substantial, but the sellable multi-tenant product is not launch-ready.
+  Tenant-safe Ads, enforced roles, per-client access, deletion/compliance, approvals, reports, billing and App Review
+  are still gates. Do not use a single completion percentage for both the demo and the sellable product.
+- **WhatsApp sales service:** PodoSphere can begin the **Meta Tech Provider** onboarding work because business
+  verification is complete, but it is not approved or production-ready for client onboarding. Embedded Signup,
+  Tech Provider configuration, App Review and real templates are still required. App Review timing is an external
+  dependency, not a guaranteed 3–4-week delivery date.
+- **Pricing (proposal):** ₹1,499 to ₹19,999/month per agency, no per-user fees, WhatsApp messages at Meta's rate, zero markup.
+- **Plan:** keep the 90-day/10-pilot and June 2027/50-agency numbers as targets, but phase gates take precedence over dates.
+- **Start this week:** close the tenant/security gaps, complete legal/deletion requirements, then prepare App Review.
+
+### 18.2 What exists vs what's missing for sale
+| Area | Status | What exists |
+|---|---|---|
+| Publish and schedule | 🟡 Core built | Composer, calendar drag-to-reschedule, BullMQ worker, FB Page + IG (post, reel, story), LinkedIn provider; controlled production validation still required |
+| AI Studio | 🟡 Partial | Claude posts, thread splitting, images and link-to-post; brand-kit storage exists but the current app has no exposed brand-kit editor/API |
+| Automation | ✅ Built | Signatures, tags, templates, webhooks, RSS autopost, Google Sheets to post |
+| Analytics | 🟡 Live API | Page/IG metrics and post metrics work, but requests still depend on live Meta calls; durable MySQL sync/backfill is missing |
+| Ads | 🔴 Security blocker | Ads Manager-style UI works, but one global system-user token exposes every shared ad account to every logged-in organization |
+| WhatsApp | ✅ Own number | Inbox, texts + templates, webhooks forwarded to PodoCRM, PodoCRM reply sync |
+| Multi-client | 🔴 Unsafe for pilots | Organizations + customer grouping exist; roles are not enforced and there is no per-client member access |
+| Approval queue | ❌ Missing | Planned Phase 2, nothing in schema |
+| Audit log | ❌ Missing | No durable record of connects, disconnects, publishes, deletes, approvals or impersonation |
+| Data deletion | 🔴 Incomplete | Callback verifies Meta's signed request and returns a code, but does not delete data or persist request status |
+| Client reports | ❌ Missing | Planned (AI weekly reports) |
+| White-label | ❌ Missing | No custom domain / logo / email branding |
+| Billing and plans | ❌ Missing | No subscriptions, plan limits or payment gateway |
+| Public API | ❌ Missing | Designed (section 9), not built |
+| YouTube, Google Business Profile | ❌ Missing | No provider yet |
+
+The Meta app is **Live** (6 Oct 2026), but only `openid` has Advanced Access: App Review has not been done (section 17,
+6 Oct). Until the required permissions pass review, only people with a role on the app can use those permissions.
+Public registration must be disabled before any outside person receives a login because the current Ads API is not
+tenant-isolated.
+
+### 18.3 Who we sell to
+| Segment | Size | Why they buy | Priority |
+|---|---|---|---|
+| Small agencies (5–30 clients) | 3–20 staff | Replace 2–3 tools, look bigger with a branded portal | First |
+| Freelancers / solo social media managers | 1–2 staff | Cheap scheduling + AI writing for 3–10 clients | Second (self-serve) |
+| Local businesses (clinics, real estate, coaching, D2C) | 1–5 staff | WhatsApp leads + broadcasts + posting in one place | Second (done-for-you service) |
+| Mid-size agencies (30–200 clients) | 20–100 staff | White-label, API, approvals at scale | Later |
+
+PodoSphere is customer zero (62 client Pages, 11 ad accounts). Agency pains: logging into each client's accounts
+separately, chasing approvals on WhatsApp, hand-made monthly reports, ad leads going cold in sheets, paying for
+tools in dollars. The agency owner signs; the account manager uses it daily.
+
+### 18.4 Competitors
+| Tool | Type | Price (monthly) | White-label | WhatsApp | Meta ads | Gap we can use |
+|---|---|---|---|---|---|---|
+| [GoHighLevel](https://www.gohighlevel.com/pricing) | All-in-one agency CRM | $97 / $297 / $497 | Only $497 Agency Pro | $10 add-on | Ads reporting | USD, steep learning curve, weak India support |
+| [Sendible](https://www.sendible.com/pricing) | Social scheduler | $29 to $1,200 | Paid add-on | No | No | No WhatsApp, no ads |
+| [Vista Social](https://vistasocial.com/pricing/) | Scheduler + inbox | $99 / $199 / $449 | Only $449 Scale | No | No | White-label expensive |
+| [SocialPilot](https://planable.io/blog/social-media-management-tools-for-agencies/) | Scheduler | From $25.50 (annual) | Reports, higher tiers | No | No | Single-step approval, dated UI |
+| [Agorapulse](https://planable.io/blog/social-media-management-tools-for-agencies/) | Inbox + ROI | From $49, per user | Reports | No | No | Per-user pricing |
+| [Sprout Social](https://planable.io/blog/social-media-management-tools-for-agencies/) | Enterprise suite | From $199 per user | Reports | Limited | No | Too costly for Indian agencies |
+| [Zoho Social](https://www.zoho.com/social/pricing.html) | Scheduler, Agency plan | Not public | Client portal, branded reports | No | No | No WhatsApp or ads |
+| [Interakt](https://theshizz.in/blog/whatsapp-marketing-tools-pricing-interakt-wati-aisensy) | WhatsApp CRM | ₹999–₹3,499 + ₹0.958/marketing msg | No | Yes | Click-to-WA | No social publishing |
+| [AiSensy](https://theshizz.in/blog/whatsapp-marketing-tools-pricing-interakt-wati-aisensy) | WhatsApp marketing | Free + ₹1.09/marketing msg; chatbot ₹2,500 | Not verified | Yes | Click-to-WA | Earns on markup; no social |
+| [WATI](https://theshizz.in/blog/whatsapp-marketing-tools-pricing-interakt-wati-aisensy) | WhatsApp inbox | $99–$999 (intl) | No | Yes | No | Costly, no social |
+| [Gallabox](https://lioncrm.site/aisensy-alternatives-whitelabel-whatsapp-crm/) | WhatsApp CRM | ₹1,999 / ₹3,499 / ₹6,599 | No | Yes | No | No social |
+| [DoubleTick](https://lioncrm.site/aisensy-alternatives-whitelabel-whatsapp-crm/) | WhatsApp team inbox | ₹3,000 per user | No | Yes | No | Per-user cost |
+
+Takeaways: price white-label well below GoHighLevel/Vista Social (~₹37–41k); "Meta rates, zero markup" on WhatsApp;
+lead with posts + ads + WhatsApp + leads in one client view, run by AI.
+
+These comparisons are positioning inputs, not proof of an uncontested market. Recheck primary pricing/features before
+publishing comparison pages, and validate the bundle in five agency interviews.
+
+### 18.5 Positioning and pricing (proposal)
+> "Podo Social is the AI marketing desk for Indian agencies: posts, Meta ads, WhatsApp and leads for every client in
+> one branded dashboard, priced in rupees."
+
+Per agency and per client, never per user.
+
+| Plan | ₹/month (excl. GST) | Clients | Users | Key features |
+|---|---|---|---|---|
+| Solo | 1,499 | 3 | 2 | Scheduling, calendar, AI Studio, Meta analytics |
+| Agency Starter | 4,999 | 10 | 5 | + approvals, monthly PDF reports, unified inbox, 1 WhatsApp number |
+| Agency Growth | 9,999 | 25 | 15 | + client portal, branded reports, Ads Manager, leads to CRM, 5 WhatsApp numbers |
+| Agency Pro (white-label) | 19,999 | 60 | Unlimited | + custom domain/logo, public API, 15 WhatsApp numbers, priority support |
+
+- Add-ons: extra WhatsApp number ₹499/month, 5 extra clients ₹1,499/month, AI credit packs.
+- WhatsApp messages: Meta's rate, zero markup, paid by the client directly to Meta.
+- Done-for-you WhatsApp sales service (local businesses): setup ₹15,000 one-time (number onboarding, green tick
+  application, 5 templates, chatbot, Click-to-WhatsApp ad) + managed ₹5,000–10,000/month.
+- Before finalising prices, model gross margin for Claude/OpenAI usage, media storage/bandwidth, Meta sync jobs,
+  monitoring, support and onboarding. Define included AI credits, connected profiles, ad accounts, storage and
+  WhatsApp numbers for every plan.
+
+### 18.6 WhatsApp: are we eligible?
+**Ready to begin the Tech Provider onboarding work; not yet approved as a Tech Provider or Tech Partner.**
+
+| Level | What it lets us do | Requirements | Our status |
+|---|---|---|---|
+| Direct (own number) | WhatsApp for PodoSphere itself | Verified business, number, payment method | ✅ Done: +91 91191 05802, quality GREEN |
+| **Tech Provider** (target) | Onboard client numbers via Embedded Signup, message for them | Verified business, Tech Provider configuration, app settings, Embedded Signup and App Review for the required permissions ([Meta](https://developers.facebook.com/docs/whatsapp/solution-providers/get-started-for-tech-providers)) | 🟡 Business verified; implementation and App Review not complete |
+| Tech Partner | Badge, partner portal, Meta support | Tech Provider + 10 active clients + 2,500 msgs/day (7-day avg) + green quality ([whauto.chat](https://whauto.chat/tools/meta-tech-partner-eligibility)) | ❌ Not yet (4–6 months of volume) |
+
+Full Solution Partner (BSP: Gupshup, 360dialog) needs high volume + Meta invitation: out of scope.
+
+To do for Tech Provider:
+- [x] App settings: icon, category, privacy and terms URLs
+- [ ] App settings: data-deletion URL, support URL, verify contact email
+- [ ] Contact email + address in `src/modules/marketing/config/legal.ts`
+- [ ] Verify domain in Business Manager; 2FA for all admins
+- [ ] Build Embedded Signup ("Connect WhatsApp": client creates or picks their WABA)
+- [ ] Record 2 App Review videos: send a message from our app; create a template from our app
+- [ ] Submit App Review for Advanced Access to both WhatsApp permissions
+- [x] Record WhatsApp Phone Number ID + WABA ID (section 10)
+- [ ] Create and get approval for real message templates (only `hello_world` exists)
+- [ ] Optional: apply for the green tick (official business account)
+
+Billing: as Tech Provider, each client adds their own card in WhatsApp Manager and Meta bills them; we charge the
+platform fee. To resell messages with markup later, onboard under a Solution Partner's credit line.
+India rates Oct 2026 ([MyOperator](https://myoperator.com/blog/whatsapp-business-api-pricing-india-2026)): marketing
+₹0.8631, utility/authentication ₹0.115, + 18% GST. MyOperator reports service replies billed at ₹0.115 after 1,000 free
+per number/month from 1 Oct 2026; Meta's page still says service is free. Confirm on the INR rate card before quoting.
+
+### 18.7 Development roadmap
+| Phase | Dates | Build | Gate to next phase |
+|---|---|---|---|
+| 0 · Emergency lock-down | 8–10 Oct 2026 | Disable open registration, audit production users/organizations, disable Ads outside the PodoSphere organization, add a temporary explicit account allowlist | No untrusted login can access PodoSphere/client data |
+| 1 · Tenant-safe internal beta | 8 Oct – 5 Nov 2026 | Central role checks, per-client access, assigned ad accounts, audit log, real deletion workflow/status, legal/support fixes, lint/Redis cleanup and access-control tests | Tenant-isolation tests pass; Owner/Admin/Member permissions verified; deletion test passes |
+| 2 · Review-ready core | 6 Nov – 5 Dec 2026 | Stored Ads/analytics sync, approval links, Embedded Signup, real WhatsApp templates, Page/IG webhooks and focused Meta App Review submission | 3–5 PodoSphere clients run end to end; required Advanced Access approved |
+| 3 · Controlled agency pilot | 6 Dec 2026 – 4 Jan 2027 | Client portal, monthly AI reports, onboarding, Razorpay/GST and compliant broadcasts | First 5 external pilots use tenant-isolated production successfully |
+| 4 · Scale | Jan – Jun 2027 | White-label, alerts, lead pipeline, chatbot, LinkedIn/YouTube/GBP, public API, AI autopilot and partner program | 10 validated pilots before self-serve; goal of 50 paying agencies remains conditional on retention/unit economics |
+
+Dates are targets, not permission to skip a gate. App Review is externally controlled and may move the pilot date.
+Estimate again after phase 1, using completed work and review feedback instead of the original percentage estimate.
+
+### 18.8 Go-to-market
+Founder-led discovery can start now. Product access starts with PodoSphere-only dogfooding after phase 0, then controlled
+external pilots after the phase 2 gate. Self-serve requires App Review, billing, tenant isolation and support operations.
+Target: 10 paying agencies by month 4, 50 by month 9.
+1. **Customer zero (now – month 2):** move 3–5 PodoSphere clients only after the security gate; record hours saved and errors per client/week.
+2. **Pilot (months 2–4):** 10 agencies from our network, 50% off for 6 months, for weekly feedback + a case study.
+3. **Content engine (month 2+):** market Podo Social with Podo Social: daily IG/LinkedIn posts, reels, WhatsApp broadcasts.
+4. **Paid (month 4+):** Meta lead ads + Click-to-WhatsApp ads to Indian agency owners; ₹30,000/month; judge on cost per demo.
+5. **Partner program (month 5+):** freelancers/agencies resell the WhatsApp service for 20% recurring commission.
+6. **Listings (month 5+):** Meta Tech Provider listing, G2/Capterra, comparison pages (vs GoHighLevel, vs AiSensy).
+
+Sales assets: 2-min demo video, pricing page, ROI calculator, pilot agreement, onboarding checklist, help docs.
+
+### 18.9 To-do: next 90 days
+**Days 1–30 (by 5 Nov 2026)**
+- [ ] **Security: disable public `/register`** (invite-only until billing/self-serve controls exist)
+- [ ] **Security: audit production users and organizations**; investigate and remove unknown accounts/sessions
+- [ ] **Security: hide/disable Ads for every organization except PodoSphere immediately**
+- [ ] **Security: add organization/client-owned ad-account assignments**; never list `me/adaccounts` directly to tenants
+- [ ] **Authorization: central `requireRole` / `requireClient` checks** on every read and write route
+- [ ] **Authorization: verify Owner/Admin/Member behavior with automated tenant-isolation tests**
+- [ ] **Audit: record sensitive actions** (auth/admin, channel changes, publishing, deletion, approvals, Ads)
+- [x] Meta: app icon + category; privacy and terms URLs
+- [ ] Meta: data-deletion URL, support URL, verify contact email
+- [ ] Meta: verify domain, 2FA in Business Manager
+- [ ] Meta: trim the App Review draft to the permissions we need; run Graph API test calls for App Review counters
+- [x] Meta: WhatsApp webhook on the production domain
+- [ ] Meta: Page/IG webhooks on the production domain
+- [ ] Legal: contact details in `legal.ts`; review privacy + terms
+- [ ] Compliance: deletion request table + worker, actual data/token deletion and public status page
+- [x] Dev: initial production deploy (app + BullMQ worker + MySQL + Redis) on the real domain
+- [ ] Quality: make `pnpm lint` pass; stop unhandled Redis connection errors during `pnpm build`
+- [ ] Sales: list 30 agency owners for the pilot
+- [ ] Sales: interview the first 5 agencies about approvals, client access, reports and willingness to pay (no product login yet)
+
+**Days 31–60 (by 5 Dec 2026)**
+- [ ] Data: Ads entities/insights and Page/IG posts/insights sync into MySQL with freshness/error status
+- [ ] Dev: post approval queue + client approval link (no full portal required yet)
+- [ ] Dev: WhatsApp Embedded Signup + real approved templates
+- [ ] Meta: record focused videos and submit only required WhatsApp/Pages/Instagram/Ads/Leads permissions
+- [ ] Ops: move 3–5 PodoSphere clients onto Podo Social after the phase 1 gate; log time saved and failures
+- [ ] Sales: demo video, provisional pricing page and pilot agreement; recruit five design partners
+
+**Days 61–90 (by 4 Jan 2027)**
+- [ ] Dev: client portal, automated monthly report and onboarding wizard
+- [ ] Dev: Razorpay subscriptions, plan limits and GST invoices
+- [ ] Dev: WhatsApp broadcasts with template manager, consent lists, cost estimate and opt-out handling
+- [ ] Ops: error monitoring, backups, tested restore, uptime/queue alerts and help docs
+- [ ] Sales: onboard up to 5 external pilots only after the phase 2 gate; produce the first case study
+- [ ] Review: usage, gross margin, support load, approval/edit rate and pilot willingness to pay
+- [ ] Decide whether white-label, chatbot, Click-to-WhatsApp tracking and paid acquisition enter the next cycle
+
+### 18.10 Risks and open decisions
+| Risk | Impact | Fallback |
+|---|---|---|
+| Cross-tenant Ads or role bypass | Exposure or modification of client data | Close registration and Ads first; assigned-account allowlist, centralized authorization and automated isolation tests |
+| App Review rejected or delayed | No outside users or client numbers | Submit a narrow, tested request early; continue PodoSphere-only dogfooding, not outside-user access |
+| Live Meta calls time out or lose history | Slow/incomplete reports and rate-limit risk | Sync/backfill into MySQL and show freshness/errors before promising reports |
+| Incomplete deletion/legal flow | App Review failure and compliance risk | Implement tracked deletion end to end and get legal text reviewed before submission |
+| WhatsApp quality drops (spam reports) | Number limited or banned | Opt-in lists, opt-out handling, template checks before broadcasts |
+| Meta price changes | Client WhatsApp bills rise | Pass-through pricing; show cost estimate before each broadcast |
+| GoHighLevel / AiSensy copy the bundle | Harder to win deals | India focus, INR + GST billing, local support, AI built in |
+| Small team split across agency + product | Roadmap slips | 1–2 developers full-time on Podo Social; freeze scope to the 90-day list |
+| Client Pages / ad accounts used in tests | Damage to live campaigns | Keep `META_TEST_AD_ACCOUNT_IDS` allowlist and section 8 safety rules |
+
+Decisions needed:
+- [ ] Product name for sale: "Podo Social" or a separate brand?
+- [ ] PodoCRM bundled with Podo Social, or sold separately?
+- [ ] Same WhatsApp number for PodoCRM and Podo Social? (section 10)
+- [ ] Who owns sales; how many developers full-time?
+- [ ] Confirm plan prices after the first 5 pilot conversations
+
+### 18.11 Readiness decision (8 Oct 2026)
+
+| Activity | Decision | Gate |
+|---|---|---|
+| Agency interviews, problem discovery and pricing research | **GO** | Do not give product access or make unverified competitor claims |
+| PodoSphere internal dogfooding | **GO after phase 0** | Registration closed; Ads restricted; known users only |
+| External agency pilots | **NO-GO now** | Phases 1–2 complete; tenant isolation, roles, deletion and App Review verified |
+| Meta App Review submission | **NO-GO now** | Legal/support/deletion pages complete; Embedded Signup/templates and exact demo flows tested |
+| Paid/self-serve launch | **NO-GO now** | Successful controlled pilots, billing/limits, monitoring/backups, support process and acceptable unit economics |
+
+Repository checks on 8 Oct 2026:
+- `pnpm typecheck` ✅
+- `pnpm build` ✅, but it emitted repeated unhandled Redis connection errors while collecting pages
+- `pnpm lint` ❌: 11 errors and 5 warnings
+- No automated test script exists yet; add access-control/integration tests before external access
+- Production `/`, `/privacy`, `/terms`, `/data-deletion` and `/api/health` returned 200; `/support` returned 404
+- Production `/register` was publicly reachable; treat this as an immediate release blocker while global Ads access exists

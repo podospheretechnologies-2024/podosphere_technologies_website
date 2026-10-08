@@ -5,11 +5,11 @@ import { errorResponse } from '@/shared/server/http-error';
 // Ad accounts shared with the Business Manager system user (read-only).
 export async function GET() {
   try {
-    await getCurrentOrganization();
+    const org = await getCurrentOrganization();
     if (!adsService.isConfigured()) {
       return Response.json({ configured: false, accounts: [] });
     }
-    return Response.json({ configured: true, accounts: await adsService.listAccounts() });
+    return Response.json({ configured: true, accounts: await adsService.listAccounts(org.id) });
   } catch (error) {
     return errorResponse(error);
   }

@@ -2,6 +2,7 @@ import 'server-only';
 import { randomUUID } from 'node:crypto';
 import type { Prisma, SocialCreationMethod, SocialPostState } from '@/generated/prisma/client';
 import { HttpError } from '@/shared/server/http-error';
+import { logAudit } from '@/shared/server/audit.service';
 import { CALENDAR_MAX_RANGE_DAYS } from '../../config/calendar';
 import { POST_CONTENT_MAX_LENGTH, POSTS_PAGE_SIZE } from '../../config/posts';
 import type {
@@ -277,6 +278,13 @@ export const postService = {
 
     await postRepository.reschedule(organizationId, group, date);
     await queueForPublishing(organizationId, group);
+    
+    await logAudit({
+      action: 'post.reschedule',
+      targetType: 'post_group',
+      targetId: group,
+      metadata: { date: body.date }
+    });
   },
 
   // First posting time of the channels (minutes after midnight UTC) that none
@@ -327,6 +335,14 @@ export const postService = {
       await buildGroupData(organizationId, group, body, creationMethod)
     );
     await queueForPublishing(organizationId, group);
+    
+    await logAudit({
+      action: 'post.create',
+      targetType: 'post_group',
+      targetId: group,
+      metadata: { state: body.type, creationMethod }
+    });
+    
     return { group };
   },
 
@@ -343,6 +359,14 @@ export const postService = {
       await buildGroupData(organizationId, group, body, rows[0].creationMethod)
     );
     await queueForPublishing(organizationId, group);
+    
+    await logAudit({
+      action: 'post.update',
+      targetType: 'post_group',
+      targetId: group,
+      metadata: { state: body.type }
+    });
+    
     return { group };
   },
 
@@ -351,5 +375,50 @@ export const postService = {
     if (deleted === 0) {
       throw new HttpError(404, 'Post not found');
     }
+    
+    await logAudit({
+      action: 'post.remove',
+      targetType: 'post_group',
+      targetId: group,
+    });
+  },
+
+  async approveGroup(organizationId: string, group: string): Promise<void> {
+    const rows = await findGroupOrThrow(organizationId, group);
+    if (rows.some((row) => row.state !== 'DRAFT')) {
+      throw new HttpError(400, 'Only drafts can be approved');
+    }
+
+    await prisma.socialPost.updateMany({
+      where: { organizationId, group, deletedAt: null },
+      data: { state: 'QUEUE' },
+    });
+
+    await queueForPublishing(organizationId, group);
+    
+    await logAudit({
+      action: 'post.approve',
+      targetType: 'post_group',
+      targetId: group,
+    });
+  },
+
+  async rejectGroup(organizationId: string, group: string, reason: string): Promise<void> {
+    const rows = await findGroupOrThrow(organizationId, group);
+    if (rows.some((row) => row.state !== 'DRAFT')) {
+      throw new HttpError(400, 'Only drafts can be rejected');
+    }
+
+    await prisma.socialPost.updateMany({
+      where: { organizationId, group, deletedAt: null },
+      data: { error: reason }, // using error field to store rejection reason for now
+    });
+    
+    await logAudit({
+      action: 'post.reject',
+      targetType: 'post_group',
+      targetId: group,
+      metadata: { reason }
+    });
   },
 };

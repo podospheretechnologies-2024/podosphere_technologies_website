@@ -3,6 +3,7 @@ import type { SocialIntegration } from '@/generated/prisma/client';
 import { decrypt, encrypt } from '@/shared/lib/crypto';
 import { getServerEnv } from '@/shared/lib/env';
 import { HttpError } from '@/shared/server/http-error';
+import { logAudit } from '@/shared/server/audit.service';
 import type {
   AvailableProvider,
   ChannelItem,
@@ -15,6 +16,7 @@ import type { AuthTokenDetails, SocialProvider } from './core/social-provider.in
 import { integrationRepository } from './integration.repository';
 import type { CallbackQuery } from './integration.schema';
 import { oauthStateStore } from './oauth-state';
+import { getIntegrationQueue, INTEGRATION_JOB } from './integration.queue';
 
 // Refresh tokens this long before they expire so a scheduled post never uses a stale one.
 const REFRESH_BUFFER_MS = 10 * 60 * 1000;
@@ -157,6 +159,16 @@ export const integrationService = {
       throw new HttpError(400, 'The connection link expired. Please try again.');
     }
 
+    const org = await prisma.organization.findUnique({ where: { id: organizationId } });
+    if (!org) throw new HttpError(404, 'Organization not found');
+
+    const channelCount = await prisma.socialIntegration.count({
+      where: { organizationId, deletedAt: null }
+    });
+    if (channelCount >= org.maxChannels) {
+      throw new HttpError(403, `Plan limit reached: You can only connect up to ${org.maxChannels} channels. Upgrade your plan to connect more.`);
+    }
+
     const authenticated = await provider.authenticate({
       code: query.code,
       codeVerifier: state.codeVerifier,
@@ -197,6 +209,15 @@ export const integrationService = {
         })
       );
     }
+    
+    // Log the connection event
+    await logAudit({
+      action: 'integration.connect',
+      targetType: 'integration',
+      targetId: integrations[0]?.id,
+      metadata: { identifier, count: accounts.length }
+    });
+    
     return integrations;
   },
 
@@ -206,6 +227,13 @@ export const integrationService = {
       throw new HttpError(404, 'Channel not found');
     }
     await integrationRepository.setDisabled(integration.id, disabled);
+    
+    await logAudit({
+      action: disabled ? 'integration.disable' : 'integration.enable',
+      targetType: 'integration',
+      targetId: integration.id,
+      metadata: { disabled }
+    });
   },
 
   // Soft delete only: posts that were already published keep their channel.
@@ -215,6 +243,13 @@ export const integrationService = {
       throw new HttpError(404, 'Channel not found');
     }
     await integrationRepository.softDelete(integration.id);
+    await getIntegrationQueue().add(INTEGRATION_JOB.deleteData, { integrationId: integration.id });
+    
+    await logAudit({
+      action: 'integration.remove',
+      targetType: 'integration',
+      targetId: integration.id,
+    });
   },
 
   // Returns a usable access token, refreshing it first when it is about to expire.

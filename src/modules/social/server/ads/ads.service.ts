@@ -1,6 +1,7 @@
 import 'server-only';
 import { getServerEnv } from '@/shared/lib/env';
 import { HttpError } from '@/shared/server/http-error';
+import { prisma } from '@/shared/lib/prisma';
 import { ADS_LEAD_ACTION_TYPES } from '../../config/ads';
 import type {
   AdAccountItem,
@@ -485,17 +486,23 @@ export const adsService = {
     return Boolean(getServerEnv().META_SYSTEM_USER_TOKEN);
   },
 
-  /** Ad accounts the system user was given access to in Business Manager. */
-  async listAccounts(): Promise<AdAccountItem[]> {
-    const result = await get<GraphList<GraphAdAccount>>('me/adaccounts', {
-      fields: 'name,currency,account_status,amount_spent',
-      limit: 200,
+  /** Ad accounts assigned to the organization. */
+  async listAccounts(organizationId: string): Promise<AdAccountItem[]> {
+    const accounts = await prisma.adAccount.findMany({
+      where: { organizationId },
+      orderBy: { name: 'asc' },
     });
-    return result.data.map(toAccount).sort((a, b) => a.name.localeCompare(b.name));
+    return accounts.map(acc => ({
+      id: acc.externalId,
+      name: acc.name,
+      currency: acc.currency,
+      status: acc.status,
+      amountSpent: 0,
+    }));
   },
 
-  async overview(accountId: string, date: AdsOverviewDateQuery): Promise<AdsOverview> {
-    const accounts = await this.listAccounts();
+  async overview(organizationId: string, accountId: string, date: AdsOverviewDateQuery): Promise<AdsOverview> {
+    const accounts = await this.listAccounts(organizationId);
     const account = accounts.find((item) => item.id === accountId);
     if (!account) {
       throw new HttpError(404, 'Ad account not found or not shared with the system user');
@@ -680,12 +687,13 @@ export const adsService = {
 
   /** Daily history + period totals for one campaign, ad set, or ad. */
   async entityHistory(
+    organizationId: string,
     accountId: string,
     kind: 'ad' | 'campaign' | 'adset',
     entityId: string,
     date: AdsOverviewDateQuery
   ): Promise<AdsEntityHistory> {
-    const accounts = await this.listAccounts();
+    const accounts = await this.listAccounts(organizationId);
     if (!accounts.some((item) => item.id === accountId)) {
       throw new HttpError(404, 'Ad account not found or not shared with the system user');
     }

@@ -84,6 +84,9 @@ model SocialCustomer {
 
   organization Organization        @relation(fields: [organizationId], references: [id])
   integrations SocialIntegration[]
+  members      SocialClientMember[]
+  approvers    ClientApprover[]
+  adAccounts   AdAccount[]
 
   @@index([organizationId])
   @@map("social_customers")
@@ -444,4 +447,150 @@ model SocialPodoCrmWhatsAppSync {
 
   @@index([phoneNumberId])
   @@map("social_podocrm_whatsapp_sync")
+}
+
+model AdAccount {
+  id             String    @id @default(uuid())
+  organizationId String              
+  customerId     String?
+  externalId     String              // "act_123…"
+  name           String
+  currency       String    @db.VarChar(3)
+  timezone       String
+  status         Int
+  tokenSource    String    @default("system_user")
+  createdAt      DateTime  @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  customer     SocialCustomer? @relation(fields: [customerId], references: [id])
+
+  @@unique([externalId])
+  @@index([organizationId, customerId])
+  @@map("ad_accounts")
+}
+
+model SocialClientMember {
+  id             String   @id @default(uuid())
+  organizationId String
+  userId         String
+  customerId     String
+  permissions    Json     
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  user         User         @relation(fields: [userId], references: [id])
+  customer     SocialCustomer @relation(fields: [customerId], references: [id])
+
+  @@unique([userId, customerId])
+  @@index([organizationId])
+  @@map("social_client_members")
+}
+
+model ClientApprover {
+  id             String    @id @default(uuid())
+  organizationId String
+  customerId     String
+  email          String
+  name           String?
+  lastSeenAt     DateTime?
+  createdAt      DateTime  @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  customer     SocialCustomer @relation(fields: [customerId], references: [id])
+
+  @@unique([customerId, email])
+  @@map("client_approvers")
+}
+
+model SocialInsightDaily {
+  id            String   @id @default(uuid())
+  integrationId String
+  date          DateTime @db.Date      
+  metric        String                 
+  value         Decimal  @db.Decimal(20, 4)
+  fetchedAt     DateTime @updatedAt
+
+  @@unique([integrationId, date, metric])
+  @@map("social_insights_daily")
+}
+
+model SocialExternalPost {           
+  id             String   @id @default(uuid())
+  integrationId  String
+  externalId     String              
+  socialPostId   String?             
+  type           String              
+  caption        String?  @db.Text
+  permalink      String?  @db.VarChar(2048)
+  thumbnailUrl   String?  @db.VarChar(2048)
+  publishedAt    DateTime
+  likes          Int?
+  comments       Int?
+  shares         Int?
+  saves          Int?
+  reach          Int?
+  impressions    Int?
+  videoViews     Int?
+  engagementRate Decimal? @db.Decimal(8, 4)
+  metricsAt      DateTime?
+
+  @@unique([integrationId, externalId])
+  @@index([integrationId, publishedAt])
+  @@map("social_external_posts")
+}
+
+model SocialSyncState {
+  id             String    @id @default(uuid())
+  organizationId String
+  integrationId  String?   
+  adAccountId    String?   
+  kind           String    
+  cursor         String?   @db.Text
+  lastRunAt      DateTime?
+  lastSuccessAt  DateTime?
+  lastError      String?   @db.Text
+  failures       Int       @default(0)
+  backfillDoneAt DateTime?
+
+  @@unique([integrationId, kind])
+  @@unique([adAccountId, kind])
+  @@map("social_sync_states")
+}
+
+model AdEntity {                     // campaign / adset / ad
+  id          String   @id @default(uuid())
+  adAccountId String
+  level       String                 // "campaign" | "adset" | "ad"
+  externalId  String
+  parentId    String?
+  name        String
+  status      String
+  objective   String?
+  dailyBudget Decimal? @db.Decimal(14, 2)
+  updatedAt   DateTime @updatedAt
+
+  @@unique([adAccountId, externalId])
+  @@map("ad_entities")
+}
+
+model AdInsightDaily {
+  id          String   @id @default(uuid())
+  adAccountId String
+  level       String
+  entityId    String                 // externalId of campaign / adset / ad
+  date        DateTime @db.Date      
+  spend       Decimal  @db.Decimal(14, 2)
+  impressions BigInt
+  reach       BigInt
+  clicks      Int
+  leads       Int
+  frequency   Decimal? @db.Decimal(8, 4)
+  ctr         Decimal? @db.Decimal(8, 4)
+  cpc         Decimal? @db.Decimal(14, 4)
+  fetchedAt   DateTime @updatedAt
+
+  @@unique([level, entityId, date])
+  @@index([adAccountId, date])
+  @@map("ad_insights_daily")
 }

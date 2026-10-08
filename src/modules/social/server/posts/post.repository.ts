@@ -1,6 +1,7 @@
 import 'server-only';
 import type { Prisma, SocialCreationMethod, SocialPostState } from '@/generated/prisma/client';
 import { prisma } from '@/shared/lib/prisma';
+import { getAccess } from '@/shared/server/access';
 import { POSTS_PAGE_SIZE, type PostListFilter } from '../../config/posts';
 import type { PostMedia } from '../../types/post';
 
@@ -86,12 +87,16 @@ async function createThreads(tx: Prisma.TransactionClient, data: CreateGroupData
 
 export const postRepository = {
   async list(organizationId: string, page: number, filter: PostListFilter) {
+    const { clientIds } = await getAccess();
     const { where: filterWhere, orderBy } = listFilter(filter);
     const where: Prisma.SocialPostWhereInput = {
       organizationId,
       deletedAt: null,
       parentPostId: null,
-      integration: { deletedAt: null },
+      integration: { 
+        deletedAt: null,
+        customerId: clientIds === 'all' ? undefined : { in: clientIds } 
+      },
       ...filterWhere,
     };
 
@@ -109,13 +114,17 @@ export const postRepository = {
     return { total, results };
   },
 
-  listRange(organizationId: string, start: Date, end: Date) {
+  async listRange(organizationId: string, start: Date, end: Date) {
+    const { clientIds } = await getAccess();
     return prisma.socialPost.findMany({
       where: {
         organizationId,
         deletedAt: null,
         parentPostId: null,
-        integration: { deletedAt: null },
+        integration: { 
+          deletedAt: null,
+          customerId: clientIds === 'all' ? undefined : { in: clientIds } 
+        },
         publishDate: { gte: start, lt: end },
       },
       include: postInclude,

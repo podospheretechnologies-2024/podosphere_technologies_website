@@ -38,6 +38,8 @@ export function toCurrentUserItem(user: CurrentUser): CurrentUserItem {
 export const authService = {
   /** Creates an organization and its owner. */
   async register(body: RegisterBody): Promise<CurrentUser> {
+    throw new HttpError(403, 'Registration is currently invite-only.');
+    
     if (await prisma.user.findUnique({ where: { email: body.email } })) {
       throw new HttpError(409, 'An account with this email already exists');
     }

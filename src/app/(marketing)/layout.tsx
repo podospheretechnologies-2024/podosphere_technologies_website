@@ -45,6 +45,7 @@ export default function MarketingLayout({ children }: LayoutProps<'/'>) {
             <Link href="/privacy" className="hover:text-foreground">Privacy</Link>
             <Link href="/terms" className="hover:text-foreground">Terms</Link>
             <Link href="/data-deletion" className="hover:text-foreground">Data deletion</Link>
+            <Link href="/support" className="hover:text-foreground">Support</Link>
           </div>
         </div>
       </footer>
