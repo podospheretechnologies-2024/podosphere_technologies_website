@@ -1073,8 +1073,9 @@ Sales assets: 2-min demo video, pricing page, ROI calculator, pilot agreement, o
 - [ ] Sales: interview the first 5 agencies about approvals, client access, reports and willingness to pay (no product login yet)
 
 **Days 31–60 (by 5 Dec 2026)**
-- [ ] Data: Ads entities/insights and Page/IG posts/insights sync into MySQL with freshness/error status
-- [ ] Dev: post approval queue + client approval link (no full portal required yet)
+- [x] Data: Ads entities/insights and Page/IG posts/insights sync into MySQL with freshness/error status
+- [x] Dev: post approval queue + client approval link + Whitelabel Portal
+- [x] Dev: Client Management UI in admin dashboard with 1-click Magic Links
 - [ ] Dev: WhatsApp Embedded Signup + real approved templates
 - [ ] Meta: record focused videos and submit only required WhatsApp/Pages/Instagram/Ads/Leads permissions
 - [ ] Ops: move 3–5 PodoSphere clients onto Podo Social after the phase 1 gate; log time saved and failures
