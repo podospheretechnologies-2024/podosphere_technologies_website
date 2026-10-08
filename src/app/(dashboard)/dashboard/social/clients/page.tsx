@@ -6,8 +6,8 @@ import { Plus, Link as LinkIcon, Copy, Check } from 'lucide-react';
 import { apiFetch } from '@/shared/lib/fetcher';
 
 export default function ClientsPage() {
-  const { data: clients, mutate } = useSWR('/api/social/clients', apiFetch);
-  const { data: adAccounts } = useSWR('/api/social/ads/accounts', apiFetch);
+  const { data: clients, mutate } = useSWR<any[]>('/api/social/clients', apiFetch);
+  const { data: adAccounts } = useSWR<any[]>('/api/social/ads/accounts', apiFetch);
   const [isAdding, setIsAdding] = useState(false);
   
   const [form, setForm] = useState({ name: '', approverName: '', approverEmail: '', adAccountId: '' });
@@ -26,7 +26,7 @@ export default function ClientsPage() {
   }
 
   async function generateLink(clientId: string) {
-    const res = await apiFetch(`/api/social/clients/${clientId}/magic-link`, { method: 'POST' });
+    const res = (await apiFetch(`/api/social/clients/${clientId}/magic-link`, { method: 'POST' })) as any;
     await navigator.clipboard.writeText(res.magicLink);
     setCopiedId(clientId);
     setTimeout(() => setCopiedId(null), 2000);
