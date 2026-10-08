@@ -711,6 +711,22 @@ The detailed schema and build order for access control and stored Meta data are 
 > Update this section after each work session. **Never put tokens, secrets or passwords here**; they live in `.env` only.
 > Re-run the Meta checks any time with `pnpm meta:check` and compare with the results below.
 
+### Pending Meta items (8 Oct 2026)
+- [ ] Add 5 missing permissions to the test token: `read_insights`, `instagram_manage_insights`, `instagram_manage_comments`, `pages_read_user_content`, `pages_manage_engagement`
+- [ ] Set data-deletion URL, support URL and verify the contact email
+- [ ] Subscribe Page and Instagram webhooks (`/api/webhooks/meta`)
+- [ ] Submit App Review (after the items above and the phase 1 gate)
+
+### End-to-end check (8 Oct 2026)
+- `pnpm typecheck` ✅ · `pnpm build` ✅ (fixed `src/app/api/auth/register/route.ts`, now a plain 403 invite-only response)
+- Smoke test of the production build: `/`, `/login`, `/privacy`, `/support`, `/api/health` return 200; dashboard redirects to login; Ads API returns 401 without a session; `POST /api/auth/register` returns 403
+- [ ] `pnpm lint` fails with 38 errors and 29 warnings
+- [ ] The `/register` page still renders even though the API rejects sign-ups
+- Not tested yet:
+  - [ ] Login and the logged-in dashboard
+  - [ ] Publishing, Meta sync and the workers
+  - [ ] Ads tenant isolation
+
 ### Session: 6 Oct 2026 (Meta + WhatsApp check, read-only)
 
 Checked with the Meta Social Technologies MCP and read-only Graph API `GET` calls. **Nothing was changed.**

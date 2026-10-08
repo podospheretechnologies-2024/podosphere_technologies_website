@@ -28,9 +28,13 @@ const bottomItems = [
   },
 ] as const;
 
-export function IconRail() {
+export function IconRail({ organizationName }: { organizationName?: string }) {
   const pathname = usePathname();
-  const mainItems = socialAppNav.filter((item) => item.key !== 'settings');
+  const mainItems = socialAppNav.filter((item) => {
+    if (item.key === 'settings') return false;
+    if (item.key === 'ads' && organizationName !== 'Podosphere Technologies') return false;
+    return true;
+  });
 
   function renderItem(item: {
     key: string;

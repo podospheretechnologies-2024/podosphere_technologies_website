@@ -6,7 +6,7 @@ import { errorResponse } from '@/shared/server/http-error';
 export async function GET() {
   try {
     const org = await getCurrentOrganization();
-    if (!adsService.isConfigured()) {
+    if (org.name !== 'Podosphere Technologies' || !adsService.isConfigured()) {
       return Response.json({ configured: false, accounts: [] });
     }
     return Response.json({ configured: true, accounts: await adsService.listAccounts(org.id) });

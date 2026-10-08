@@ -44,6 +44,13 @@ const serverEnvSchema = z.object({
   // Google Sheets plug (OAuth). Optional — Connect stays disabled until both are set.
   GOOGLE_CLIENT_ID: z.string().optional(),
   GOOGLE_CLIENT_SECRET: z.string().optional(),
+  // Meta app id for WhatsApp Embedded Signup (client-side FB.login).
+  META_APP_ID: z.string().optional(),
+  WHATSAPP_EMBEDDED_SIGNUP_CONFIG_ID: z.string().optional(),
+  // Razorpay subscriptions. Optional until billing is turned on.
+  RAZORPAY_KEY_ID: z.string().optional(),
+  RAZORPAY_KEY_SECRET: z.string().optional(),
+  RAZORPAY_WEBHOOK_SECRET: z.string().optional(),
 });
 
 export type ServerEnv = z.infer<typeof serverEnvSchema>;

@@ -624,3 +624,167 @@ model CompetitorSnapshot {
   @@index([competitorId])
   @@map("competitor_snapshots")
 }
+
+// Public API keys (section 9). Only the hash is stored.
+model SocialApiClient {
+  id             String    @id @default(uuid())
+  organizationId String
+  name           String
+  tokenHash      String    @unique
+  tokenPrefix    String    @db.VarChar(16)
+  permissions    Json
+  dailyLimit     Int       @default(1000)
+  ipAllowlist    String?   @db.Text
+  status         String    @default("active")
+  lastUsedAt     DateTime?
+  createdAt      DateTime  @default(now())
+
+  organization Organization      @relation(fields: [organizationId], references: [id])
+  usages       SocialApiUsageLog[]
+
+  @@index([organizationId])
+  @@map("social_api_clients")
+}
+
+model SocialApiUsageLog {
+  id          String   @id @default(uuid())
+  apiClientId String
+  path        String   @db.VarChar(191)
+  statusCode  Int
+  createdAt   DateTime @default(now())
+
+  apiClient SocialApiClient @relation(fields: [apiClientId], references: [id], onDelete: Cascade)
+
+  @@index([apiClientId, createdAt])
+  @@map("social_api_usage_logs")
+}
+
+model SocialInboxThread {
+  id             String   @id @default(uuid())
+  organizationId String
+  platform       String
+  externalId     String
+  contactName    String?
+  lastPreview    String?  @db.VarChar(500)
+  lastMessageAt  DateTime
+  createdAt      DateTime @default(now())
+
+  organization Organization        @relation(fields: [organizationId], references: [id])
+  messages     SocialInboxMessage[]
+
+  @@unique([organizationId, platform, externalId])
+  @@index([organizationId, lastMessageAt])
+  @@map("social_inbox_threads")
+}
+
+model SocialInboxMessage {
+  id         String   @id @default(uuid())
+  threadId   String
+  direction  String
+  body       String   @db.Text
+  externalId String?
+  createdAt  DateTime @default(now())
+
+  thread SocialInboxThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+
+  @@index([threadId, createdAt])
+  @@map("social_inbox_messages")
+}
+
+model SocialLead {
+  id             String   @id @default(uuid())
+  organizationId String
+  source         String
+  externalId     String
+  name           String?
+  email          String?
+  phone          String?
+  payload        Json
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@unique([organizationId, source, externalId])
+  @@index([organizationId, createdAt])
+  @@map("social_leads")
+}
+
+model SocialClientReport {
+  id             String   @id @default(uuid())
+  organizationId String
+  title          String
+  periodStart    DateTime
+  periodEnd      DateTime
+  body           String   @db.Text
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId, createdAt])
+  @@map("social_client_reports")
+}
+
+model SocialSubscription {
+  id                     String    @id @default(uuid())
+  organizationId         String    @unique
+  plan                   String
+  razorpaySubscriptionId String?
+  razorpayOrderId        String?
+  status                 String    @default("created")
+  currentPeriodEnd       DateTime?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@map("social_subscriptions")
+}
+
+model WhatsAppBroadcast {
+  id              String   @id @default(uuid())
+  organizationId  String
+  name            String
+  templateName    String
+  language        String
+  status          String   @default("draft")
+  recipientCount  Int      @default(0)
+  sentCount       Int      @default(0)
+  createdAt       DateTime @default(now())
+
+  organization Organization                 @relation(fields: [organizationId], references: [id])
+  recipients   WhatsAppBroadcastRecipient[]
+
+  @@index([organizationId, createdAt])
+  @@map("whatsapp_broadcasts")
+}
+
+model WhatsAppBroadcastRecipient {
+  id          String  @id @default(uuid())
+  broadcastId String
+  phone       String
+  status      String  @default("pending")
+  wamid       String?
+  error       String? @db.Text
+
+  broadcast WhatsAppBroadcast @relation(fields: [broadcastId], references: [id], onDelete: Cascade)
+
+  @@index([broadcastId])
+  @@map("whatsapp_broadcast_recipients")
+}
+
+// Client WABA connected through WhatsApp Embedded Signup.
+model SocialWhatsAppConnection {
+  id              String   @id @default(uuid())
+  organizationId  String   @unique
+  wabaId          String
+  phoneNumberId   String
+  displayPhone    String?
+  businessName    String?
+  accessToken     String   @db.Text
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@map("social_whatsapp_connections")
+}

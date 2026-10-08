@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/shared/lib/prisma';
-import { getAccess } from '@/shared/server/access';
+import { getAccess, requireRole } from '@/shared/server/access';
 import { customerService } from '@/modules/social/server/customers/customer.service';
+import { logAudit } from '@/shared/server/audit.service';
 
 export async function GET() {
   try {
@@ -25,7 +26,7 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
-    const ctx = await getAccess();
+    const ctx = await requireRole('ADMIN');
     const body = await req.json();
     const { name, approverName, approverEmail, adAccountId } = body;
 
@@ -53,6 +54,13 @@ export async function POST(req: Request) {
         data: { customerId: customer.id }
       });
     }
+
+    await logAudit({
+      action: 'create_client',
+      targetType: 'SocialCustomer',
+      targetId: customer.id,
+      metadata: { name, approverEmail }
+    });
 
     return NextResponse.json(customer);
   } catch (error: any) {

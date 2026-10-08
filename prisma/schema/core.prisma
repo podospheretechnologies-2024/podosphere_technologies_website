@@ -43,6 +43,13 @@ model Organization {
   invitations           Invitation[]
   clientMembers         SocialClientMember[]
   clientApprovers       ClientApprover[]
+  apiClients            SocialApiClient[]
+  inboxThreads          SocialInboxThread[]
+  leads                 SocialLead[]
+  clientReports         SocialClientReport[]
+  subscription          SocialSubscription?
+  whatsappBroadcasts    WhatsAppBroadcast[]
+  whatsappConnection    SocialWhatsAppConnection?
 
   @@map("organizations")
 }

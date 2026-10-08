@@ -18,6 +18,7 @@ import { integrationRepository } from './integration.repository';
 import type { CallbackQuery } from './integration.schema';
 import { oauthStateStore } from './oauth-state';
 import { getIntegrationQueue, INTEGRATION_JOB } from './integration.queue';
+import { planService } from '../billing/plan.service';
 
 // Refresh tokens this long before they expire so a scheduled post never uses a stale one.
 const REFRESH_BUFFER_MS = 10 * 60 * 1000;
@@ -84,14 +85,6 @@ const EXTRA_CHANNEL_PROVIDERS: AvailableProvider[] = [
     maxLength: 4096,
   },
   {
-    identifier: 'youtube',
-    name: 'YouTube',
-    configured: false,
-    requiredEnv: [],
-    maxLength: 0,
-    comingSoon: true,
-  },
-  {
     identifier: 'pinterest',
     name: 'Pinterest',
     configured: false,
@@ -117,6 +110,7 @@ export const integrationService = {
     customerId?: string
   ): Promise<ConnectUrlResponse> {
     const provider = getProviderOrThrow(identifier);
+    await planService.assertChannelCapacity(organizationId);
     if (!provider.isConfigured()) {
       throw new HttpError(
         400,
