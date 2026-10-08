@@ -18,6 +18,8 @@ model Organization {
   maxClients         Int                @default(10)
   maxUsers           Int                @default(5)
   maxChannels        Int                @default(20)
+  logoUrl            String?            @db.VarChar(2048)
+  themeColor         String?            @db.VarChar(7)
 
   users               User[]
   socialIntegrations  SocialIntegration[]

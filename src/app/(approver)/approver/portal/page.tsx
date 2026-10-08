@@ -24,10 +24,13 @@ export default async function ApproverPortalPage() {
   try {
     session = await approvalService.verifyToken(token);
   } catch (err) {
-    redirect('/api/approver/logout'); // or just clear cookie
+    redirect('/api/approver/logout');
   }
 
-  // Fetch pending drafts for this client
+  const organization = await prisma.organization.findUnique({
+    where: { id: session.organizationId }
+  });
+
   const drafts = await prisma.socialPost.findMany({
     where: {
       organizationId: session.organizationId,
@@ -40,16 +43,49 @@ export default async function ApproverPortalPage() {
     orderBy: { publishDate: 'asc' },
   });
 
+  const integrations = await prisma.socialIntegration.findMany({
+    where: { customerId: session.customerId, deletedAt: null }
+  });
+  const integrationIds = integrations.map(i => i.id);
+  
+  const followers = await prisma.socialInsightDaily.findMany({
+    where: { integrationId: { in: integrationIds }, metric: 'followers' },
+    orderBy: { date: 'desc' },
+    distinct: ['integrationId']
+  });
+  const totalFollowers = followers.reduce((acc, curr) => acc + Number(curr.value), 0);
+
+  const themeColor = organization?.themeColor || '#111827';
+  
   return (
     <div className="min-h-screen bg-gray-50 text-gray-900">
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
-        <div className="max-w-5xl mx-auto px-6 py-4 flex justify-between items-center">
-          <h1 className="font-bold text-lg tracking-tight">Client Approval Portal</h1>
-          <button className="text-sm text-gray-500 hover:text-gray-900 transition">Log out</button>
+      <header className="border-b border-gray-200 sticky top-0 z-10" style={{ backgroundColor: themeColor }}>
+        <div className="max-w-5xl mx-auto px-6 py-4 flex justify-between items-center text-white">
+          <div className="flex items-center gap-3">
+            {organization?.logoUrl && (
+              <img src={organization.logoUrl} alt="Logo" className="h-8 rounded" />
+            )}
+            <h1 className="font-bold text-lg tracking-tight">{organization?.name || 'Client Portal'}</h1>
+          </div>
+          <button className="text-sm opacity-80 hover:opacity-100 transition">Log out</button>
         </div>
       </header>
 
       <main className="max-w-5xl mx-auto px-6 py-8">
+        {totalFollowers > 0 && (
+          <div className="mb-10 bg-white rounded-xl shadow-sm border border-gray-200 p-6 flex items-center justify-between">
+            <div>
+              <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-1">Total Audience Size</h2>
+              <div className="text-4xl font-bold text-gray-900">{totalFollowers.toLocaleString()}</div>
+            </div>
+            <div className="text-right">
+              <span className="inline-flex items-center gap-1.5 py-1 px-3 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                Live Data Active
+              </span>
+            </div>
+          </div>
+        )}
+
         <div className="mb-8">
           <h2 className="text-2xl font-bold">Posts waiting for your approval</h2>
           <p className="text-gray-500 mt-1">Review your upcoming social media content.</p>
