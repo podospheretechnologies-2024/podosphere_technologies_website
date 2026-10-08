@@ -4,12 +4,16 @@ import { postService } from '@/modules/social/server/posts/post.service';
 import { prisma } from '@/shared/lib/prisma';
 import { getCurrentOrganization } from '@/shared/server/current-organization';
 import { requireRole } from '@/shared/server/access';
-import { errorResponse, HttpError } from '@/shared/server/http-error';
+import { errorResponse, HttpError, methodNotAllowed } from '@/shared/server/http-error';
 
 const bodySchema = z.object({
   content: z.string().trim().min(1).max(10000),
   integrationId: z.string().min(1).optional(),
 });
+
+export function GET() {
+  return methodNotAllowed('POST');
+}
 
 export async function POST(request: NextRequest) {
   try {

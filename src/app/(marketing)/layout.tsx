@@ -25,14 +25,11 @@ export default function MarketingLayout({ children }: LayoutProps<'/'>) {
             >
               Podo AI
             </Link>
-            <Link href="/login" className="text-muted-foreground hover:text-foreground rounded-lg px-3 py-2">
-              Log in
-            </Link>
             <Link
-              href="/register"
+              href="/login"
               className="bg-primary text-primary-foreground rounded-lg px-4 py-2 font-medium hover:opacity-90"
             >
-              Get started
+              Log in
             </Link>
           </div>
         </nav>

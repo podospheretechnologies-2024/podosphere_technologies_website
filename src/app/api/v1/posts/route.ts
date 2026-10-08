@@ -2,13 +2,17 @@ import type { NextRequest } from 'next/server';
 import { z } from 'zod';
 import { withApiKey } from '@/modules/social/server/api-clients/api-client.service';
 import { postService } from '@/modules/social/server/posts/post.service';
-import { errorResponse } from '@/shared/server/http-error';
+import { errorResponse, methodNotAllowed } from '@/shared/server/http-error';
 
 const schema = z.object({
   integrationId: z.string().min(1),
   content: z.string().trim().min(1).max(10000),
   publishAt: z.string().optional(),
 });
+
+export function GET() {
+  return methodNotAllowed('POST');
+}
 
 export async function POST(request: NextRequest) {
   try {

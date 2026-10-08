@@ -69,12 +69,7 @@ export function AuthForm({ mode }: { mode: Mode }) {
 
       <p className="text-muted-foreground text-center text-sm">
         {mode === 'login' ? (
-          <>
-            New to Podo Social?{' '}
-            <Link href="/register" className="text-primary font-medium">
-              Create an account
-            </Link>
-          </>
+          <>Accounts are invite-only. Use the login your admin sent you.</>
         ) : (
           <>
             Already have an account?{' '}

@@ -1,6 +1,7 @@
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { approvalService } from '@/modules/social/server/approvals/approval.service';
+import { ConnectChannelButton } from '@/modules/social/components/channels/connect-channel-button';
 import { prisma } from '@/shared/lib/prisma';
 
 export const metadata = { title: 'Approvals Portal | Podo Social' };
@@ -169,24 +170,29 @@ export default async function ApproverPortalPage(props: { searchParams: Promise<
                 <h2 className="text-2xl font-bold">Connected Channels</h2>
                 <p className="text-gray-500 mt-1">Manage the social media accounts connected to your portal.</p>
               </div>
-              <a
-                href="/api/social/integrations/connect/meta"
-                className="bg-black text-white hover:bg-gray-800 transition rounded-lg px-4 py-2 text-sm font-medium"
-              >
-                + Connect Facebook / IG
-              </a>
+              <div className="flex gap-2">
+                <ConnectChannelButton
+                  provider="facebook"
+                  label="Connect Facebook"
+                  className="bg-black text-white hover:bg-gray-800 transition rounded-lg px-4 py-2 text-sm font-medium"
+                />
+                <ConnectChannelButton
+                  provider="instagram"
+                  label="Connect Instagram"
+                  className="bg-black text-white hover:bg-gray-800 transition rounded-lg px-4 py-2 text-sm font-medium"
+                />
+              </div>
             </div>
 
             {integrations.length === 0 ? (
               <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
                 <h3 className="text-lg font-medium text-gray-900 mb-1">No channels connected</h3>
-                <p className="text-gray-500 mb-4">You haven't connected any social media accounts yet.</p>
-                <a
-                  href="/api/social/integrations/connect/meta"
+                <p className="text-gray-500 mb-4">You have not connected any social media accounts yet.</p>
+                <ConnectChannelButton
+                  provider="facebook"
+                  label="Connect Account"
                   className="inline-flex bg-black text-white hover:bg-gray-800 transition rounded-lg px-4 py-2 text-sm font-medium"
-                >
-                  Connect Account
-                </a>
+                />
               </div>
             ) : (
               <div className="grid gap-6 md:grid-cols-2">

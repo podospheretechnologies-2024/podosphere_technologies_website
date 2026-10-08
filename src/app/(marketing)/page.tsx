@@ -55,10 +55,10 @@ export default function LandingPage() {
             </Reveal>
             <Reveal delay={0.3} className="mt-8 flex flex-wrap gap-3">
               <Link
-                href="/register"
+                href="/login"
                 className="bg-primary text-primary-foreground rounded-xl px-6 py-3 font-medium shadow-lg shadow-primary/30 hover:opacity-90"
               >
-                Start free
+                Log in
               </Link>
               <Link href="#agent" className="border-border bg-surface hover:bg-surface-muted rounded-xl border px-6 py-3 font-medium">
                 See how it works

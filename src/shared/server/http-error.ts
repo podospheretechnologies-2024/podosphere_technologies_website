@@ -11,6 +11,13 @@ export class HttpError extends Error {
   }
 }
 
+export function methodNotAllowed(allow: string): Response {
+  return Response.json(
+    { error: `This endpoint only accepts ${allow}` },
+    { status: 405, headers: { Allow: allow } }
+  );
+}
+
 export function errorResponse(error: unknown): Response {
   if (error instanceof HttpError) {
     return Response.json({ error: error.message }, { status: error.status });

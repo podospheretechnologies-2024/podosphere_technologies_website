@@ -41,7 +41,7 @@ export const PLANS: Record<PlanKey, PlanDefinition> = {
     maxClients: 10,
     maxUsers: 5,
     maxChannels: 20,
-    features: ['scheduling', 'ai', 'analytics', 'whatsapp', 'approvals', 'reports', 'inbox', 'broadcasts'],
+    features: ['scheduling', 'ai', 'analytics', 'whatsapp', 'approvals', 'reports', 'inbox', 'broadcasts', 'leads'],
   },
   agency_growth: {
     key: 'agency_growth',

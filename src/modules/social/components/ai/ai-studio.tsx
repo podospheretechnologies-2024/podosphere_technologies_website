@@ -117,7 +117,7 @@ export function AiStudio() {
   const [composer, setComposer] = useState<ComposerState>({ open: false });
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const listRef = useRef<HTMLDivElement>(null);
-  const lastPrompt = useRef('');
+  const [lastPrompt, setLastPrompt] = useState('');
 
   function scrollToBottom() {
     requestAnimationFrame(() => {
@@ -130,7 +130,7 @@ export function AiStudio() {
   }
 
   async function runGenerate(prompt: string, media: PostMedia[]) {
-    lastPrompt.current = prompt;
+    setLastPrompt(prompt);
     setBusy(true);
     setError(null);
     try {
@@ -387,8 +387,8 @@ export function AiStudio() {
                   void navigator.clipboard.writeText(text);
                 }}
                 onRetry={
-                  lastPrompt.current
-                    ? () => void runGenerate(lastPrompt.current, message.media ?? [])
+                  lastPrompt
+                    ? () => void runGenerate(lastPrompt, message.media ?? [])
                     : undefined
                 }
               />
