@@ -9,6 +9,7 @@ import {
   Puzzle,
   Settings,
   Sparkles,
+  Users,
 } from 'lucide-react';
 import { SOCIAL_BASE_PATH } from './navigation';
 
@@ -78,6 +79,12 @@ export const socialAppNav: SocialAppNavItem[] = [
     label: 'Settings',
     href: `${SOCIAL_BASE_PATH}/settings`,
     icon: Settings,
+  },
+  {
+    key: 'clients',
+    label: 'Clients',
+    href: `${SOCIAL_BASE_PATH}/clients`,
+    icon: Users,
   },
 ];
 
