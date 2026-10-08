@@ -7,9 +7,10 @@ import { apiFetch } from '@/shared/lib/fetcher';
 
 export default function ClientsPage() {
   const { data: clients, mutate } = useSWR<any[]>('/api/social/clients', apiFetch);
-  const { data: adAccounts } = useSWR<any[]>('/api/social/ads/accounts', apiFetch);
-  const [isAdding, setIsAdding] = useState(false);
+  const { data: adAccountsRes } = useSWR<any>('/api/social/ads/accounts', apiFetch);
+  const adAccounts = adAccountsRes?.accounts || [];
   
+  const [isAdding, setIsAdding] = useState(false);
   const [form, setForm] = useState({ name: '', approverName: '', approverEmail: '', adAccountId: '' });
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
