@@ -21,6 +21,7 @@ export interface AuthTokenDetails {
   refreshToken?: string;
   /** Seconds until the access token expires. */
   expiresIn?: number;
+  metadata?: Record<string, unknown>;
 }
 
 export interface PublishMedia {

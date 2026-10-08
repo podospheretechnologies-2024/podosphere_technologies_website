@@ -33,7 +33,7 @@ export async function POST(request: Request) {
     const integrations = await prisma.socialIntegration.findMany({
       where: {
         providerIdentifier: { in: ['facebook', 'instagram'] },
-        additionalSettings: { path: ['metaUserId'], equals: payload.user_id }
+        additionalSettings: { path: '$.metaUserId', equals: payload.user_id }
       }
     });
 
