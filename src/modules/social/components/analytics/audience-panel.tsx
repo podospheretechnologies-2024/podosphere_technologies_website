@@ -18,14 +18,7 @@ export function AudiencePanel() {
   if (error) return <div className="text-red-500">Failed to load audience data</div>;
   if (!data) return <div className="text-gray-500 animate-pulse">Loading audience data...</div>;
 
-  const { integrations, dailyInsights, competitors } = data;
-
-  // Calculate total followers today
-  const latestFollowers = dailyInsights.reduce((acc: any, curr: any) => {
-    acc[curr.integrationId] = curr.value; // Store the latest value per integration
-    return acc;
-  }, {});
-  const totalAudienceSize = Object.values(latestFollowers).reduce((a: any, b: any) => a + Number(b), 0) as number;
+  const { integrations, competitors, totalAudienceSize = 0 } = data;
 
   const handleAddCompetitor = async () => {
     if (!newCompetitor.name || !newCompetitor.externalId) return;
@@ -65,8 +58,8 @@ export function AudiencePanel() {
           <div className="mt-8 border-t pt-6">
             <h3 className="text-sm font-semibold mb-4 text-gray-500 uppercase">Followers by Channel</h3>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {integrations.map((channel: any) => {
-                const count = latestFollowers[channel.id] || 0;
+              {integrations.map((channel: { id: string; name: string; providerIdentifier: string; followers?: number }) => {
+                const count = channel.followers ?? 0;
                 return (
                   <div key={channel.id} className="bg-gray-50 p-4 rounded-xl border border-gray-100">
                     <div className="font-semibold text-gray-900 line-clamp-1">{channel.name}</div>

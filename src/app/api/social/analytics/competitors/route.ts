@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/shared/lib/prisma';
 import { getCurrentOrganization } from '@/shared/server/current-organization';
+import { requireRole } from '@/shared/server/access';
 
 export async function POST(request: NextRequest) {
   try {
     const organization = await getCurrentOrganization();
+    await requireRole('ADMIN');
     const body = await request.json();
     const { name, externalId, platform } = body;
 
@@ -30,14 +32,18 @@ export async function POST(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   try {
     const organization = await getCurrentOrganization();
+    await requireRole('ADMIN');
     const url = new URL(request.url);
     const id = url.searchParams.get('id');
 
     if (!id) return new NextResponse('Missing ID', { status: 400 });
 
-    await prisma.socialCompetitor.delete({
-      where: { id, organizationId: organization.id }
+    const deleted = await prisma.socialCompetitor.deleteMany({
+      where: { id, organizationId: organization.id },
     });
+    if (deleted.count === 0) {
+      return new NextResponse('Not found', { status: 404 });
+    }
 
     return NextResponse.json({ success: true });
   } catch (err) {

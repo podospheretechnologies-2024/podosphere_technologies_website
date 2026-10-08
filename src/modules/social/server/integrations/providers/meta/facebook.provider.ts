@@ -41,7 +41,7 @@ export class FacebookProvider extends MetaProviderBase {
     return 63206;
   }
 
-  protected toAccounts(pages: GraphPage[]): AuthTokenDetails[] {
+  protected toAccounts(pages: GraphPage[], metaUserId: string): AuthTokenDetails[] {
     return pages.flatMap((page) =>
       page.access_token
         ? [
@@ -50,6 +50,7 @@ export class FacebookProvider extends MetaProviderBase {
               name: page.name,
               picture: page.picture?.data.url,
               accessToken: page.access_token,
+              metadata: { metaUserId },
             },
           ]
         : []

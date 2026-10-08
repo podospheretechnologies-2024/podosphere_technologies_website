@@ -1,10 +1,12 @@
 import { whatsappService } from '@/modules/social/server/whatsapp/whatsapp.service';
 import { getCurrentOrganization } from '@/shared/server/current-organization';
+import { requireRole } from '@/shared/server/access';
 import { errorResponse } from '@/shared/server/http-error';
 
 export async function GET() {
   try {
     const org = await getCurrentOrganization();
+    await requireRole('ADMIN');
     if (!whatsappService.isConfigured()) {
       return Response.json([]);
     }

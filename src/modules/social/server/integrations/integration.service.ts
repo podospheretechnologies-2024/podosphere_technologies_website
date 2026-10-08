@@ -203,6 +203,7 @@ export const integrationService = {
           picture: details.picture ?? null,
           inBetweenSteps: provider.isBetweenSteps,
           customerId: state.customerId,
+          additionalSettings: details.metadata ?? [],
           ...toTokenFields(details),
         })
       );

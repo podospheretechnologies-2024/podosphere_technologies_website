@@ -20,10 +20,16 @@ function getGraphConfig(): GraphConfig {
   };
 }
 
+const META_PROVIDERS = ['facebook', 'instagram'] as const;
+
+function utcDateOnly(date = new Date()): Date {
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+}
+
 async function syncPosts() {
   console.log('[analytics-worker] Syncing posts (external posts + basic counts)...');
-  const integrations = await prisma.socialIntegration.findMany({ 
-    where: { providerIdentifier: 'meta', deletedAt: null } 
+  const integrations = await prisma.socialIntegration.findMany({
+    where: { providerIdentifier: { in: [...META_PROVIDERS] }, deletedAt: null },
   });
   const config = getGraphConfig();
 
@@ -31,32 +37,75 @@ async function syncPosts() {
     if (!integration.internalId) continue;
     try {
       const token = decrypt(integration.accessToken);
-      const res = await graphGet<GraphList<any>>(
-        config,
-        `${integration.internalId}/media`,
-        token,
-        { fields: 'id,caption,media_type,media_url,permalink,timestamp,like_count,comments_count', limit: 20 }
-      );
+      if (integration.providerIdentifier === 'instagram') {
+        const res = await graphGet<GraphList<{
+          id: string;
+          caption?: string;
+          media_type?: string;
+          media_url?: string;
+          permalink?: string;
+          timestamp: string;
+          like_count?: number;
+          comments_count?: number;
+        }>>(config, `${integration.internalId}/media`, token, {
+          fields: 'id,caption,media_type,media_url,permalink,timestamp,like_count,comments_count',
+          limit: 20,
+        });
+        for (const media of res.data || []) {
+          await prisma.socialExternalPost.upsert({
+            where: { integrationId_externalId: { integrationId: integration.id, externalId: media.id } },
+            update: {
+              likes: media.like_count || 0,
+              comments: media.comments_count || 0,
+              caption: media.caption || null,
+            },
+            create: {
+              integrationId: integration.id,
+              externalId: media.id,
+              type: (media.media_type || 'post').toLowerCase(),
+              caption: media.caption || null,
+              permalink: media.permalink || null,
+              thumbnailUrl: media.media_url || null,
+              publishedAt: new Date(media.timestamp),
+              likes: media.like_count || 0,
+              comments: media.comments_count || 0,
+            },
+          });
+        }
+        continue;
+      }
 
-      for (const media of res.data || []) {
+      const res = await graphGet<GraphList<{
+        id: string;
+        message?: string;
+        created_time: string;
+        permalink_url?: string;
+        full_picture?: string;
+        comments?: { summary?: { total_count?: number } };
+        reactions?: { summary?: { total_count?: number } };
+      }>>(config, `${integration.internalId}/published_posts`, token, {
+        fields: 'id,message,created_time,permalink_url,full_picture,comments.summary(true),reactions.summary(true)',
+        limit: 20,
+      });
+      for (const post of res.data || []) {
         await prisma.socialExternalPost.upsert({
-          where: { integrationId_externalId: { integrationId: integration.id, externalId: media.id } },
+          where: { integrationId_externalId: { integrationId: integration.id, externalId: post.id } },
           update: {
-            likes: media.like_count || 0,
-            comments: media.comments_count || 0,
-            caption: media.caption || null,
+            likes: post.reactions?.summary?.total_count || 0,
+            comments: post.comments?.summary?.total_count || 0,
+            caption: post.message || null,
           },
           create: {
             integrationId: integration.id,
-            externalId: media.id,
-            type: (media.media_type || 'post').toLowerCase(),
-            caption: media.caption || null,
-            permalink: media.permalink || null,
-            thumbnailUrl: media.media_url || null,
-            publishedAt: new Date(media.timestamp),
-            likes: media.like_count || 0,
-            comments: media.comments_count || 0,
-          }
+            externalId: post.id,
+            type: 'post',
+            caption: post.message || null,
+            permalink: post.permalink_url || null,
+            thumbnailUrl: post.full_picture || null,
+            publishedAt: new Date(post.created_time),
+            likes: post.reactions?.summary?.total_count || 0,
+            comments: post.comments?.summary?.total_count || 0,
+          },
         });
       }
     } catch (e) {
@@ -75,8 +124,8 @@ async function captureStories() {
 
 async function syncDailyInsights() {
   console.log('[analytics-worker] Syncing daily insights (followers, profile views)...');
-  const integrations = await prisma.socialIntegration.findMany({ 
-    where: { providerIdentifier: 'meta', deletedAt: null } 
+  const integrations = await prisma.socialIntegration.findMany({
+    where: { providerIdentifier: { in: [...META_PROVIDERS] }, deletedAt: null },
   });
   const config = getGraphConfig();
 
@@ -84,28 +133,27 @@ async function syncDailyInsights() {
     if (!integration.internalId) continue;
     try {
       const token = decrypt(integration.accessToken);
-      const res = await graphGet<any>(
+      const fields = integration.providerIdentifier === 'instagram' ? 'followers_count' : 'followers_count,fan_count';
+      const res = await graphGet<{ followers_count?: number; fan_count?: number }>(
         config,
         `${integration.internalId}`,
         token,
-        { fields: 'followers_count' }
+        { fields }
       );
+      const followers = res.followers_count ?? res.fan_count;
+      if (followers === undefined) continue;
 
-      if (res.followers_count !== undefined) {
-        const today = new Date();
-        today.setHours(0,0,0,0);
-        
-        await prisma.socialInsightDaily.upsert({
-          where: { integrationId_date_metric: { integrationId: integration.id, date: today, metric: 'followers' } },
-          update: { value: res.followers_count },
-          create: {
-            integrationId: integration.id,
-            date: today,
-            metric: 'followers',
-            value: res.followers_count
-          }
-        });
-      }
+      const today = utcDateOnly();
+      await prisma.socialInsightDaily.upsert({
+        where: { integrationId_date_metric: { integrationId: integration.id, date: today, metric: 'followers' } },
+        update: { value: followers },
+        create: {
+          integrationId: integration.id,
+          date: today,
+          metric: 'followers',
+          value: followers,
+        },
+      });
     } catch (e) {
       console.error(`[analytics-worker] Failed syncing daily insights for integration ${integration.id}`, e);
     }
@@ -127,9 +175,9 @@ async function syncCompetitors() {
         where: {
           organizationId: comp.organizationId,
           ...(comp.customerId ? { customerId: comp.customerId } : {}),
-          providerIdentifier: 'meta',
+          providerIdentifier: 'instagram',
           deletedAt: null,
-        }
+        },
       });
 
       if (!integration) {

@@ -763,6 +763,31 @@ Responses are typed `any`, and raw payloads are not logged or stored.
 **Rules for whoever implements this:** never touch client Pages or ad accounts; read-only Graph calls while testing;
 no tokens or secrets in this file; keep tenant isolation (`organizationId` from the session, never from the body).
 
+### Page/API smoke test, issues and fixes needed (8 Oct 2026)
+
+> Test: production build + local login with the seeded admin, then HTTP requests to every page and read API.
+> **Another AI/developer was adding features during the test**, so the build was stale. Re-run after they finish
+> (`pnpm build`, apply migration `20261008120000_product_gaps`). No code was changed by this review.
+
+**Working (200):** social home, Ads, AI, Analytics, Automation, Calendar, Channels, Clients, Media, Settings, WhatsApp, Team, login;
+APIs for integrations, posts, media, tags, clients, ads accounts, audience, WhatsApp conversations, autoposts, webhooks, signatures, sets.
+
+**Issues to fix / re-check**
+| # | Issue | What to do |
+|---|---|---|
+| 1 | Pages Inbox, Leads, Reports, Billing, API clients and `/docs/api` returned 404, and so did their APIs (inbox, leads, reports, billing, api-clients, WhatsApp templates, AI brand-kit, AI approvals) | Files exist but are untracked/new. Rebuild, then re-test. If still 404, check nav config and route files |
+| 2 | `/admin` returned 500 (`HttpError: Not found`) | Find what it throws; a non-platform-admin user should get a clean 403/redirect, not a 500 |
+| 3 | `/register` page still renders (API already returns 403) | Redirect to `/login` or show an invite-only message |
+| 4 | `pnpm lint`: 38 errors, 29 warnings | Fix before external access |
+| 5 | Analytics worker queries `providerIdentifier: 'meta'`, real values are `facebook`/`instagram`, so no data syncs | See "Meta data sync review" above |
+| 6 | Ads: global token, no tenant assignment | Phase 0/1 security gate |
+| 7 | Many new untracked files (inbox, leads, billing, v1 API, webhooks/meta, razorpay, copilot, templates, broadcasts) | Review, typecheck, test, then commit in small commits |
+| 8 | `/api/social/posts/calendar` and `/api/social/analytics` returned 400, `/analytics/competitors` returned 405 | Probably missing query params / POST-only. Confirm, and document required params |
+
+**End-to-end client flow to verify after rebuild:** admin creates client → links ad account → generates magic link → client opens
+portal → connects a channel → approves a post → data appears in analytics. Also check tenant isolation (no cross-organization data),
+Meta webhook signature checks, Razorpay and `/api/v1` key checks rejecting bad input, and the workers writing to MySQL (read-only on PodoSphere's own Page).
+
 ### Session: 6 Oct 2026 (Meta + WhatsApp check, read-only)
 
 Checked with the Meta Social Technologies MCP and read-only Graph API `GET` calls. **Nothing was changed.**

@@ -1,6 +1,7 @@
 import type { NextRequest } from 'next/server';
 import { webhookService } from '@/modules/social/server/webhooks/webhook.service';
 import { getCurrentOrganization } from '@/shared/server/current-organization';
+import { requireRole } from '@/shared/server/access';
 import { errorResponse } from '@/shared/server/http-error';
 
 export async function POST(
@@ -10,6 +11,7 @@ export async function POST(
   try {
     const { id } = await ctx.params;
     const organization = await getCurrentOrganization();
+    await requireRole('ADMIN');
     return Response.json(await webhookService.test(organization.id, id));
   } catch (error) {
     return errorResponse(error);

@@ -1,11 +1,14 @@
-import { requirePlatformAdmin } from '@/shared/server/access';
+import { getAccess } from '@/shared/server/access';
 import { adminService } from '@/modules/admin/server/admin.service';
 import { redirect } from 'next/navigation';
 
 export const metadata = { title: 'Platform Health | PodoSphere' };
 
 export default async function SuperAdminPage() {
-  await requirePlatformAdmin();
+  const ctx = await getAccess();
+  if (!ctx.isPlatformAdmin) {
+    redirect('/dashboard');
+  }
 
   const [organizations, syncFails, aiUsage] = await Promise.all([
     adminService.listOrganizations(),

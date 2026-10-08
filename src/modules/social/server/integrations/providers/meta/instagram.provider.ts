@@ -52,7 +52,7 @@ export class InstagramProvider extends MetaProviderBase {
     return 2200;
   }
 
-  protected toAccounts(pages: GraphPage[]): AuthTokenDetails[] {
+  protected toAccounts(pages: GraphPage[], metaUserId: string): AuthTokenDetails[] {
     return pages.flatMap((page) => {
       const account = page.instagram_business_account;
       if (!account || !page.access_token) {
@@ -65,6 +65,7 @@ export class InstagramProvider extends MetaProviderBase {
           username: account.username,
           picture: account.profile_picture_url,
           accessToken: page.access_token,
+          metadata: { metaUserId, facebookPageId: page.id },
         },
       ];
     });

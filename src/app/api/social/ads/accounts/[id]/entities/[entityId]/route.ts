@@ -7,6 +7,7 @@ import {
 } from '@/modules/social/server/ads/ads.schema';
 import { adsService } from '@/modules/social/server/ads/ads.service';
 import { getCurrentOrganization } from '@/shared/server/current-organization';
+import { requireRole } from '@/shared/server/access';
 import { errorResponse } from '@/shared/server/http-error';
 
 /** Period totals + daily history for one campaign, ad set, or ad (read-only). */
@@ -16,6 +17,7 @@ export async function GET(
 ) {
   try {
     const org = await getCurrentOrganization();
+    await requireRole('ADMIN');
     const params = await ctx.params;
     const accountId = adAccountIdSchema.parse(params.id);
     const entityId = adsEntityIdSchema.parse(params.entityId);

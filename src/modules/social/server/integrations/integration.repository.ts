@@ -15,6 +15,7 @@ export interface UpsertIntegrationData {
   tokenExpiration: Date | null;
   inBetweenSteps: boolean;
   customerId?: string | null;
+  additionalSettings?: any;
 }
 
 export interface UpdateTokensData {

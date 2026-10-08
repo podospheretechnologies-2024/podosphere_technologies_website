@@ -2,11 +2,13 @@ import type { NextRequest } from 'next/server';
 import { podoCrmWhatsAppLinkSchema } from '@/modules/social/server/podocrm/podocrm-whatsapp-sync.schema';
 import { podoCrmWhatsAppSyncService } from '@/modules/social/server/podocrm/podocrm-whatsapp-sync.service';
 import { getCurrentOrganization } from '@/shared/server/current-organization';
+import { requireRole } from '@/shared/server/access';
 import { errorResponse } from '@/shared/server/http-error';
 
 export async function GET() {
   try {
     const organization = await getCurrentOrganization();
+    await requireRole('ADMIN');
     return Response.json(await podoCrmWhatsAppSyncService.getStatus(organization.id));
   } catch (error) {
     return errorResponse(error);
@@ -16,6 +18,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const organization = await getCurrentOrganization();
+    await requireRole('ADMIN');
     const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
 
     if (body.action === 'sync-history') {
@@ -32,6 +35,7 @@ export async function POST(request: NextRequest) {
 export async function DELETE() {
   try {
     const organization = await getCurrentOrganization();
+    await requireRole('ADMIN');
     await podoCrmWhatsAppSyncService.unlink(organization.id);
     return new Response(null, { status: 204 });
   } catch (error) {

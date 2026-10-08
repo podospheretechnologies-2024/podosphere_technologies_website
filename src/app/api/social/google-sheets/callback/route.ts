@@ -3,6 +3,7 @@ import { socialSections } from '@/modules/social/config/navigation';
 import { googleSheetsService } from '@/modules/social/server/google-sheets/google-sheets.service';
 import { getServerEnv } from '@/shared/lib/env';
 import { getCurrentOrganization } from '@/shared/server/current-organization';
+import { requireRole } from '@/shared/server/access';
 import { HttpError } from '@/shared/server/http-error';
 
 function toUserMessage(error: unknown): string {
@@ -16,6 +17,7 @@ export async function GET(request: NextRequest) {
 
   try {
     const organization = await getCurrentOrganization();
+    await requireRole('ADMIN');
     const code = request.nextUrl.searchParams.get('code');
     const state = request.nextUrl.searchParams.get('state');
     const oauthError = request.nextUrl.searchParams.get('error');

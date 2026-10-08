@@ -1,39 +1,50 @@
-import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/shared/lib/prisma';
 import { getCurrentOrganization } from '@/shared/server/current-organization';
+import { requireRole } from '@/shared/server/access';
+import { errorResponse } from '@/shared/server/http-error';
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     const organization = await getCurrentOrganization();
-    
-    // Fetch daily insights for the organization's integrations
+    await requireRole('ADMIN');
+
     const integrations = await prisma.socialIntegration.findMany({
       where: { organizationId: organization.id, deletedAt: null },
-      select: { id: true, name: true, providerIdentifier: true }
-    });
-    
-    const integrationIds = integrations.map(i => i.id);
-    const dailyInsights = await prisma.socialInsightDaily.findMany({
-      where: { integrationId: { in: integrationIds }, metric: 'followers' },
-      orderBy: { date: 'asc' }
+      select: { id: true, name: true, providerIdentifier: true },
     });
 
-    // Fetch competitors and their snapshots
+    const integrationIds = integrations.map((item) => item.id);
+    const dailyInsights = integrationIds.length
+      ? await prisma.socialInsightDaily.findMany({
+          where: { integrationId: { in: integrationIds }, metric: 'followers' },
+          orderBy: { date: 'asc' },
+        })
+      : [];
+
+    const latestFollowers: Record<string, number> = {};
+    for (const row of dailyInsights) {
+      latestFollowers[row.integrationId] = Number(row.value);
+    }
+
     const competitors = await prisma.socialCompetitor.findMany({
       where: { organizationId: organization.id },
-      include: {
-        snapshots: {
-          orderBy: { date: 'asc' }
-        }
-      }
+      include: { snapshots: { orderBy: { date: 'asc' } } },
     });
 
-    return NextResponse.json({
-      integrations,
-      dailyInsights,
-      competitors
+    return Response.json({
+      integrations: integrations.map((channel) => ({
+        ...channel,
+        followers: latestFollowers[channel.id] ?? 0,
+      })),
+      totalAudienceSize: Object.values(latestFollowers).reduce((sum, value) => sum + value, 0),
+      dailyInsights: dailyInsights.map((row) => ({
+        integrationId: row.integrationId,
+        date: row.date,
+        value: Number(row.value),
+      })),
+      competitors,
     });
-  } catch (err) {
-    return new NextResponse('Unauthorized', { status: 401 });
+  } catch (error) {
+    return errorResponse(error);
   }
 }

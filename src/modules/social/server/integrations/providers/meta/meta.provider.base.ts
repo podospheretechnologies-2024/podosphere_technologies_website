@@ -57,7 +57,7 @@ export abstract class MetaProviderBase extends SocialProviderBase {
   protected abstract readonly noAccountsMessage: string;
 
   /** Turns the Pages the user shared into the accounts this provider connects. */
-  protected abstract toAccounts(pages: GraphPage[]): AuthTokenDetails[];
+  protected abstract toAccounts(pages: GraphPage[], metaUserId: string): AuthTokenDetails[];
 
   async generateAuthUrl(redirectUri: string): Promise<GeneratedAuthUrl> {
     const state = this.createState();
@@ -105,12 +105,17 @@ export abstract class MetaProviderBase extends SocialProviderBase {
         .map((entry) => entry.permission)
     );
 
+    const user = await this.graph<{ id: string }>('me', {
+      action: 'load user id',
+      token: userToken,
+    });
+
     const pages = await this.graph<GraphList<GraphPage>>('me/accounts', {
       action: 'load pages',
       token: userToken,
       params: { fields: PAGE_FIELDS, limit: 100 },
     });
-    const accounts = this.toAccounts(pages.data);
+    const accounts = this.toAccounts(pages.data, user.id);
     if (accounts.length === 0) {
       throw new BadBodyError(this.identifier, this.noAccountsMessage);
     }

@@ -6,11 +6,13 @@ import {
 } from '@/modules/social/server/media/media.schema';
 import { mediaService } from '@/modules/social/server/media/media.service';
 import { getCurrentOrganization } from '@/shared/server/current-organization';
+import { requireRole } from '@/shared/server/access';
 import { errorResponse } from '@/shared/server/http-error';
 
 export async function GET(request: NextRequest) {
   try {
     const organization = await getCurrentOrganization();
+    await requireRole('ADMIN');
     const query = listMediaQuerySchema.parse(Object.fromEntries(request.nextUrl.searchParams));
     return Response.json(await mediaService.list(organization.id, query));
   } catch (error) {
@@ -23,6 +25,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const organization = await getCurrentOrganization();
+    await requireRole('ADMIN');
     const fileName = uploadFileNameSchema.parse(
       decodeURIComponent(request.headers.get('x-file-name') ?? '')
     );
