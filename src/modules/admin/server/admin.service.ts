@@ -11,7 +11,7 @@ export const adminService = {
     return prisma.organization.findMany({
       include: {
         _count: {
-          select: { members: true, customers: true }
+          select: { users: true, socialCustomers: true }
         }
       },
       orderBy: { createdAt: 'desc' }

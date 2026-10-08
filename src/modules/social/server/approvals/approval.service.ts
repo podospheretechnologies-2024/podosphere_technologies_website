@@ -4,7 +4,7 @@ import { getServerEnv } from '@/shared/lib/env';
 import { SignJWT, jwtVerify } from 'jose';
 import { HttpError } from '@/shared/server/http-error';
 
-const SECRET = new TextEncoder().encode(getServerEnv().JWT_SECRET || 'fallback-secret-for-dev');
+const SECRET = new TextEncoder().encode(getServerEnv().SESSION_SECRET);
 
 export const approvalService = {
   async generateMagicLink(approverId: string): Promise<string> {

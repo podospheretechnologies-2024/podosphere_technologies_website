@@ -1,6 +1,7 @@
 import 'server-only';
 import { randomUUID } from 'node:crypto';
 import type { Prisma, SocialCreationMethod, SocialPostState } from '@/generated/prisma/client';
+import { prisma } from '@/shared/lib/prisma';
 import { HttpError } from '@/shared/server/http-error';
 import { logAudit } from '@/shared/server/audit.service';
 import { CALENDAR_MAX_RANGE_DAYS } from '../../config/calendar';

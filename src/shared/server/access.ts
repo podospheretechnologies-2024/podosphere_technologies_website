@@ -3,7 +3,7 @@ import { prisma } from '@/shared/lib/prisma';
 import { getCurrentUser } from '@/modules/auth/server/session';
 import { cookies } from 'next/headers';
 import { HttpError } from './http-error';
-import type { User, Organization } from '@prisma/client';
+import type { User, Organization } from '@/generated/prisma/client';
 
 export type ClientPermission = 
   | 'view' 

@@ -1,6 +1,7 @@
 import 'server-only';
 import type { SocialIntegration } from '@/generated/prisma/client';
 import { decrypt, encrypt } from '@/shared/lib/crypto';
+import { prisma } from '@/shared/lib/prisma';
 import { getServerEnv } from '@/shared/lib/env';
 import { HttpError } from '@/shared/server/http-error';
 import { logAudit } from '@/shared/server/audit.service';
