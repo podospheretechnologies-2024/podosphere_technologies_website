@@ -86,15 +86,21 @@ export const analyticsRepository = {
       orderBy: { publishDate: 'desc' },
     });
   },
+  async listExternalPosts(organizationId: string, start: Date, end: Date, clientIds: 'all' | string[] = 'all') {
+    const validIntegrations = await prisma.socialChannel.findMany({
+      where: {
+        organizationId,
+        deletedAt: null,
+        customerId: clientIds === 'all' ? undefined : { in: clientIds }
+      },
+      select: { id: true }
+    });
+    
+    const validIntegrationIds = validIntegrations.map(i => i.id);
 
-  listExternalPosts(organizationId: string, start: Date, end: Date, clientIds: 'all' | string[] = 'all') {
     return prisma.socialExternalPost.findMany({
       where: {
-        integration: { 
-          organizationId, 
-          deletedAt: null,
-          customerId: clientIds === 'all' ? undefined : { in: clientIds }
-        },
+        integrationId: { in: validIntegrationIds },
         publishedAt: { gte: start, lt: end },
       },
       select: {

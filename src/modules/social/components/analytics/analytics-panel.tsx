@@ -255,7 +255,7 @@ export function AnalyticsPanel() {
 
         <div className="flex items-center gap-2">
           <Button
-            variant="outline"
+            variant="secondary"
             onClick={async () => {
               try {
                 const res = await fetch('/api/social/analytics/sync', { method: 'POST' });

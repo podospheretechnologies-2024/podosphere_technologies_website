@@ -120,25 +120,29 @@ async function syncPostMetrics() {
   console.log('[analytics-worker] Syncing post metrics (reach, impressions, saves)...');
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
   
-  // Find external posts from the last 30 days that belong to active integrations
+  // Find external posts from the last 30 days
   const recentPosts = await prisma.socialExternalPost.findMany({
     where: {
       publishedAt: { gte: thirtyDaysAgo },
     },
-    include: {
-      integration: {
-        select: { id: true, providerIdentifier: true, accessToken: true, deletedAt: null },
-      },
-    },
   });
 
+  const integrationIds = Array.from(new Set(recentPosts.map(p => p.integrationId)));
+  const integrations = await prisma.socialChannel.findMany({
+    where: { id: { in: integrationIds }, deletedAt: null },
+    select: { id: true, providerIdentifier: true, accessToken: true },
+  });
+  const integrationMap = new Map(integrations.map(i => [i.id, i]));
+
   for (const post of recentPosts) {
-    if (post.integration.deletedAt) continue;
+    const integration = integrationMap.get(post.integrationId);
+    if (!integration) continue;
+
     try {
       const { metrics, unavailable } = await fetchPostMetrics(
-        post.integration.providerIdentifier,
+        integration.providerIdentifier,
         post.externalId,
-        post.integration.accessToken
+        integration.accessToken
       );
 
       if (!unavailable) {
