@@ -26,7 +26,7 @@ export function AdsDashboard() {
   const [until, setUntil] = useState('');
   const [statusFilter, setStatusFilter] = useState<AdsStatusFilter>(ADS_DEFAULT_STATUS_FILTER);
   const [detail, setDetail] = useState<AdsDetailSelection | null>(null);
-
+  const [isSyncing, setIsSyncing] = useState(false);
   const accounts = accountsQuery.data?.accounts ?? [];
   const accountId = selected ?? preferredAccount(accounts);
 
@@ -66,7 +66,7 @@ export function AdsDashboard() {
       </div>
     );
   }
-  const [isSyncing, setIsSyncing] = useState(false);
+
 
   async function syncAccounts() {
     try {
