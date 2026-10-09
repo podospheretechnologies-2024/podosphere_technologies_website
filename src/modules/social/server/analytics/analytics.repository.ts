@@ -87,7 +87,7 @@ export const analyticsRepository = {
     });
   },
   async listExternalPosts(organizationId: string, start: Date, end: Date, clientIds: 'all' | string[] = 'all') {
-    const validIntegrations = await prisma.socialChannel.findMany({
+    const validIntegrations = await prisma.socialIntegration.findMany({
       where: {
         organizationId,
         deletedAt: null,
@@ -95,8 +95,7 @@ export const analyticsRepository = {
       },
       select: { id: true }
     });
-    
-    const validIntegrationIds = validIntegrations.map(i => i.id);
+    const validIntegrationIds = validIntegrations.map((i: any) => i.id);
 
     return prisma.socialExternalPost.findMany({
       where: {

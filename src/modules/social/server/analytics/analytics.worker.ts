@@ -128,11 +128,11 @@ async function syncPostMetrics() {
   });
 
   const integrationIds = Array.from(new Set(recentPosts.map(p => p.integrationId)));
-  const integrations = await prisma.socialChannel.findMany({
+  const integrations = await prisma.socialIntegration.findMany({
     where: { id: { in: integrationIds }, deletedAt: null },
     select: { id: true, providerIdentifier: true, accessToken: true },
   });
-  const integrationMap = new Map(integrations.map(i => [i.id, i]));
+  const integrationMap = new Map<string, any>(integrations.map((i: any) => [i.id, i]));
 
   for (const post of recentPosts) {
     const integration = integrationMap.get(post.integrationId);
