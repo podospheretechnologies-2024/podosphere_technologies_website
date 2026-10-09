@@ -11,8 +11,6 @@ import type { PostMedia } from '../../types/post';
 import { integrationRegistry } from '../integrations/core/integration.registry';
 import { analyticsRepository } from './analytics.repository';
 import type { AnalyticsQuery } from './analytics.schema';
-import { fetchMetaHistoryForChannel, type MetaHistoryPost } from './meta-history';
-import { fetchPostMetrics } from './post-metrics';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 /** Keep under typical reverse-proxy 60s limits (504). */
@@ -112,7 +110,7 @@ function providerNameOf(identifier: string) {
 }
 
 export const analyticsService = {
-  async summary(organizationId: string, query: AnalyticsQuery): Promise<AnalyticsSummary> {
+  async summary(organizationId: string, query: AnalyticsQuery, clientIds: 'all' | string[] = 'all'): Promise<AnalyticsSummary> {
     const deadline = Date.now() + ANALYTICS_BUDGET_MS;
     const start = new Date(query.startDate);
     const end = new Date(query.endDate);
@@ -123,12 +121,13 @@ export const analyticsService = {
       throw new HttpError(400, `Range cannot exceed ${ANALYTICS_MAX_RANGE_DAYS} days`);
     }
 
-    const [outcomes, scheduled, drafts, channelRows, publishedRows] = await Promise.all([
-      analyticsRepository.listOutcomes(organizationId, start, end),
-      analyticsRepository.countUpcoming(organizationId, new Date()),
-      analyticsRepository.countDrafts(organizationId),
-      analyticsRepository.listChannels(organizationId),
-      analyticsRepository.listPublishedPosts(organizationId, start, end),
+    const [outcomes, scheduled, drafts, channelRows, publishedRows, externalPosts] = await Promise.all([
+      analyticsRepository.listOutcomes(organizationId, start, end, clientIds),
+      analyticsRepository.countUpcoming(organizationId, new Date(), clientIds),
+      analyticsRepository.countDrafts(organizationId, clientIds),
+      analyticsRepository.listChannels(organizationId, clientIds),
+      analyticsRepository.listPublishedPosts(organizationId, start, end, clientIds),
+      analyticsRepository.listExternalPosts(organizationId, start, end, clientIds),
     ]);
 
     const channels = new Map<string, AnalyticsChannel>(
@@ -162,41 +161,29 @@ export const analyticsService = {
       if (row.releaseId) appPostsByRelease.set(row.releaseId, row);
     }
 
-    // Sync historical posts from Meta for every FB / IG channel (includes pre-website posts).
-    // Per-channel budget so one slow account cannot 504 the whole analytics request.
-    const metaChannels = channelRows.filter(
-      (row) => row.providerIdentifier === 'facebook' || row.providerIdentifier === 'instagram'
-    );
-    const perChannelBudget = Math.min(
-      7_000,
-      Math.max(2_500, Math.floor(META_HISTORY_BUDGET_MS / Math.max(1, metaChannels.length)))
-    );
-    const metaByChannel = await mapPool(metaChannels, CHANNEL_SYNC_CONCURRENCY, async (row) => {
-      if (remainingMs(deadline) < 1_000) {
-        return { channelId: row.id, history: [] as MetaHistoryPost[] };
-      }
-      const history = await withBudget(
-        Math.min(perChannelBudget, remainingMs(deadline)),
-        fetchMetaHistoryForChannel(
-          {
-            providerIdentifier: row.providerIdentifier,
-            internalId: row.internalId,
-            accessToken: row.accessToken,
-          },
-          start,
-          end
-        ),
-        [] as MetaHistoryPost[]
-      );
-      return { channelId: row.id, history };
-    });
-
-    const metaPosts: { channelId: string; post: MetaHistoryPost }[] = [];
-    for (const entry of metaByChannel) {
-      for (const post of entry.history) {
-        metaPosts.push({ channelId: entry.channelId, post });
-      }
-    }
+    // Sync historical posts from Meta for every FB / IG channel is now done in the background worker!
+    const metaPosts = externalPosts.map((post) => ({
+      channelId: post.integrationId,
+      post: {
+        id: post.externalId,
+        releaseId: post.externalId,
+        content: post.caption || '',
+        publishDate: post.publishedAt,
+        releaseUrl: post.permalink || null,
+        thumbnailUrl: post.thumbnailUrl || null,
+        seedMetrics: {
+          likes: post.likes,
+          views: post.videoViews,
+          comments: post.comments,
+          shares: post.shares,
+          reach: post.reach,
+          impressions: post.impressions,
+          engagement: post.engagementRate ? Number(post.engagementRate) : null,
+          saved: post.saves,
+          clicks: null,
+        },
+      },
+    }));
 
     // Merge: Meta history + any app-only published posts without a Meta match.
     type MergedSource = {
@@ -254,29 +241,8 @@ export const analyticsService = {
       (a, b) => b.publishDate.getTime() - a.publishDate.getTime()
     );
 
-    // Prefer list/seed counts (fast). Only Graph-enrich posts that have no seed metrics.
-    const insightTargets = mergedList
-      .filter((row) => row.releaseId && !hasSeedCounts(row.seedMetrics))
-      .slice(0, MAX_POSTS_WITH_INSIGHTS);
-
-    const insightBudget = remainingMs(deadline);
-    const enriched = await withBudget(
-      insightBudget,
-      mapPool(insightTargets, METRICS_CONCURRENCY, async (row) => {
-        const { metrics, unavailable } = await fetchPostMetrics(
-          row.providerIdentifier,
-          row.releaseId,
-          row.accessToken
-        );
-        return {
-          id: row.id,
-          metrics: mergeMetrics(metrics, row.seedMetrics),
-          unavailable,
-        };
-      }),
-      [] as { id: string; metrics: AnalyticsPostMetrics; unavailable: boolean }[]
-    );
-    const enrichedById = new Map(enriched.map((entry) => [entry.id, entry]));
+    // Background worker populates all metrics, so we no longer do live graph enrichments here!
+    const enrichedById = new Map<string, { metrics: AnalyticsPostMetrics; unavailable: boolean }>();
 
     const posts: AnalyticsPost[] = mergedList.map((row) => {
       const extra = enrichedById.get(row.id);

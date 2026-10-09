@@ -152,7 +152,7 @@ export class InstagramProvider extends MetaProviderBase {
     if (LOCAL_HOSTS.test(new URL(media.url).hostname)) {
       throw new BadBodyError(
         this.identifier,
-        'Instagram downloads media from a public URL and cannot reach this computer. Set APP_URL to a public address (e.g. an ngrok tunnel).'
+        'Instagram downloads media from a public URL and cannot reach this computer. Set APP_URL to a public address (e.g. a Cloudflare tunnel; ngrok free tier will not work due to browser warnings).'
       );
     }
   }

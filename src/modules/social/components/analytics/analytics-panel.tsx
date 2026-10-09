@@ -1,7 +1,7 @@
 'use client';
 
 import dayjs from 'dayjs';
-import { Download } from 'lucide-react';
+import { Download, RefreshCw } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Button } from '@/shared/components/ui/button';
 import { EmptyState } from '@/shared/components/ui/empty-state';
@@ -253,14 +253,34 @@ export function AnalyticsPanel() {
           )}
         </div>
 
-        <Button
-          variant="secondary"
-          disabled={!data || isLoading}
-          onClick={() => data && downloadAnalyticsReport(data, range)}
-        >
-          <Download className="size-4" />
-          Download report
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            onClick={async () => {
+              try {
+                const res = await fetch('/api/social/analytics/sync', { method: 'POST' });
+                if (res.ok) {
+                  alert('Live sync started! Data will update in the background shortly.');
+                } else {
+                  alert('Failed to start live sync.');
+                }
+              } catch (e) {
+                alert('Failed to start live sync.');
+              }
+            }}
+          >
+            <RefreshCw className="size-4 mr-2" />
+            Sync Live
+          </Button>
+          <Button
+            variant="secondary"
+            disabled={!data || isLoading}
+            onClick={() => data && downloadAnalyticsReport(data, range)}
+          >
+            <Download className="size-4 mr-2" />
+            Download report
+          </Button>
+        </div>
       </div>
 
       {error && !data ? (

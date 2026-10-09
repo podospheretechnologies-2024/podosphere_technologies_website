@@ -12,8 +12,26 @@ const schema = z.object({
   body: z.string().trim().min(1).max(1024),
 });
 
-export function GET() {
-  return methodNotAllowed('POST');
+export async function GET() {
+  try {
+    const organization = await getCurrentOrganization();
+    await requireRole('ADMIN');
+    return Response.json(await whatsappOnboardingService.listTemplates(organization.id));
+  } catch (error) {
+    return errorResponse(error);
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const organization = await getCurrentOrganization();
+    await requireRole('ADMIN');
+    const name = request.nextUrl.searchParams.get('name');
+    if (!name) return new Response('Missing name parameter', { status: 400 });
+    return Response.json(await whatsappOnboardingService.deleteTemplate(organization.id, name));
+  } catch (error) {
+    return errorResponse(error);
+  }
 }
 
 export async function POST(request: NextRequest) {

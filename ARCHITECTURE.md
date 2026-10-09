@@ -83,6 +83,11 @@ If you add background work, put it in a `*.worker.ts` inside the module and star
 | A new social platform | A provider in `src/modules/social/server/integrations/providers/<platform>/`, registered in `integrations/core/integration.registry.ts` |
 | A new env variable | `.env.example` (empty value) plus the zod schema in `src/shared/lib/env.ts` |
 
+> **Planned (not built yet): client-wise data.** Each client is a `SocialCustomer`. The plan adds `customerId` to every
+> client-data table and a single `getClientScope()` helper (`src/shared/server/client-scope.ts`) that every repository uses
+> instead of a bare `organizationId`. Until it exists, new client-data tables should already include a nullable `customerId`.
+> Full plan, competitor comparison and new features: `PODO_SOCIAL_CLIENT_PLAN.md`.
+
 ## Run it locally
 
 ```bash

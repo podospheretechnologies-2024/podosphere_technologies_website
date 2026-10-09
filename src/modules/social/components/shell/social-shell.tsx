@@ -22,9 +22,10 @@ interface SocialShellProps {
   children: ReactNode;
   userName: string;
   organizationName: string;
+  organizationSlug: string;
 }
 
-function SocialShellBody({ children, userName, organizationName }: SocialShellProps) {
+function SocialShellBody({ children, userName, organizationName, organizationSlug }: SocialShellProps) {
   const pathname = usePathname();
   const router = useRouter();
   const navItem = getSocialAppNavItem(pathname);
@@ -68,7 +69,7 @@ function SocialShellBody({ children, userName, organizationName }: SocialShellPr
       )}
     >
       <div className="flex min-h-0 flex-1 gap-2">
-        <IconRail organizationName={organizationName} />
+        <IconRail organizationName={organizationName} organizationSlug={organizationSlug} />
         <div className="bg-border flex min-w-0 flex-1 flex-col gap-px overflow-hidden rounded-xl">
           <header className="bg-surface flex h-16 shrink-0 items-center gap-4 px-5">
             <Link

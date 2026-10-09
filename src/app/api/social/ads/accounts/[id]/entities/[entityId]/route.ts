@@ -7,7 +7,7 @@ import {
 } from '@/modules/social/server/ads/ads.schema';
 import { adsService } from '@/modules/social/server/ads/ads.service';
 import { getCurrentOrganization } from '@/shared/server/current-organization';
-import { requireRole } from '@/shared/server/access';
+import { getCurrentUser } from '@/modules/auth/server/session';
 import { errorResponse } from '@/shared/server/http-error';
 
 /** Period totals + daily history for one campaign, ad set, or ad (read-only). */
@@ -17,13 +17,13 @@ export async function GET(
 ) {
   try {
     const org = await getCurrentOrganization();
-    await requireRole('ADMIN');
+    const user = await getCurrentUser();
     const params = await ctx.params;
     const accountId = adAccountIdSchema.parse(params.id);
     const entityId = adsEntityIdSchema.parse(params.entityId);
     const kind = adsEntityKindSchema.parse(request.nextUrl.searchParams.get('kind') ?? 'ad');
     const date = adsOverviewQuerySchema.parse(Object.fromEntries(request.nextUrl.searchParams));
-    return Response.json(await adsService.entityHistory(org.id, accountId, kind, entityId, date));
+    return Response.json(await adsService.entityHistory(org.id, accountId, kind, entityId, date, user));
   } catch (error) {
     return errorResponse(error);
   }

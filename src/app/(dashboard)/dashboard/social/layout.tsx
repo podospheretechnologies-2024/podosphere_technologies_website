@@ -10,7 +10,11 @@ export default async function SocialLayout({ children }: { children: ReactNode }
   }
 
   return (
-    <SocialShell userName={user.name} organizationName={user.organization.name}>
+    <SocialShell
+      userName={user.name}
+      organizationName={user.organization.name}
+      organizationSlug={user.organization.slug}
+    >
       {children}
     </SocialShell>
   );

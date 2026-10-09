@@ -14,6 +14,7 @@ export async function GET() {
       include: {
         approvers: true,
         adAccounts: true,
+        integrations: true,
       },
       orderBy: { createdAt: 'desc' }
     });
@@ -28,7 +29,7 @@ export async function POST(req: Request) {
   try {
     const ctx = await requireRole('ADMIN');
     const body = await req.json();
-    const { name, approverName, approverEmail, adAccountId } = body;
+    const { name, approverName, approverEmail, adAccountId, integrationId } = body;
 
     if (!name || !approverName || !approverEmail) {
       return new NextResponse('Missing required fields', { status: 400 });
@@ -51,6 +52,14 @@ export async function POST(req: Request) {
     if (adAccountId) {
       await prisma.adAccount.update({
         where: { externalId: adAccountId },
+        data: { customerId: customer.id }
+      });
+    }
+
+    // 4. Link Social Integration if provided
+    if (integrationId) {
+      await prisma.socialIntegration.update({
+        where: { id: integrationId },
         data: { customerId: customer.id }
       });
     }

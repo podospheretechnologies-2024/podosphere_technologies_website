@@ -27,6 +27,9 @@ export function WhatsAppGrowthTools() {
   const [template, setTemplate] = useState({ name: '', language: 'en', category: 'UTILITY', body: '' });
   const [broadcast, setBroadcast] = useState({ name: '', templateName: '', language: 'en', phones: '', variables: '' });
 
+  const [health, setHealth] = useState<any>(null);
+  const [webhookUrl, setWebhookUrl] = useState('');
+
   function reload() {
     void fetch('/api/social/whatsapp/embedded-signup')
       .then((response) => response.json())
@@ -34,10 +37,14 @@ export function WhatsAppGrowthTools() {
     void fetch('/api/social/whatsapp/broadcasts')
       .then((response) => response.json())
       .then((data: BroadcastRow[]) => setBroadcasts(Array.isArray(data) ? data : []));
+    void fetch('/api/social/whatsapp/settings')
+      .then((response) => response.json())
+      .then((data) => setHealth(data));
   }
 
   useEffect(() => {
     reload();
+    setWebhookUrl(window.location.origin + '/api/webhooks/whatsapp');
   }, []);
 
   useEffect(() => {
@@ -124,44 +131,82 @@ export function WhatsAppGrowthTools() {
     reload();
   }
 
+  async function configureWebhook() {
+    const response = await fetch('/api/social/whatsapp/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ webhookUrl }),
+    });
+    const payload = await response.json();
+    setMessage(response.ok ? 'Webhook successfully configured!' : payload.error || 'Failed to configure webhook');
+  }
+
   return (
-    <section className="border-border bg-surface space-y-4 rounded-2xl border p-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-sm font-semibold">Embedded Signup, templates and broadcasts</h2>
-          <p className="text-muted-foreground text-xs">
-            {config?.connection
-              ? `Connected WABA ${config.connection.wabaId}${config.connection.displayPhone ? ` · ${config.connection.displayPhone}` : ''}`
-              : 'Connect a client WhatsApp number, submit a template, then broadcast to an opted-in list.'}
-          </p>
+    <div className="space-y-6">
+      <section className="border-border bg-surface space-y-4 rounded-2xl border p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-sm font-semibold">Embedded Signup, templates and broadcasts</h2>
+            <p className="text-muted-foreground text-xs">
+              {config?.connection
+                ? `Connected WABA ${config.connection.wabaId}${config.connection.displayPhone ? ` · ${config.connection.displayPhone}` : ''}`
+                : 'Connect a client WhatsApp number, submit a template, then broadcast to an opted-in list.'}
+            </p>
+          </div>
+          <Button type="button" onClick={() => void connect()} disabled={!config?.configured}>
+            Connect WhatsApp
+          </Button>
         </div>
-        <Button type="button" onClick={() => void connect()} disabled={!config?.configured}>
-          Connect WhatsApp
-        </Button>
-      </div>
-      <div className="grid gap-3 md:grid-cols-2">
-        <div className="space-y-2">
-          <p className="text-xs font-semibold">Submit a template</p>
-          <input className="border-border h-10 w-full rounded-xl border px-3 text-sm" placeholder="template_name" value={template.name} onChange={(event) => setTemplate({ ...template, name: event.target.value })} />
-          <textarea className="border-border w-full rounded-xl border px-3 py-2 text-sm" rows={3} placeholder="Body text. Use {{1}} for variables." value={template.body} onChange={(event) => setTemplate({ ...template, body: event.target.value })} />
-          <Button type="button" variant="secondary" onClick={() => void createTemplate()}>Submit to Meta</Button>
+        
+        {health?.status === 'CONFIGURED' && (
+          <div className="bg-surface-muted/30 border-border rounded-xl border p-3 flex flex-wrap gap-4 text-xs">
+            <div>
+              <span className="font-semibold block mb-1">Business Verification:</span>
+              <span className={health.verificationStatus === 'VERIFIED' ? 'text-success font-medium' : 'text-amber-500 font-medium'}>
+                {health.verificationStatus}
+              </span>
+            </div>
+            <div>
+              <span className="font-semibold block mb-1">Template Namespace:</span>
+              <span className="text-muted-foreground">{health.namespace || 'N/A'}</span>
+            </div>
+          </div>
+        )}
+
+        <div className="grid gap-3 md:grid-cols-2">
+          <div className="space-y-2">
+            <p className="text-xs font-semibold">Submit a template</p>
+            <input className="border-border h-10 w-full rounded-xl border px-3 text-sm" placeholder="template_name" value={template.name} onChange={(event) => setTemplate({ ...template, name: event.target.value })} />
+            <textarea className="border-border w-full rounded-xl border px-3 py-2 text-sm" rows={3} placeholder="Body text. Use {{1}} for variables." value={template.body} onChange={(event) => setTemplate({ ...template, body: event.target.value })} />
+            <Button type="button" variant="secondary" onClick={() => void createTemplate()}>Submit to Meta</Button>
+          </div>
+          <div className="space-y-2">
+            <p className="text-xs font-semibold">Broadcast an approved template</p>
+            <input className="border-border h-10 w-full rounded-xl border px-3 text-sm" placeholder="Campaign name" value={broadcast.name} onChange={(event) => setBroadcast({ ...broadcast, name: event.target.value })} />
+            <input className="border-border h-10 w-full rounded-xl border px-3 text-sm" placeholder="Approved template name" value={broadcast.templateName} onChange={(event) => setBroadcast({ ...broadcast, templateName: event.target.value })} />
+            <textarea className="border-border w-full rounded-xl border px-3 py-2 text-sm" rows={3} placeholder="Phones, one per line" value={broadcast.phones} onChange={(event) => setBroadcast({ ...broadcast, phones: event.target.value })} />
+            <Button type="button" variant="secondary" onClick={() => void sendBroadcast()}>Send broadcast</Button>
+          </div>
         </div>
-        <div className="space-y-2">
-          <p className="text-xs font-semibold">Broadcast an approved template</p>
-          <input className="border-border h-10 w-full rounded-xl border px-3 text-sm" placeholder="Campaign name" value={broadcast.name} onChange={(event) => setBroadcast({ ...broadcast, name: event.target.value })} />
-          <input className="border-border h-10 w-full rounded-xl border px-3 text-sm" placeholder="Approved template name" value={broadcast.templateName} onChange={(event) => setBroadcast({ ...broadcast, templateName: event.target.value })} />
-          <textarea className="border-border w-full rounded-xl border px-3 py-2 text-sm" rows={3} placeholder="Phones, one per line" value={broadcast.phones} onChange={(event) => setBroadcast({ ...broadcast, phones: event.target.value })} />
-          <Button type="button" variant="secondary" onClick={() => void sendBroadcast()}>Send broadcast</Button>
+
+        <div className="pt-4 border-t border-border mt-4">
+          <p className="text-xs font-semibold mb-2">Automated Webhook Configuration</p>
+          <div className="flex gap-2">
+            <input className="border-border h-10 w-full rounded-xl border px-3 text-sm" placeholder="https://domain.com/api/webhooks/whatsapp" value={webhookUrl} onChange={(event) => setWebhookUrl(event.target.value)} />
+            <Button type="button" variant="secondary" onClick={() => void configureWebhook()}>1-Click Connect</Button>
+          </div>
+          <p className="text-muted-foreground text-xs mt-2">Automatically subscribe to WhatsApp message events directly to this URL.</p>
         </div>
-      </div>
-      {message && <p className="text-muted-foreground text-xs">{message}</p>}
-      {broadcasts.length > 0 && (
-        <ul className="text-muted-foreground space-y-1 text-xs">
-          {broadcasts.map((row) => (
-            <li key={row.id}>{row.name} · {row.templateName} · {row.status} · {row.sentCount}/{row.recipientCount}</li>
-          ))}
-        </ul>
-      )}
-    </section>
+
+        {message && <p className="text-muted-foreground text-xs font-medium bg-surface-muted p-2 rounded-lg">{message}</p>}
+        {broadcasts.length > 0 && (
+          <ul className="text-muted-foreground space-y-1 text-xs">
+            {broadcasts.map((row) => (
+              <li key={row.id}>{row.name} · {row.templateName} · {row.status} · {row.sentCount}/{row.recipientCount}</li>
+            ))}
+          </ul>
+        )}
+      </section>
+    </div>
   );
 }

@@ -106,6 +106,81 @@ export const whatsappOnboardingService = {
     }
     return { id: payload.id ?? null, status: payload.status ?? 'PENDING' };
   },
+
+  async listTemplates(organizationId: string) {
+    const env = getServerEnv();
+    const connection = await prisma.socialWhatsAppConnection.findUnique({ where: { organizationId } });
+    const wabaId = connection?.wabaId ?? env.WHATSAPP_WABA_ID;
+    const token = connection ? decrypt(connection.accessToken) : env.WHATSAPP_ACCESS_TOKEN;
+    if (!wabaId || !token) throw new HttpError(400, 'WhatsApp not configured');
+
+    const response = await fetch(`https://graph.facebook.com/${env.META_GRAPH_VERSION}/${wabaId}/message_templates`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    if (!response.ok) throw new HttpError(502, 'Could not fetch templates from Meta');
+    return await response.json();
+  },
+
+  async deleteTemplate(organizationId: string, name: string) {
+    const env = getServerEnv();
+    const connection = await prisma.socialWhatsAppConnection.findUnique({ where: { organizationId } });
+    const wabaId = connection?.wabaId ?? env.WHATSAPP_WABA_ID;
+    const token = connection ? decrypt(connection.accessToken) : env.WHATSAPP_ACCESS_TOKEN;
+    if (!wabaId || !token) throw new HttpError(400, 'WhatsApp not configured');
+
+    const response = await fetch(`https://graph.facebook.com/${env.META_GRAPH_VERSION}/${wabaId}/message_templates?name=${name}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    if (!response.ok) throw new HttpError(502, 'Could not delete template from Meta');
+    return await response.json();
+  },
+
+  async configureWebhooks(organizationId: string, webhookUrl: string) {
+    const env = getServerEnv();
+    if (!env.META_APP_ID || !env.META_APP_SECRET || !env.META_WEBHOOK_VERIFY_TOKEN) {
+      throw new HttpError(400, 'App ID, Secret, and Verify Token are required in .env');
+    }
+    
+    // Get App Token
+    const appTokenRes = await fetch(`https://graph.facebook.com/oauth/access_token?client_id=${env.META_APP_ID}&client_secret=${env.META_APP_SECRET}&grant_type=client_credentials`);
+    const { access_token: appToken } = await appTokenRes.json();
+    if (!appToken) throw new HttpError(502, 'Could not generate App Token');
+
+    // Subscribe Webhook
+    const response = await fetch(`https://graph.facebook.com/${env.META_GRAPH_VERSION}/${env.META_APP_ID}/subscriptions`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${appToken}`, 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        object: 'whatsapp_business_account',
+        callback_url: webhookUrl,
+        verify_token: env.META_WEBHOOK_VERIFY_TOKEN,
+        fields: 'messages'
+      })
+    });
+    if (!response.ok) throw new HttpError(502, 'Could not subscribe webhook on Meta');
+    return { success: true };
+  },
+
+  async getAccountHealth(organizationId: string) {
+    const env = getServerEnv();
+    const connection = await prisma.socialWhatsAppConnection.findUnique({ where: { organizationId } });
+    const wabaId = connection?.wabaId ?? env.WHATSAPP_WABA_ID;
+    const token = connection ? decrypt(connection.accessToken) : env.WHATSAPP_ACCESS_TOKEN;
+    if (!wabaId || !token) return { status: 'NOT_CONFIGURED' };
+
+    const response = await fetch(`https://graph.facebook.com/${env.META_GRAPH_VERSION}/${wabaId}?fields=business_verification_status,message_template_namespace`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    if (!response.ok) return { status: 'ERROR', details: 'Could not fetch health data' };
+    const data = await response.json();
+    
+    return {
+      status: 'CONFIGURED',
+      verificationStatus: data.business_verification_status || 'UNKNOWN',
+      namespace: data.message_template_namespace
+    };
+  }
 };
 
 export const broadcastService = {

@@ -189,7 +189,13 @@ export function CalendarPostChip({
           <p className="text-foreground font-medium">
             {stateLabel[post.state]} · {post.channel.name}
           </p>
-          <p className="mt-0.5 line-clamp-2">{previewText}</p>
+          <p className="mt-0.5 line-clamp-2">
+            {post.state === 'error' && post.error ? (
+              <span className="text-danger font-medium">{post.error}</span>
+            ) : (
+              previewText
+            )}
+          </p>
         </div>
       )}
     </div>

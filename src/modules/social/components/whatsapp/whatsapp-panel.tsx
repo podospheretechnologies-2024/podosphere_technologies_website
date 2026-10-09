@@ -1,6 +1,6 @@
 'use client';
 
-import { MessageCircle, Phone, RefreshCw, Send } from 'lucide-react';
+import { MessageCircle, Phone, RefreshCw, Send, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '@/shared/components/ui/button';
 import { EmptyState } from '@/shared/components/ui/empty-state';
@@ -413,6 +413,19 @@ function TemplatesCard({ data, onRefresh }: { data: WhatsAppOverview; onRefresh:
               {template.unsupportedReason && (
                 <p className="text-danger mt-2 text-xs">{template.unsupportedReason}</p>
               )}
+              <div className="mt-3 flex justify-end">
+                <Button 
+                  variant="danger-ghost" 
+                  size="sm" 
+                  onClick={async () => {
+                    if (!window.confirm(`Delete template "${template.name}" from Meta?`)) return;
+                    await fetch(`/api/social/whatsapp/templates?name=${template.name}`, { method: 'DELETE' });
+                    onRefresh();
+                  }}
+                >
+                  <Trash2 className="size-3.5" /> Delete
+                </Button>
+              </div>
             </article>
           ))
         )}

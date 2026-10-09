@@ -8,10 +8,12 @@ import { apiFetch } from '@/shared/lib/fetcher';
 export default function ClientsPage() {
   const { data: clients, mutate } = useSWR<any[]>('/api/social/clients', apiFetch);
   const { data: adAccountsRes } = useSWR<any>('/api/social/ads/accounts', apiFetch);
+  const { data: integrationsRes } = useSWR<any>('/api/social/integrations', apiFetch);
   const adAccounts = adAccountsRes?.accounts || [];
+  const integrations = integrationsRes?.channels || [];
   
   const [isAdding, setIsAdding] = useState(false);
-  const [form, setForm] = useState({ name: '', approverName: '', approverEmail: '', adAccountId: '' });
+  const [form, setForm] = useState({ name: '', approverName: '', approverEmail: '', adAccountId: '', integrationId: '' });
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   async function handleAddClient(e: React.FormEvent) {
@@ -21,7 +23,7 @@ export default function ClientsPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(form)
     });
-    setForm({ name: '', approverName: '', approverEmail: '', adAccountId: '' });
+    setForm({ name: '', approverName: '', approverEmail: '', adAccountId: '', integrationId: '' });
     setIsAdding(false);
     mutate();
   }
@@ -78,6 +80,19 @@ export default function ClientsPage() {
                 </select>
               </div>
               <div className="space-y-2">
+                <label className="text-sm font-medium">Link Social Channel (Optional)</label>
+                <select
+                  value={form.integrationId}
+                  onChange={(e) => setForm({ ...form, integrationId: e.target.value })}
+                  className="bg-surface border-border flex h-10 w-full rounded-md border px-3 py-2 text-sm"
+                >
+                  <option value="">-- None --</option>
+                  {integrations?.map((channel: any) => (
+                    <option key={channel.id} value={channel.id}>{channel.name} ({channel.providerName})</option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-2">
                 <label className="text-sm font-medium">Approver Name</label>
                 <input
                   type="text"
@@ -126,14 +141,15 @@ export default function ClientsPage() {
               <th className="px-6 py-4 font-medium text-muted-foreground">Client Name</th>
               <th className="px-6 py-4 font-medium text-muted-foreground">Approver</th>
               <th className="px-6 py-4 font-medium text-muted-foreground">Linked Ads</th>
+              <th className="px-6 py-4 font-medium text-muted-foreground">Linked Channels</th>
               <th className="px-6 py-4 font-medium text-muted-foreground text-right">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y">
             {!clients ? (
-              <tr><td colSpan={4} className="p-8 text-center text-muted-foreground">Loading...</td></tr>
+              <tr><td colSpan={5} className="p-8 text-center text-muted-foreground">Loading...</td></tr>
             ) : clients.length === 0 ? (
-              <tr><td colSpan={4} className="p-8 text-center text-muted-foreground">No clients added yet.</td></tr>
+              <tr><td colSpan={5} className="p-8 text-center text-muted-foreground">No clients added yet.</td></tr>
             ) : (
               clients.map((client: any) => (
                 <tr key={client.id} className="hover:bg-surface-muted/30 transition">
@@ -146,6 +162,16 @@ export default function ClientsPage() {
                     {client.adAccounts?.length ? (
                       <span className="bg-primary/10 text-primary px-2 py-1 rounded text-xs font-medium">
                         {client.adAccounts[0].name}
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground text-xs">Unlinked</span>
+                    )}
+                  </td>
+                  <td className="px-6 py-4">
+                    {client.integrations?.length ? (
+                      <span className="bg-primary/10 text-primary px-2 py-1 rounded text-xs font-medium">
+                        {client.integrations[0].name}
+                        {client.integrations.length > 1 && ` (+${client.integrations.length - 1})`}
                       </span>
                     ) : (
                       <span className="text-muted-foreground text-xs">Unlinked</span>

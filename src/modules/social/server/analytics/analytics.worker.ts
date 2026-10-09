@@ -7,6 +7,8 @@ import { graphGet, type GraphConfig, type GraphList } from '../integrations/prov
 import { getServerEnv } from '@/shared/lib/env';
 import { decrypt } from '@/shared/lib/crypto';
 
+import { fetchPostMetrics } from './post-metrics';
+
 const SYNC_POSTS_EVERY_MS = 2 * 60 * 60 * 1000;
 const SYNC_POST_METRICS_EVERY_MS = 6 * 60 * 60 * 1000;
 const CAPTURE_STORIES_EVERY_MS = 4 * 60 * 60 * 1000;
@@ -116,6 +118,48 @@ async function syncPosts() {
 
 async function syncPostMetrics() {
   console.log('[analytics-worker] Syncing post metrics (reach, impressions, saves)...');
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  
+  // Find external posts from the last 30 days that belong to active integrations
+  const recentPosts = await prisma.socialExternalPost.findMany({
+    where: {
+      publishedAt: { gte: thirtyDaysAgo },
+    },
+    include: {
+      integration: {
+        select: { id: true, providerIdentifier: true, accessToken: true, deletedAt: null },
+      },
+    },
+  });
+
+  for (const post of recentPosts) {
+    if (post.integration.deletedAt) continue;
+    try {
+      const { metrics, unavailable } = await fetchPostMetrics(
+        post.integration.providerIdentifier,
+        post.externalId,
+        post.integration.accessToken
+      );
+
+      if (!unavailable) {
+        await prisma.socialExternalPost.update({
+          where: { id: post.id },
+          data: {
+            likes: metrics.likes ?? post.likes,
+            comments: metrics.comments ?? post.comments,
+            shares: metrics.shares ?? post.shares,
+            saves: metrics.saved ?? post.saves,
+            reach: metrics.reach ?? post.reach,
+            impressions: metrics.impressions ?? post.impressions,
+            videoViews: metrics.views ?? post.videoViews,
+            metricsAt: new Date(),
+          },
+        });
+      }
+    } catch (e) {
+      console.error(`[analytics-worker] Failed syncing metrics for post ${post.id}`, e);
+    }
+  }
 }
 
 async function captureStories() {

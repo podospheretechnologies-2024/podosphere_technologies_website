@@ -481,15 +481,28 @@ async function fetchLeadsForAds(
   return leads;
 }
 
+import type { CurrentUser } from '@/modules/auth/server/session';
+
 export const adsService = {
   isConfigured(): boolean {
     return Boolean(getServerEnv().META_SYSTEM_USER_TOKEN);
   },
 
-  /** Ad accounts assigned to the organization. */
-  async listAccounts(organizationId: string): Promise<AdAccountItem[]> {
+  /** Ad accounts assigned to the organization (or assigned to the clients the user is a member of). */
+  async listAccounts(organizationId: string, user?: CurrentUser | null): Promise<AdAccountItem[]> {
+    let whereClause: any = { organizationId };
+
+    if (user && user.role === 'MEMBER') {
+      const memberships = await prisma.socialClientMember.findMany({
+        where: { userId: user.id },
+        select: { customerId: true },
+      });
+      const customerIds = memberships.map(m => m.customerId);
+      whereClause.customerId = { in: customerIds };
+    }
+
     const accounts = await prisma.adAccount.findMany({
-      where: { organizationId },
+      where: whereClause,
       orderBy: { name: 'asc' },
     });
     return accounts.map(acc => ({
@@ -501,8 +514,35 @@ export const adsService = {
     }));
   },
 
-  async overview(organizationId: string, accountId: string, date: AdsOverviewDateQuery): Promise<AdsOverview> {
-    const accounts = await this.listAccounts(organizationId);
+  async syncAccounts(organizationId: string): Promise<void> {
+    const { graph, token } = credentials();
+    const result = await getPaged<{ id: string; name?: string; currency?: string; timezone_name?: string; account_status?: number }>(
+      'me/adaccounts',
+      { fields: 'name,currency,timezone_name,account_status' }
+    );
+    for (const acc of result) {
+      await prisma.adAccount.upsert({
+        where: { externalId: acc.id },
+        update: {
+          name: acc.name ?? acc.id,
+          currency: acc.currency ?? 'USD',
+          timezone: acc.timezone_name ?? 'UTC',
+          status: acc.account_status ?? 1,
+        },
+        create: {
+          organizationId,
+          externalId: acc.id,
+          name: acc.name ?? acc.id,
+          currency: acc.currency ?? 'USD',
+          timezone: acc.timezone_name ?? 'UTC',
+          status: acc.account_status ?? 1,
+        }
+      });
+    }
+  },
+
+  async overview(organizationId: string, accountId: string, date: AdsOverviewDateQuery, user?: CurrentUser | null): Promise<AdsOverview> {
+    const accounts = await this.listAccounts(organizationId, user);
     const account = accounts.find((item) => item.id === accountId);
     if (!account) {
       throw new HttpError(404, 'Ad account not found or not shared with the system user');
@@ -691,9 +731,10 @@ export const adsService = {
     accountId: string,
     kind: 'ad' | 'campaign' | 'adset',
     entityId: string,
-    date: AdsOverviewDateQuery
+    date: AdsOverviewDateQuery,
+    user?: CurrentUser | null
   ): Promise<AdsEntityHistory> {
-    const accounts = await this.listAccounts(organizationId);
+    const accounts = await this.listAccounts(organizationId, user);
     if (!accounts.some((item) => item.id === accountId)) {
       throw new HttpError(404, 'Ad account not found or not shared with the system user');
     }

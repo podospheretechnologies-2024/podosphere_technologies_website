@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useState } from 'react';
 import { EmptyState } from '@/shared/components/ui/empty-state';
@@ -66,13 +66,35 @@ export function AdsDashboard() {
       </div>
     );
   }
+  const [isSyncing, setIsSyncing] = useState(false);
+
+  async function syncAccounts() {
+    try {
+      setIsSyncing(true);
+      const res = await fetch('/api/social/ads/accounts/sync', { method: 'POST' });
+      if (res.ok) {
+        await accountsQuery.mutate();
+      }
+    } finally {
+      setIsSyncing(false);
+    }
+  }
+
   if (accounts.length === 0) {
     return (
-      <div className="-m-5 min-h-[calc(100vh-3rem)] bg-[#F0F2F5] p-6">
+      <div className="-m-5 min-h-[calc(100vh-3rem)] bg-[#F0F2F5] p-6 flex flex-col items-center justify-center">
         <EmptyState
           title="No ad accounts shared"
           description="In Business Manager → System users → podo-social-bot → Assign assets, add the ad accounts you want to see here."
         />
+        <button
+          type="button"
+          disabled={isSyncing}
+          onClick={syncAccounts}
+          className="mt-6 rounded-md bg-[#1877F2] px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-[#166FE5] disabled:opacity-50"
+        >
+          {isSyncing ? 'Syncing...' : 'Sync Ad Accounts from Meta'}
+        </button>
       </div>
     );
   }
