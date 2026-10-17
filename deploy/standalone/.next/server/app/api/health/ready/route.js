@@ -1,0 +1,12 @@
+var R=require("../../../../chunks/[turbopack]_runtime.js")("server/app/api/health/ready/route.js")
+R.c("server/chunks/[root-of-the-server]__06pvnui._.js")
+R.c("server/chunks/_03ucveo._.js")
+R.c("server/chunks/[root-of-the-server]__1zgakxs._.js")
+R.c("server/chunks/node_modules__pnpm_0t8gdt9._.js")
+R.c("server/chunks/[root-of-the-server]__0em76xv._.js")
+R.c("server/chunks/_0xeg5gg._.js")
+R.c("server/chunks/_1bo5cdf._.js")
+R.c("server/chunks/node_modules__pnpm_0pkc2gq._.js")
+R.c("server/chunks/_next-internal_server_app_api_health_ready_route_actions_1vp2_n0.js")
+R.m(34574)
+module.exports=R.m(34574).exports

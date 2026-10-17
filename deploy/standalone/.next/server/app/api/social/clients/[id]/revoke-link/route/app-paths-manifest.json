@@ -1,0 +1,3 @@
+{
+  "/api/social/clients/[id]/revoke-link/route": "app/api/social/clients/[id]/revoke-link/route.js"
+}

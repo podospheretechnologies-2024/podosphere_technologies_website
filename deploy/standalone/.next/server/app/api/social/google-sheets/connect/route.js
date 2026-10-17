@@ -1,0 +1,13 @@
+var R=require("../../../../../chunks/[turbopack]_runtime.js")("server/app/api/social/google-sheets/connect/route.js")
+R.c("server/chunks/[externals]__1tttdya._.js")
+R.c("server/chunks/[root-of-the-server]__1fa4xf4._.js")
+R.c("server/chunks/_0kmq-9k._.js")
+R.c("server/chunks/_04ab13q._.js")
+R.c("server/chunks/_1bo5cdf._.js")
+R.c("server/chunks/_0xeg5gg._.js")
+R.c("server/chunks/node_modules__pnpm_0t8gdt9._.js")
+R.c("server/chunks/[root-of-the-server]__0em76xv._.js")
+R.c("server/chunks/1q8-_next_dist_0pvdlbw._.js")
+R.c("server/chunks/_next-internal_server_app_api_social_google-sheets_connect_route_actions_0p36f9y.js")
+R.m(76954)
+module.exports=R.m(76954).exports

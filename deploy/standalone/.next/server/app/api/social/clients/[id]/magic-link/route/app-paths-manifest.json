@@ -1,0 +1,3 @@
+{
+  "/api/social/clients/[id]/magic-link/route": "app/api/social/clients/[id]/magic-link/route.js"
+}

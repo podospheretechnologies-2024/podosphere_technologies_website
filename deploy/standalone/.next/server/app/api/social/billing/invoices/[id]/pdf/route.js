@@ -1,0 +1,13 @@
+var R=require("../../../../../../../chunks/[turbopack]_runtime.js")("server/app/api/social/billing/invoices/[id]/pdf/route.js")
+R.c("server/chunks/[root-of-the-server]__0x3pcn7._.js")
+R.c("server/chunks/_1mcn8qc._.js")
+R.c("server/chunks/_0kmq-9k._.js")
+R.c("server/chunks/[root-of-the-server]__1nceir1._.js")
+R.c("server/chunks/[root-of-the-server]__0em76xv._.js")
+R.c("server/chunks/_1bo5cdf._.js")
+R.c("server/chunks/[root-of-the-server]__1yeg97l._.js")
+R.c("server/chunks/_1ssqwfv._.js")
+R.c("server/chunks/1q8-_next_dist_0pvdlbw._.js")
+R.c("server/chunks/1oeh_server_app_api_social_billing_invoices_[id]_pdf_route_actions_0ugw67l.js")
+R.m(95107)
+module.exports=R.m(95107).exports

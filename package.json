@@ -5,7 +5,9 @@
   "scripts": {
     "dev": "next dev -p 4000",
     "build": "next build",
+    "build:deploy": "pnpm build && node scripts/pack-standalone.mjs",
     "start": "next start",
+    "start:standalone": "node deploy/standalone/server.js",
     "worker": "tsx --conditions=react-server src/worker/index.ts",
     "lint": "eslint",
     "typecheck": "next typegen && tsc --noEmit",

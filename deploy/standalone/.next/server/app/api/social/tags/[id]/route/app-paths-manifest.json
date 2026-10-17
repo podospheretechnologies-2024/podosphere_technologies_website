@@ -1,0 +1,3 @@
+{
+  "/api/social/tags/[id]/route": "app/api/social/tags/[id]/route.js"
+}

@@ -1,0 +1,12 @@
+var R=require("../../../chunks/[turbopack]_runtime.js")("server/app/api/data-deletion/route.js")
+R.c("server/chunks/[externals]__19z8c1z._.js")
+R.c("server/chunks/[root-of-the-server]__0ud3mu1._.js")
+R.c("server/chunks/[root-of-the-server]__0nur9ov._.js")
+R.c("server/chunks/_1bo5cdf._.js")
+R.c("server/chunks/_1ssqwfv._.js")
+R.c("server/chunks/[root-of-the-server]__0em76xv._.js")
+R.c("server/chunks/node_modules__pnpm_0t8gdt9._.js")
+R.c("server/chunks/node_modules__pnpm_0pkc2gq._.js")
+R.c("server/chunks/_next-internal_server_app_api_data-deletion_route_actions_0ushpz8.js")
+R.m(40372)
+module.exports=R.m(40372).exports

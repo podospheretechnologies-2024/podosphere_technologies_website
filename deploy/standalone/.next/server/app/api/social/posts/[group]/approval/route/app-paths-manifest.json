@@ -1,0 +1,3 @@
+{
+  "/api/social/posts/[group]/approval/route": "app/api/social/posts/[group]/approval/route.js"
+}

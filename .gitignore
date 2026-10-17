@@ -13,12 +13,15 @@
 # testing
 /coverage
 
-# next.js
+# next.js (local build cache — the packaged server lives in deploy/standalone)
 /.next/
 /out/
 
 # production
 /build
+# Prebuilt Next standalone server (committed so prod can skip `pnpm build`)
+!/deploy/standalone/
+!/deploy/standalone/**
 
 # misc
 .DS_Store

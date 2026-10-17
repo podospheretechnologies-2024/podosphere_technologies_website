@@ -1,0 +1,12 @@
+var R=require("../../../../../chunks/[turbopack]_runtime.js")("server/app/api/social/whatsapp/embedded-signup/route.js")
+R.c("server/chunks/[root-of-the-server]__04ohpzn._.js")
+R.c("server/chunks/[root-of-the-server]__0wicim_._.js")
+R.c("server/chunks/src_modules_social_1vwvt6e._.js")
+R.c("server/chunks/[root-of-the-server]__0em76xv._.js")
+R.c("server/chunks/_1ssqwfv._.js")
+R.c("server/chunks/1q8-_next_dist_0pvdlbw._.js")
+R.c("server/chunks/_1jettlw._.js")
+R.c("server/chunks/_1bo5cdf._.js")
+R.c("server/chunks/1oeh_server_app_api_social_whatsapp_embedded-signup_route_actions_0_tw-5c.js")
+R.m(35143)
+module.exports=R.m(35143).exports

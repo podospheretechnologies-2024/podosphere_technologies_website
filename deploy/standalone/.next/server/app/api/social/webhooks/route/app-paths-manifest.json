@@ -1,0 +1,3 @@
+{
+  "/api/social/webhooks/route": "app/api/social/webhooks/route.js"
+}

@@ -1,0 +1,10 @@
+User-Agent: facebookexternalhit
+User-Agent: meta-externalagent
+User-Agent: Facebot
+Allow: /
+
+User-Agent: *
+Allow: /
+Disallow: /dashboard
+Disallow: /api
+
