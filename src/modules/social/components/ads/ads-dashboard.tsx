@@ -84,8 +84,8 @@ export function AdsDashboard() {
     return (
       <div className="-m-5 min-h-[calc(100vh-3rem)] bg-[#F0F2F5] p-6 flex flex-col items-center justify-center">
         <EmptyState
-          title="No ad accounts shared"
-          description="In Business Manager → System users → podo-social-bot → Assign assets, add the ad accounts you want to see here."
+          title="No ad accounts assigned"
+          description="Only ad accounts assigned to this organization or client appear here. Ask an admin to assign an account, or sync from Meta if you manage the agency workspace."
         />
         <button
           type="button"

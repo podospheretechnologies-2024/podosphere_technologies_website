@@ -1,16 +1,14 @@
 import { whatsappService } from '@/modules/social/server/whatsapp/whatsapp.service';
-import { getCurrentOrganization } from '@/shared/server/current-organization';
-import { requireRole } from '@/shared/server/access';
+import { getClientScope } from '@/shared/server/client-scope';
 import { errorResponse } from '@/shared/server/http-error';
 
 export async function GET() {
   try {
-    const org = await getCurrentOrganization();
-    await requireRole('ADMIN');
+    const scope = await getClientScope('inbox');
     if (!whatsappService.isConfigured()) {
       return Response.json([]);
     }
-    return Response.json(await whatsappService.listConversations(org.id));
+    return Response.json(await whatsappService.listConversations(scope));
   } catch (error) {
     return errorResponse(error);
   }

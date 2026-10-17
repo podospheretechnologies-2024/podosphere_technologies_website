@@ -5,16 +5,14 @@ import {
   uploadFormatSchema,
 } from '@/modules/social/server/media/media.schema';
 import { mediaService } from '@/modules/social/server/media/media.service';
-import { getCurrentOrganization } from '@/shared/server/current-organization';
-import { requireRole } from '@/shared/server/access';
+import { getClientScope } from '@/shared/server/client-scope';
 import { errorResponse } from '@/shared/server/http-error';
 
 export async function GET(request: NextRequest) {
   try {
-    const organization = await getCurrentOrganization();
-    await requireRole('ADMIN');
+    const scope = await getClientScope('view');
     const query = listMediaQuerySchema.parse(Object.fromEntries(request.nextUrl.searchParams));
-    return Response.json(await mediaService.list(organization.id, query));
+    return Response.json(await mediaService.list(scope, query));
   } catch (error) {
     return errorResponse(error);
   }
@@ -24,8 +22,7 @@ export async function GET(request: NextRequest) {
 // storage instead of being buffered in memory.
 export async function POST(request: NextRequest) {
   try {
-    const organization = await getCurrentOrganization();
-    await requireRole('ADMIN');
+    const scope = await getClientScope('draft');
     const fileName = uploadFileNameSchema.parse(
       decodeURIComponent(request.headers.get('x-file-name') ?? '')
     );
@@ -33,7 +30,7 @@ export async function POST(request: NextRequest) {
     const declaredSize = Number(request.headers.get('content-length')) || undefined;
 
     const media = await mediaService.upload({
-      organizationId: organization.id,
+      scope,
       fileName,
       body: request.body,
       declaredSize,

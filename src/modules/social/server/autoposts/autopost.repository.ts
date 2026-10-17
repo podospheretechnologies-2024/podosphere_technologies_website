@@ -1,20 +1,23 @@
 import 'server-only';
 import type { SocialAutoPost } from '@/generated/prisma/client';
 import { prisma } from '@/shared/lib/prisma';
+import { scopeWhere, type ClientScope } from '@/shared/server/client-scope';
 import type { SaveAutopostBody } from './autopost.schema';
 
 type AutopostData = SaveAutopostBody & { lastUrl?: string | null };
 
 export const autopostRepository = {
-  list(organizationId: string): Promise<SocialAutoPost[]> {
+  list(scope: ClientScope): Promise<SocialAutoPost[]> {
     return prisma.socialAutoPost.findMany({
-      where: { organizationId, deletedAt: null },
+      where: { ...scopeWhere(scope), deletedAt: null },
       orderBy: { createdAt: 'asc' },
     });
   },
 
-  findById(organizationId: string, id: string): Promise<SocialAutoPost | null> {
-    return prisma.socialAutoPost.findFirst({ where: { id, organizationId, deletedAt: null } });
+  findById(scope: ClientScope, id: string): Promise<SocialAutoPost | null> {
+    return prisma.socialAutoPost.findFirst({
+      where: { id, ...scopeWhere(scope), deletedAt: null },
+    });
   },
 
   findActiveById(id: string): Promise<SocialAutoPost | null> {
@@ -28,8 +31,12 @@ export const autopostRepository = {
     });
   },
 
-  create(organizationId: string, data: AutopostData): Promise<SocialAutoPost> {
-    return prisma.socialAutoPost.create({ data: { organizationId, ...data } });
+  create(
+    organizationId: string,
+    customerId: string | null,
+    data: AutopostData
+  ): Promise<SocialAutoPost> {
+    return prisma.socialAutoPost.create({ data: { organizationId, customerId, ...data } });
   },
 
   update(id: string, data: AutopostData): Promise<SocialAutoPost> {

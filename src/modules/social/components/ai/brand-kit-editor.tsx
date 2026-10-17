@@ -3,18 +3,21 @@
 import { useEffect, useState } from 'react';
 import { Button } from '@/shared/components/ui/button';
 import { BRAND_KIT_FIELDS, emptyBrandKit, type BrandKit } from '../../config/brand-kit';
+import { useClientScopeKey } from '../../hooks/use-client-scope';
 
 export function BrandKitEditor() {
+  const scopeKey = useClientScopeKey();
   const [kit, setKit] = useState<BrandKit>(emptyBrandKit());
   const [status, setStatus] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
+    setStatus(null);
     void fetch('/api/social/ai/brand-kit')
       .then((response) => response.json())
       .then((data: BrandKit) => setKit({ ...emptyBrandKit(), ...data }))
       .catch(() => setStatus('Could not load the brand kit'));
-  }, []);
+  }, [scopeKey]);
 
   async function save() {
     setSaving(true);

@@ -1,10 +1,13 @@
 import 'server-only';
 import { prisma } from '@/shared/lib/prisma';
+import { scopeWhere, type ClientScope } from '@/shared/server/client-scope';
 
 export type WhatsAppMessageSource = 'customer' | 'podosocial' | 'podocrm' | 'unknown';
 
 export interface UpsertConversationInput {
   organizationId: string;
+  /** Set when the connection/client is known (webhook / scoped send). */
+  customerId?: string | null;
   waId: string;
   contactName?: string | null;
   preview: string;
@@ -26,9 +29,9 @@ export interface CreateMessageInput {
 }
 
 export const whatsappChatRepository = {
-  listConversations(organizationId: string) {
+  listConversations(scope: ClientScope) {
     return prisma.whatsAppConversation.findMany({
-      where: { organizationId },
+      where: scopeWhere(scope),
       orderBy: { lastMessageAt: 'desc' },
       take: 200,
     });
@@ -40,9 +43,9 @@ export const whatsappChatRepository = {
     });
   },
 
-  findConversationById(organizationId: string, id: string) {
+  findConversationById(scope: ClientScope, id: string) {
     return prisma.whatsAppConversation.findFirst({
-      where: { id, organizationId },
+      where: { id, ...scopeWhere(scope) },
     });
   },
 
@@ -79,6 +82,7 @@ export const whatsappChatRepository = {
         where: { id: existing.id },
         data: {
           contactName: input.contactName ?? existing.contactName,
+          customerId: existing.customerId ?? input.customerId ?? null,
           lastMessageAt: input.timestamp,
           lastInboundAt: input.inbound ? input.timestamp : existing.lastInboundAt,
           lastPreview: input.preview.slice(0, 500),
@@ -90,6 +94,7 @@ export const whatsappChatRepository = {
     return prisma.whatsAppConversation.create({
       data: {
         organizationId: input.organizationId,
+        customerId: input.customerId ?? null,
         waId: input.waId,
         contactName: input.contactName ?? null,
         lastMessageAt: input.timestamp,
@@ -134,9 +139,9 @@ export const whatsappChatRepository = {
     });
   },
 
-  markRead(organizationId: string, conversationId: string) {
+  markRead(scope: ClientScope, conversationId: string) {
     return prisma.whatsAppConversation.updateMany({
-      where: { id: conversationId, organizationId },
+      where: { id: conversationId, ...scopeWhere(scope) },
       data: { unreadCount: 0 },
     });
   },

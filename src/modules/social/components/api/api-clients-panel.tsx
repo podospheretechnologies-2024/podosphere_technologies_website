@@ -9,12 +9,21 @@ interface ApiClientRow {
   tokenPrefix: string;
   status: string;
   permissions: string[];
+  customerId: string | null;
+  customerName: string | null;
+}
+
+interface ClientOption {
+  id: string;
+  name: string;
 }
 
 export function ApiClientsPanel() {
   const [clients, setClients] = useState<ApiClientRow[]>([]);
+  const [customerOptions, setCustomerOptions] = useState<ClientOption[]>([]);
   const [permissions, setPermissions] = useState<string[]>([]);
   const [name, setName] = useState('Production');
+  const [customerId, setCustomerId] = useState('');
   const [selected, setSelected] = useState<string[]>(['posts:write', 'analytics:read', 'leads:read', 'whatsapp:send']);
   const [token, setToken] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -22,12 +31,26 @@ export function ApiClientsPanel() {
   function load() {
     void fetch('/api/social/api-clients')
       .then(async (response) => {
-        const payload = (await response.json()) as { clients?: ApiClientRow[]; permissions?: string[]; error?: string };
+        const payload = (await response.json()) as {
+          clients?: ApiClientRow[];
+          permissions?: string[];
+          error?: string;
+        };
         if (!response.ok) throw new Error(payload.error || 'Could not load API clients');
         setClients(payload.clients ?? []);
         setPermissions(payload.permissions ?? []);
       })
       .catch((err: Error) => setError(err.message));
+
+    void fetch('/api/social/clients')
+      .then(async (response) => {
+        if (!response.ok) return;
+        const payload = (await response.json()) as ClientOption[] | { id: string; name: string }[];
+        if (Array.isArray(payload)) {
+          setCustomerOptions(payload.map((row) => ({ id: row.id, name: row.name })));
+        }
+      })
+      .catch(() => undefined);
   }
 
   useEffect(() => {
@@ -40,7 +63,11 @@ export function ApiClientsPanel() {
     const response = await fetch('/api/social/api-clients', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, permissions: selected }),
+      body: JSON.stringify({
+        name,
+        permissions: selected,
+        customerId: customerId || null,
+      }),
     });
     const payload = (await response.json()) as { token?: string; error?: string };
     if (!response.ok || !payload.token) {
@@ -54,7 +81,24 @@ export function ApiClientsPanel() {
   return (
     <div className="space-y-4">
       <div className="border-border space-y-3 rounded-2xl border p-4">
-        <input className="border-border h-10 w-full rounded-xl border px-3 text-sm" value={name} onChange={(event) => setName(event.target.value)} />
+        <input
+          className="border-border h-10 w-full rounded-xl border px-3 text-sm"
+          value={name}
+          onChange={(event) => setName(event.target.value)}
+          placeholder="Key name"
+        />
+        <select
+          className="border-border h-10 w-full rounded-xl border px-3 text-sm"
+          value={customerId}
+          onChange={(event) => setCustomerId(event.target.value)}
+        >
+          <option value="">All clients (organization-wide)</option>
+          {customerOptions.map((customer) => (
+            <option key={customer.id} value={customer.id}>
+              Limit to: {customer.name}
+            </option>
+          ))}
+        </select>
         <div className="flex flex-wrap gap-3 text-sm">
           {permissions.map((permission) => (
             <label key={permission} className="flex items-center gap-2">
@@ -71,14 +115,21 @@ export function ApiClientsPanel() {
             </label>
           ))}
         </div>
-        <Button type="button" onClick={() => void create()}>Create key</Button>
-        {token && <p className="text-sm break-all">Copy this key now. It will not be shown again: {token}</p>}
+        <Button type="button" onClick={() => void create()}>
+          Create key
+        </Button>
+        {token && (
+          <p className="text-sm break-all">Copy this key now. It will not be shown again: {token}</p>
+        )}
         {error && <p className="text-danger text-sm">{error}</p>}
       </div>
       <ul className="space-y-2 text-sm">
         {clients.map((client) => (
           <li key={client.id} className="border-border flex items-center justify-between rounded-xl border px-3 py-2">
-            <span>{client.name} · {client.tokenPrefix}… · {client.status}</span>
+            <span>
+              {client.name} · {client.tokenPrefix}… · {client.status}
+              {client.customerName ? ` · client: ${client.customerName}` : ' · all clients'}
+            </span>
             <Button
               type="button"
               variant="danger-ghost"

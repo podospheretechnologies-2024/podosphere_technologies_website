@@ -7,6 +7,7 @@ import { getServerEnv } from '@/shared/lib/env';
 import { prisma } from '@/shared/lib/prisma';
 import { HttpError } from '@/shared/server/http-error';
 import { BRAND_KIT_FIELDS, type BrandKit } from '../../config/brand-kit';
+import { organizationScope } from '@/shared/server/client-scope';
 import { brandKitService } from './brand-kit.service';
 
 const REQUEST_TIMEOUT_MS = 2 * 60 * 1000;
@@ -125,7 +126,7 @@ export async function askClaude<Schema extends z.ZodType>({
 }: AskOptions<Schema>): Promise<z.infer<Schema>> {
   const anthropic = getClient();
   await ensureWithinBudget(organizationId);
-  const brandKit = await brandKitService.get(organizationId);
+  const brandKit = await brandKitService.get(organizationScope(organizationId));
 
   let message;
   try {

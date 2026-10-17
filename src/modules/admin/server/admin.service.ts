@@ -11,10 +11,16 @@ export const adminService = {
     return prisma.organization.findMany({
       include: {
         _count: {
-          select: { users: true, socialCustomers: true }
-        }
+          select: { users: true, socialCustomers: true },
+        },
+        users: {
+          where: { role: 'OWNER' },
+          select: { id: true, name: true, email: true },
+          take: 1,
+          orderBy: { createdAt: 'asc' },
+        },
       },
-      orderBy: { createdAt: 'desc' }
+      orderBy: { createdAt: 'desc' },
     });
   },
 
@@ -71,12 +77,13 @@ export const adminService = {
     const cookieStore = await cookies();
     const currentImpersonate = cookieStore.get('podo_impersonate')?.value;
     if (currentImpersonate) {
-      cookieStore.delete('podo_impersonate');
+      // Audit while the cookie is still present so impersonatorId is recorded.
       await logAudit({
         action: 'admin.impersonate_stop',
         targetType: 'user',
         targetId: currentImpersonate,
       });
+      cookieStore.delete('podo_impersonate');
     }
   }
 };

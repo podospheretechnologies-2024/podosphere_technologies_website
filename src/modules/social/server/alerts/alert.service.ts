@@ -1,5 +1,8 @@
 import 'server-only';
 import { prisma } from '@/shared/lib/prisma';
+import { socialSections } from '../../config/navigation';
+
+const SLA_SWEEP_BATCH = 100;
 
 export const alertService = {
   async createNotification(organizationId: string, content: string, link?: string) {
@@ -51,6 +54,59 @@ export const alertService = {
     // When frequency > 3 and CTR drops > 30%...
   },
 
+  /**
+   * Find inbox threads past slaDueAt with no first response; notify once and
+   * stamp slaBreachedAt. Criteria match inbox UI `overdue` badge.
+   */
+  async evaluateSlaBreaches(): Promise<{ breached: number }> {
+    const now = new Date();
+    const overdue = await prisma.socialInboxThread.findMany({
+      where: {
+        slaDueAt: { lt: now },
+        firstResponseAt: null,
+        slaBreachedAt: null,
+      },
+      select: {
+        id: true,
+        organizationId: true,
+        contactName: true,
+        platform: true,
+        slaDueAt: true,
+      },
+      orderBy: { slaDueAt: 'asc' },
+      take: SLA_SWEEP_BATCH,
+    });
+
+    if (overdue.length === 0) {
+      return { breached: 0 };
+    }
+
+    let breached = 0;
+    for (const thread of overdue) {
+      const who = thread.contactName?.trim() || 'Unknown contact';
+      const due = thread.slaDueAt?.toISOString() ?? 'unknown';
+      try {
+        await this.createNotification(
+          thread.organizationId,
+          `SLA breached: ${thread.platform} thread with ${who} (due ${due}).`,
+          `${socialSections.inbox.href}?thread=${thread.id}`
+        );
+        await prisma.socialInboxThread.update({
+          where: { id: thread.id },
+          data: { slaBreachedAt: now },
+        });
+        breached += 1;
+      } catch (err) {
+        console.error(`[alerts] SLA notify failed for thread ${thread.id}`, err);
+      }
+    }
+
+    if (breached > 0) {
+      console.log(`[alerts] SLA sweep flagged ${breached} thread(s)`);
+    }
+    return { breached };
+  },
+
   async runAllAlerts() {
     console.log('[alerts] Evaluating proactive agency alerts...');
     try {
@@ -63,9 +119,8 @@ export const alertService = {
     }
   },
 
+  /** @deprecated Use reportService.generateMonthlyPdf via social-reports-queue. */
   async generateMonthlyReport(customerId: string) {
-    console.log(`[reports] Generating AI monthly report for customer ${customerId}...`);
-    // Fetches SocialExternalPost and AdInsightDaily, builds context,
-    // calls Claude batch API to write the analysis, and saves to database.
+    console.log(`[reports] Delegating monthly PDF for customer ${customerId} — use REPORT_JOB.generateMonthly`);
   }
 };

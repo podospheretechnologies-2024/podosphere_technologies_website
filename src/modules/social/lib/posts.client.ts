@@ -18,6 +18,20 @@ export function deletePostGroup(group: string): Promise<void> {
   return apiFetch<void>(`${POSTS_API_ROUTE}/${group}`, { method: 'DELETE' });
 }
 
+export type ApprovalAction = 'submit_internal' | 'submit_client' | 'approve' | 'reject';
+
+export function postApprovalAction(
+  group: string,
+  action: ApprovalAction,
+  reason?: string
+): Promise<{ approvalStep: string }> {
+  return apiFetch<{ approvalStep: string }>(`${POSTS_API_ROUTE}/${group}/approval`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action, reason }),
+  });
+}
+
 export function reschedulePost(group: string, date: Date): Promise<void> {
   return apiFetch<void>(`${POSTS_API_ROUTE}/${group}`, {
     method: 'PATCH',
@@ -28,7 +42,11 @@ export function reschedulePost(group: string, date: Date): Promise<void> {
 
 /** Refreshes every cached posts request (list, calendar ranges, groups). */
 export function revalidatePosts(): Promise<unknown> {
-  return mutate((key) => typeof key === 'string' && key.startsWith(POSTS_API_ROUTE));
+  return mutate((key) => {
+    if (typeof key === 'string') return key.startsWith(POSTS_API_ROUTE);
+    if (Array.isArray(key) && typeof key[0] === 'string') return key[0].startsWith(POSTS_API_ROUTE);
+    return false;
+  });
 }
 
 /** Value for an <input type="datetime-local"> in the user's timezone. */

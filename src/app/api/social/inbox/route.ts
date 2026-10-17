@@ -1,15 +1,19 @@
+import type { NextRequest } from 'next/server';
 import { inboxService } from '@/modules/social/server/inbox/inbox.service';
 import { planService } from '@/modules/social/server/billing/plan.service';
-import { getCurrentOrganization } from '@/shared/server/current-organization';
-import { requireRole } from '@/shared/server/access';
+import { getClientScope } from '@/shared/server/client-scope';
 import { errorResponse } from '@/shared/server/http-error';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const organization = await getCurrentOrganization();
-    await requireRole('ADMIN');
-    await planService.assertFeature(organization.id, 'inbox');
-    return Response.json(await inboxService.listThreads(organization.id));
+    const scope = await getClientScope('inbox');
+    await planService.assertFeature(scope.organizationId, 'inbox');
+    const assigneeParam = request.nextUrl.searchParams.get('assigneeId');
+    const options =
+      assigneeParam === null
+        ? undefined
+        : { assigneeId: assigneeParam === '' || assigneeParam === 'unassigned' ? null : assigneeParam };
+    return Response.json(await inboxService.listThreads(scope, options));
   } catch (error) {
     return errorResponse(error);
   }

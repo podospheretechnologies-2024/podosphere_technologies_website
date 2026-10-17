@@ -1,12 +1,11 @@
 import { whatsappService } from '@/modules/social/server/whatsapp/whatsapp.service';
-import { getCurrentOrganization } from '@/shared/server/current-organization';
-import { requireRole } from '@/shared/server/access';
+import { getClientScope } from '@/shared/server/client-scope';
 import { errorResponse } from '@/shared/server/http-error';
 
 // The business number's status and its message templates.
 export async function GET() {
   try {
-    await getCurrentOrganization();
+    await getClientScope('inbox');
     if (!whatsappService.isConfigured()) {
       return Response.json({
         configured: false,

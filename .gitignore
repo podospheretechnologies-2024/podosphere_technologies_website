@@ -44,4 +44,11 @@ next-env.d.ts
 
 # local media uploads
 /uploads
+
+# local MySQL dumps (pnpm db:backup)
+/backups
+
 !.env.example
+
+# Meta MCP export (client ad account data, not for git)
+/data/mcp-export/

@@ -1,7 +1,6 @@
 import type { NextRequest } from 'next/server';
 import { autopostService } from '@/modules/social/server/autoposts/autopost.service';
-import { getCurrentOrganization } from '@/shared/server/current-organization';
-import { requireRole } from '@/shared/server/access';
+import { getClientScope } from '@/shared/server/client-scope';
 import { errorResponse } from '@/shared/server/http-error';
 
 export async function POST(
@@ -10,9 +9,8 @@ export async function POST(
 ) {
   try {
     const { id } = await ctx.params;
-    const organization = await getCurrentOrganization();
-    await requireRole('ADMIN');
-    return Response.json(await autopostService.run(organization.id, id));
+    const scope = await getClientScope('publish');
+    return Response.json(await autopostService.run(scope, id));
   } catch (error) {
     return errorResponse(error);
   }

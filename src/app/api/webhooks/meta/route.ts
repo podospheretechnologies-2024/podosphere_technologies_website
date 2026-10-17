@@ -3,6 +3,16 @@ import { whatsappWebhookService } from '@/modules/social/server/whatsapp/whatsap
 import { inboxService } from '@/modules/social/server/inbox/inbox.service';
 import { errorResponse } from '@/shared/server/http-error';
 
+/**
+ * Meta Page + Instagram webhooks (App Review).
+ *
+ * Configure in Meta App Dashboard (or POST /api/social/meta/webhooks):
+ * - object `page` fields: feed, messages, leadgen → callback this URL
+ * - object `instagram` fields: comments, messages → callback this URL
+ * - Per Page: Graph `POST /{page-id}/subscribed_apps` with subscribed_fields
+ *
+ * WhatsApp Cloud API uses /api/webhooks/whatsapp instead.
+ */
 export async function GET(request: NextRequest) {
   try {
     const params = request.nextUrl.searchParams;
@@ -22,6 +32,7 @@ export async function POST(request: NextRequest) {
     const rawBody = await request.text();
     whatsappWebhookService.assertSignature(rawBody, request.headers.get('x-hub-signature-256'));
     const payload = JSON.parse(rawBody) as Parameters<typeof inboxService.ingestPageWebhook>[0];
+    // ingestPageWebhook accepts object=page | object=instagram (messages, feed/comments, leadgen).
     const result = await inboxService.ingestPageWebhook(payload);
     return Response.json({ ok: true, ...result });
   } catch (error) {

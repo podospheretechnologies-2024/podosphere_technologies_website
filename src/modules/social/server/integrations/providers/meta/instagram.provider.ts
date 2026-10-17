@@ -41,6 +41,8 @@ export class InstagramProvider extends MetaProviderBase {
     'instagram_basic',
     'instagram_content_publish',
     'instagram_manage_comments',
+    // App Review: IG reach / impressions insights.
+    'instagram_manage_insights',
     'pages_show_list',
     'pages_read_engagement',
     'business_management',

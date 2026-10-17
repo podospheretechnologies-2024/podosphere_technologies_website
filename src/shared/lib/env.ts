@@ -47,10 +47,21 @@ const serverEnvSchema = z.object({
   // Meta app id for WhatsApp Embedded Signup (client-side FB.login).
   META_APP_ID: z.string().optional(),
   WHATSAPP_EMBEDDED_SIGNUP_CONFIG_ID: z.string().optional(),
-  // Razorpay subscriptions. Optional until billing is turned on.
+  // Razorpay subscriptions / orders. Optional — checkout soft-fails until keys are set.
   RAZORPAY_KEY_ID: z.string().optional(),
   RAZORPAY_KEY_SECRET: z.string().optional(),
   RAZORPAY_WEBHOOK_SECRET: z.string().optional(),
+  // Optional Razorpay Plan IDs (dashboard → Subscriptions → Plans). Without these, order checkout is used.
+  RAZORPAY_PLAN_SOLO: z.string().optional(),
+  RAZORPAY_PLAN_AGENCY_STARTER: z.string().optional(),
+  RAZORPAY_PLAN_AGENCY_GROWTH: z.string().optional(),
+  RAZORPAY_PLAN_AGENCY_PRO: z.string().optional(),
+  // GST invoices (seller GSTIN + optional state code for tax split + rate %).
+  BILLING_SELLER_GSTIN: z.string().optional(),
+  BILLING_SELLER_STATE: z.string().optional(),
+  BILLING_GST_PERCENT: z.coerce.number().nonnegative().optional(),
+  // WhatsApp broadcast cost estimate (paise per template message). Default 80 (₹0.80).
+  WHATSAPP_BROADCAST_RATE_PAISE: z.coerce.number().nonnegative().optional(),
 });
 
 export type ServerEnv = z.infer<typeof serverEnvSchema>;

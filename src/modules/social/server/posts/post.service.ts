@@ -1,9 +1,10 @@
 import 'server-only';
 import { randomUUID } from 'node:crypto';
 import type { Prisma, SocialCreationMethod, SocialPostState } from '@/generated/prisma/client';
-import { prisma } from '@/shared/lib/prisma';
 import { HttpError } from '@/shared/server/http-error';
 import { logAudit } from '@/shared/server/audit.service';
+import type { ClientScope } from '@/shared/server/client-scope';
+import { organizationScope } from '@/shared/server/client-scope';
 import { CALENDAR_MAX_RANGE_DAYS } from '../../config/calendar';
 import { POST_CONTENT_MAX_LENGTH, POSTS_PAGE_SIZE } from '../../config/posts';
 import type {
@@ -99,11 +100,12 @@ function toPostGroup(group: string, rows: PostRow[]): PostGroup {
 }
 
 async function buildGroupData(
-  organizationId: string,
+  scope: ClientScope,
   group: string,
   body: SavePostBody,
   creationMethod: SocialCreationMethod
 ): Promise<CreateGroupData> {
+  const organizationId = scope.organizationId;
   const isDraft = body.type === 'draft';
   const publishDate = body.type === 'now' ? new Date() : new Date(body.date);
 
@@ -113,6 +115,7 @@ async function buildGroupData(
 
   const integrationIds = body.posts.map((post) => post.integrationId);
   const integrations = await integrationRepository.findManyByIds(organizationId, integrationIds);
+  assertChannelsInScope(scope, integrations);
   const integrationById = new Map(integrations.map((integration) => [integration.id, integration]));
 
   const mediaIds = [
@@ -121,8 +124,14 @@ async function buildGroupData(
   const media = mediaIds.length
     ? await mediaRepository.findManyByIds(organizationId, mediaIds)
     : [];
+  // Shared agency media (customerId null) is allowed; client-owned media must be in scope.
+  const mediaInScope = media.filter((item) => {
+    if (scope.customerIds === 'all') return true;
+    if (item.customerId == null) return true;
+    return scope.customerIds.includes(item.customerId);
+  });
   const mediaById = new Map<string, PostMedia>(
-    media.map((item) => [
+    mediaInScope.map((item) => [
       item.id,
       {
         id: item.id,
@@ -194,19 +203,31 @@ async function buildGroupData(
   };
 }
 
-async function findGroupOrThrow(organizationId: string, group: string) {
-  const rows = await postRepository.findGroup(organizationId, group);
+async function findGroupOrThrow(scope: ClientScope, group: string) {
+  const rows = await postRepository.findGroup(scope, group);
   if (rows.length === 0) {
     throw new HttpError(404, 'Post not found');
   }
   return rows;
 }
 
+function assertChannelsInScope(
+  scope: ClientScope,
+  integrations: { id: string; customerId: string | null }[]
+) {
+  if (scope.customerIds === 'all') return;
+  for (const integration of integrations) {
+    if (!integration.customerId || !scope.customerIds.includes(integration.customerId)) {
+      throw new HttpError(404, 'Not found');
+    }
+  }
+}
+
 // Queues the first post of every channel; comments are queued by the worker
 // once the item before them is published. The save itself already succeeded,
 // so a queue outage is only logged: the worker's sweep picks the posts up later.
 async function queueForPublishing(organizationId: string, group: string) {
-  const rows = await postRepository.findGroup(organizationId, group);
+  const rows = await postRepository.findGroup(organizationScope(organizationId), group);
   const jobs = rows
     .filter((row) => !row.parentPostId && row.state === 'QUEUE')
     .map((row) => ({ postId: row.id, publishDate: row.publishDate, runAt: row.publishDate }));
@@ -227,6 +248,8 @@ async function toListItems(organizationId: string, posts: PostRow[]): Promise<Po
     id: post.id,
     group: post.group,
     state: toPostState(post.state),
+    approvalStep: post.approvalStep,
+    customerId: post.customerId,
     publishDate: post.publishDate.toISOString(),
     content: post.content,
     media: readMedia(post.media),
@@ -239,18 +262,18 @@ async function toListItems(organizationId: string, posts: PostRow[]): Promise<Po
 }
 
 export const postService = {
-  async list(organizationId: string, query: ListPostsQuery): Promise<PostListPage> {
-    const { total, results } = await postRepository.list(organizationId, query.page, query.state);
+  async list(scope: ClientScope, query: ListPostsQuery): Promise<PostListPage> {
+    const { total, results } = await postRepository.list(scope, query.page, query.state);
 
     return {
       page: query.page,
       pages: Math.ceil(total / POSTS_PAGE_SIZE),
       total,
-      results: await toListItems(organizationId, results),
+      results: await toListItems(scope.organizationId, results),
     };
   },
 
-  async listRange(organizationId: string, query: CalendarQuery): Promise<PostListItem[]> {
+  async listRange(scope: ClientScope, query: CalendarQuery): Promise<PostListItem[]> {
     const start = new Date(query.startDate);
     const end = new Date(query.endDate);
     if (end <= start) {
@@ -260,13 +283,13 @@ export const postService = {
       throw new HttpError(400, `The date range can be at most ${CALENDAR_MAX_RANGE_DAYS} days`);
     }
 
-    return toListItems(organizationId, await postRepository.listRange(organizationId, start, end));
+    return toListItems(scope.organizationId, await postRepository.listRange(scope, start, end));
   },
 
   // Moves every channel of the group to the new date. A failed post is queued
   // again; drafts stay drafts.
-  async reschedule(organizationId: string, group: string, body: ReschedulePostBody): Promise<void> {
-    const rows = await findGroupOrThrow(organizationId, group);
+  async reschedule(scope: ClientScope, group: string, body: ReschedulePostBody): Promise<void> {
+    const rows = await findGroupOrThrow(scope, group);
     if (rows.some((row) => row.state === 'PUBLISHED')) {
       throw new HttpError(409, 'Published posts cannot be moved');
     }
@@ -277,8 +300,8 @@ export const postService = {
       throw new HttpError(400, 'Posts can only be moved to a future date');
     }
 
-    await postRepository.reschedule(organizationId, group, date);
-    await queueForPublishing(organizationId, group);
+    await postRepository.reschedule(scope, group, date);
+    await queueForPublishing(scope.organizationId, group);
     
     await logAudit({
       action: 'post.reschedule',
@@ -320,22 +343,22 @@ export const postService = {
     return end;
   },
 
-  async getGroup(organizationId: string, group: string): Promise<PostGroup> {
-    return toPostGroup(group, await findGroupOrThrow(organizationId, group));
+  async getGroup(scope: ClientScope, group: string): Promise<PostGroup> {
+    return toPostGroup(group, await findGroupOrThrow(scope, group));
   },
 
   // All channels picked in one composer submission share a group id, so they
   // can be edited, moved and deleted together.
   async create(
-    organizationId: string,
+    scope: ClientScope,
     body: SavePostBody,
     creationMethod: SocialCreationMethod = 'WEB'
   ): Promise<{ group: string }> {
     const group = randomUUID();
     await postRepository.createGroup(
-      await buildGroupData(organizationId, group, body, creationMethod)
+      await buildGroupData(scope, group, body, creationMethod)
     );
-    await queueForPublishing(organizationId, group);
+    await queueForPublishing(scope.organizationId, group);
     
     await logAudit({
       action: 'post.create',
@@ -348,18 +371,18 @@ export const postService = {
   },
 
   async update(
-    organizationId: string,
+    scope: ClientScope,
     group: string,
     body: SavePostBody
   ): Promise<{ group: string }> {
-    const rows = await findGroupOrThrow(organizationId, group);
+    const rows = await findGroupOrThrow(scope, group);
     if (rows.some((row) => row.state === 'PUBLISHED')) {
       throw new HttpError(409, 'Published posts cannot be edited');
     }
     await postRepository.replaceGroup(
-      await buildGroupData(organizationId, group, body, rows[0].creationMethod)
+      await buildGroupData(scope, group, body, rows[0].creationMethod)
     );
-    await queueForPublishing(organizationId, group);
+    await queueForPublishing(scope.organizationId, group);
     
     await logAudit({
       action: 'post.update',
@@ -371,8 +394,8 @@ export const postService = {
     return { group };
   },
 
-  async remove(organizationId: string, group: string): Promise<void> {
-    const deleted = await postRepository.softDeleteGroup(organizationId, group);
+  async remove(scope: ClientScope, group: string): Promise<void> {
+    const deleted = await postRepository.softDeleteGroup(scope, group);
     if (deleted === 0) {
       throw new HttpError(404, 'Post not found');
     }
@@ -384,42 +407,4 @@ export const postService = {
     });
   },
 
-  async approveGroup(organizationId: string, group: string): Promise<void> {
-    const rows = await findGroupOrThrow(organizationId, group);
-    if (rows.some((row) => row.state !== 'DRAFT')) {
-      throw new HttpError(400, 'Only drafts can be approved');
-    }
-
-    await prisma.socialPost.updateMany({
-      where: { organizationId, group, deletedAt: null },
-      data: { state: 'QUEUE' },
-    });
-
-    await queueForPublishing(organizationId, group);
-    
-    await logAudit({
-      action: 'post.approve',
-      targetType: 'post_group',
-      targetId: group,
-    });
-  },
-
-  async rejectGroup(organizationId: string, group: string, reason: string): Promise<void> {
-    const rows = await findGroupOrThrow(organizationId, group);
-    if (rows.some((row) => row.state !== 'DRAFT')) {
-      throw new HttpError(400, 'Only drafts can be rejected');
-    }
-
-    await prisma.socialPost.updateMany({
-      where: { organizationId, group, deletedAt: null },
-      data: { error: reason }, // using error field to store rejection reason for now
-    });
-    
-    await logAudit({
-      action: 'post.reject',
-      targetType: 'post_group',
-      targetId: group,
-      metadata: { reason }
-    });
-  },
 };

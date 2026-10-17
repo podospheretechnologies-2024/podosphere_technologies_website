@@ -73,7 +73,11 @@ export default function TermsPage() {
       <section>
         <h2>7. Law and contact</h2>
         <p>
-          These terms are governed by the laws of {legal.jurisdiction}. Questions: {legal.contactEmail}. See also our{' '}
+          These terms are governed by the laws of {legal.jurisdiction}. Questions:{' '}
+          <Link href="/support" className="text-primary underline">
+            Support
+          </Link>{' '}
+          or {legal.contactEmail}. See also our{' '}
           <Link href="/privacy" className="text-primary underline">
             Privacy Policy
           </Link>

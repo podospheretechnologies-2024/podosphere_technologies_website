@@ -1,23 +1,21 @@
 import { reportService } from '@/modules/social/server/reports/report.service';
-import { getCurrentOrganization } from '@/shared/server/current-organization';
-import { requireRole } from '@/shared/server/access';
+import { getClientScope } from '@/shared/server/client-scope';
 import { errorResponse } from '@/shared/server/http-error';
 
 export async function GET() {
   try {
-    const organization = await getCurrentOrganization();
-    await requireRole('ADMIN');
-    return Response.json(await reportService.list(organization.id));
+    const scope = await getClientScope('reports');
+    return Response.json(await reportService.list(scope));
   } catch (error) {
     return errorResponse(error);
   }
 }
 
+/** Enqueue monthly PDF generation for each client in the current scope. */
 export async function POST() {
   try {
-    const organization = await getCurrentOrganization();
-    await requireRole('ADMIN');
-    return Response.json(await reportService.generate(organization.id), { status: 201 });
+    const scope = await getClientScope('reports');
+    return Response.json(await reportService.enqueueMonthlyPdfs(scope), { status: 202 });
   } catch (error) {
     return errorResponse(error);
   }

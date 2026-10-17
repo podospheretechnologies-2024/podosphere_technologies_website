@@ -10,7 +10,12 @@ import {
   type PostListFilter,
 } from '../../config/posts';
 import { usePostsList } from '../../hooks/use-posts';
-import { deletePostGroup, revalidatePosts } from '../../lib/posts.client';
+import {
+  deletePostGroup,
+  postApprovalAction,
+  revalidatePosts,
+  type ApprovalAction,
+} from '../../lib/posts.client';
 import type { PostListItem as PostListItemData } from '../../types/post';
 import { PostListItem } from './post-list-item';
 
@@ -54,6 +59,30 @@ export function PostsList({ onEdit }: PostsListProps) {
       await revalidatePosts();
     } catch (deleteError) {
       setActionError(deleteError instanceof Error ? deleteError.message : 'Delete failed');
+    } finally {
+      setBusyGroup(null);
+    }
+  }
+
+  async function handleApproval(post: PostListItemData, action: ApprovalAction) {
+    let reason: string | undefined;
+    if (action === 'reject') {
+      const entered = window.prompt('Why is this being rejected?');
+      if (entered === null) return;
+      reason = entered.trim();
+      if (!reason) {
+        setActionError('A rejection reason is required');
+        return;
+      }
+    }
+
+    setActionError(null);
+    setBusyGroup(post.group);
+    try {
+      await postApprovalAction(post.group, action, reason);
+      await revalidatePosts();
+    } catch (approvalError) {
+      setActionError(approvalError instanceof Error ? approvalError.message : 'Approval action failed');
     } finally {
       setBusyGroup(null);
     }
@@ -111,6 +140,7 @@ export function PostsList({ onEdit }: PostsListProps) {
               busy={busyGroup === post.group}
               onEdit={onEdit}
               onDelete={handleDelete}
+              onApprovalAction={handleApproval}
             />
           ))}
         </ul>

@@ -55,7 +55,11 @@ export function deleteMediaItem(id: string): Promise<void> {
 
 // Refreshes every cached media page, e.g. after a file was added outside the library.
 export function revalidateMediaLibrary(): Promise<unknown> {
-  return mutate((key) => typeof key === 'string' && key.startsWith(MEDIA_API_ROUTE));
+  return mutate((key) => {
+    if (typeof key === 'string') return key.startsWith(MEDIA_API_ROUTE);
+    if (Array.isArray(key) && typeof key[0] === 'string') return key[0].startsWith(MEDIA_API_ROUTE);
+    return false;
+  });
 }
 
 export function formatFileSize(bytes: number): string {

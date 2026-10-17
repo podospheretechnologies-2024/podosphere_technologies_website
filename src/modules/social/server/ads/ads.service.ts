@@ -8,7 +8,10 @@ import type {
   AdsAdItem,
   AdsAdSetItem,
   AdsAdSetTargeting,
+  AdsAudienceItem,
   AdsCampaignItem,
+  AdsCatalogItem,
+  AdsCatalogsResult,
   AdsDailyPoint,
   AdsEntityHistory,
   AdsHistoryPoint,
@@ -155,6 +158,37 @@ interface GraphAd {
   campaign?: { id: string; name: string };
   adset?: { id: string; name: string };
   creative?: GraphAdCreative;
+}
+
+interface GraphCustomAudience {
+  id: string;
+  name?: string;
+  subtype?: string;
+  approximate_count_lower_bound?: string;
+  approximate_count_upper_bound?: string;
+  operation_status?: { code?: number; description?: string };
+  delivery_status?: { code?: number; description?: string };
+  time_created?: string;
+  time_updated?: string;
+}
+
+interface GraphBusiness {
+  id: string;
+  name?: string;
+}
+
+interface GraphCatalog {
+  id: string;
+  name?: string;
+  vertical?: string;
+  product_count?: number;
+  feed_count?: number;
+}
+
+interface GraphProductSet {
+  id: string;
+  name?: string;
+  product_count?: number;
 }
 
 interface GraphLead {
@@ -481,31 +515,23 @@ async function fetchLeadsForAds(
   return leads;
 }
 
-import type { CurrentUser } from '@/modules/auth/server/session';
+import { scopeWhere, type ClientScope } from '@/shared/server/client-scope';
 
 export const adsService = {
   isConfigured(): boolean {
     return Boolean(getServerEnv().META_SYSTEM_USER_TOKEN);
   },
 
-  /** Ad accounts assigned to the organization (or assigned to the clients the user is a member of). */
-  async listAccounts(organizationId: string, user?: CurrentUser | null): Promise<AdAccountItem[]> {
-    let whereClause: any = { organizationId };
-
-    if (user && user.role === 'MEMBER') {
-      const memberships = await prisma.socialClientMember.findMany({
-        where: { userId: user.id },
-        select: { customerId: true },
-      });
-      const customerIds = memberships.map(m => m.customerId);
-      whereClause.customerId = { in: customerIds };
-    }
-
+  /**
+   * Ad accounts assigned in DB for this scope (organization + optional client filter).
+   * Never uses Meta `me/adaccounts` — that is sync-only.
+   */
+  async listAccounts(scope: ClientScope): Promise<AdAccountItem[]> {
     const accounts = await prisma.adAccount.findMany({
-      where: whereClause,
+      where: scopeWhere(scope),
       orderBy: { name: 'asc' },
     });
-    return accounts.map(acc => ({
+    return accounts.map((acc) => ({
       id: acc.externalId,
       name: acc.name,
       currency: acc.currency,
@@ -514,18 +540,36 @@ export const adsService = {
     }));
   },
 
+  /** Ensures the account is in scope; throws 404 otherwise (no cross-client leak). */
+  async requireAccount(scope: ClientScope, accountId: string): Promise<AdAccountItem> {
+    const accounts = await this.listAccounts(scope);
+    const account = accounts.find((item) => item.id === accountId);
+    if (!account) {
+      throw new HttpError(404, 'Ad account not found or not shared with the system user');
+    }
+    return account;
+  },
+
+  /**
+   * Agency sync: pulls Meta `me/adaccounts` into `ad_accounts` for this organization.
+   * Does not change customerId assignment; UI lists still come from listAccounts(scope).
+   */
   async syncAccounts(organizationId: string): Promise<void> {
-    const { graph, token } = credentials();
-    const result = await getPaged<{ id: string; name?: string; currency?: string; timezone_name?: string; account_status?: number }>(
-      'me/adaccounts',
-      { fields: 'name,currency,timezone_name,account_status' }
-    );
+    const result = await getPaged<{
+      id: string;
+      name?: string;
+      currency?: string;
+      timezone_name?: string;
+      account_status?: number;
+    }>('me/adaccounts', { fields: 'name,currency,timezone_name,account_status' });
     for (const acc of result) {
       await prisma.adAccount.upsert({
         where: { externalId: acc.id },
         update: {
           name: acc.name ?? acc.id,
-          currency: acc.currency ?? 'USD',
+          // Meta always returns `currency` for a real ad account; INR (not USD) is the
+          // correct last-resort default for this agency's accounts if it's ever missing.
+          currency: acc.currency ?? 'INR',
           timezone: acc.timezone_name ?? 'UTC',
           status: acc.account_status ?? 1,
         },
@@ -533,20 +577,16 @@ export const adsService = {
           organizationId,
           externalId: acc.id,
           name: acc.name ?? acc.id,
-          currency: acc.currency ?? 'USD',
+          currency: acc.currency ?? 'INR',
           timezone: acc.timezone_name ?? 'UTC',
           status: acc.account_status ?? 1,
-        }
+        },
       });
     }
   },
 
-  async overview(organizationId: string, accountId: string, date: AdsOverviewDateQuery, user?: CurrentUser | null): Promise<AdsOverview> {
-    const accounts = await this.listAccounts(organizationId, user);
-    const account = accounts.find((item) => item.id === accountId);
-    if (!account) {
-      throw new HttpError(404, 'Ad account not found or not shared with the system user');
-    }
+  async overview(scope: ClientScope, accountId: string, date: AdsOverviewDateQuery): Promise<AdsOverview> {
+    const account = await this.requireAccount(scope, accountId);
 
     const dateParams = insightDateParams(date);
 
@@ -725,19 +765,88 @@ export const adsService = {
     };
   },
 
+  /** Custom audiences on this ad account (read-only; size shown as Meta's approximate range). */
+  async audiences(scope: ClientScope, accountId: string): Promise<AdsAudienceItem[]> {
+    await this.requireAccount(scope, accountId);
+
+    const raw = await getPaged<GraphCustomAudience>(`${accountId}/customaudiences`, {
+      fields:
+        'name,subtype,approximate_count_lower_bound,approximate_count_upper_bound,operation_status,delivery_status,time_created,time_updated',
+      limit: PAGE_SIZE,
+    }).catch(() => [] as GraphCustomAudience[]);
+
+    const items: AdsAudienceItem[] = raw.map((audience) => ({
+      id: audience.id,
+      name: audience.name ?? audience.id,
+      subtype: audience.subtype ?? 'UNKNOWN',
+      sizeLower: audience.approximate_count_lower_bound
+        ? Number(audience.approximate_count_lower_bound)
+        : null,
+      sizeUpper: audience.approximate_count_upper_bound
+        ? Number(audience.approximate_count_upper_bound)
+        : null,
+      operationStatus: audience.operation_status?.description ?? null,
+      deliveryStatus: audience.delivery_status?.description ?? null,
+      createdTime: audience.time_created ?? null,
+      updatedTime: audience.time_updated ?? null,
+    }));
+    items.sort((a, b) => (b.sizeUpper ?? 0) - (a.sizeUpper ?? 0));
+    return items;
+  },
+
+  /** Catalogs owned by this ad account's business, with product sets and basic health. */
+  async catalogs(scope: ClientScope, accountId: string): Promise<AdsCatalogsResult> {
+    await this.requireAccount(scope, accountId);
+
+    const accountBusiness = await get<{ business?: GraphBusiness }>(accountId, {
+      fields: 'business{id,name}',
+    }).catch(() => ({ business: undefined }));
+
+    const business = accountBusiness.business;
+    if (!business?.id) {
+      return { businessId: null, businessName: null, catalogs: [] };
+    }
+
+    const rawCatalogs = await getPaged<GraphCatalog>(`${business.id}/owned_product_catalogs`, {
+      fields: 'name,vertical,product_count,feed_count',
+      limit: PAGE_SIZE,
+    }).catch(() => [] as GraphCatalog[]);
+
+    const catalogs: AdsCatalogItem[] = await mapPool(
+      rawCatalogs,
+      LEAD_FETCH_CONCURRENCY,
+      async (catalog) => {
+        const productSets = await getPaged<GraphProductSet>(`${catalog.id}/product_sets`, {
+          fields: 'name,product_count',
+          limit: PAGE_SIZE,
+        }).catch(() => [] as GraphProductSet[]);
+        return {
+          id: catalog.id,
+          name: catalog.name ?? catalog.id,
+          vertical: catalog.vertical ?? null,
+          productCount: catalog.product_count ?? null,
+          feedCount: catalog.feed_count ?? null,
+          productSets: productSets.map((set) => ({
+            id: set.id,
+            name: set.name ?? set.id,
+            productCount: set.product_count ?? null,
+          })),
+        };
+      }
+    );
+
+    return { businessId: business.id, businessName: business.name ?? null, catalogs };
+  },
+
   /** Daily history + period totals for one campaign, ad set, or ad. */
   async entityHistory(
-    organizationId: string,
+    scope: ClientScope,
     accountId: string,
     kind: 'ad' | 'campaign' | 'adset',
     entityId: string,
-    date: AdsOverviewDateQuery,
-    user?: CurrentUser | null
+    date: AdsOverviewDateQuery
   ): Promise<AdsEntityHistory> {
-    const accounts = await this.listAccounts(organizationId, user);
-    if (!accounts.some((item) => item.id === accountId)) {
-      throw new HttpError(404, 'Ad account not found or not shared with the system user');
-    }
+    await this.requireAccount(scope, accountId);
 
     const dateParams = insightDateParams(date);
     const fields = 'spend,impressions,reach,clicks,ctr,cpc,actions';

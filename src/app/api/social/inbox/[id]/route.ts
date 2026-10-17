@@ -1,18 +1,31 @@
+import type { NextRequest } from 'next/server';
+import { assignThreadSchema } from '@/modules/social/server/inbox/inbox.schema';
 import { inboxService } from '@/modules/social/server/inbox/inbox.service';
-import { getCurrentOrganization } from '@/shared/server/current-organization';
-import { requireRole } from '@/shared/server/access';
+import { getClientScope } from '@/shared/server/client-scope';
 import { errorResponse, HttpError } from '@/shared/server/http-error';
 
-export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
+type Context = { params: Promise<{ id: string }> };
+
+export async function GET(_request: Request, ctx: Context) {
   try {
-    const organization = await getCurrentOrganization();
-    await requireRole('ADMIN');
-    const { id } = await context.params;
-    const thread = await inboxService.getThread(organization.id, id);
+    const scope = await getClientScope('inbox');
+    const { id } = await ctx.params;
+    const thread = await inboxService.getThread(scope, id);
     if (!thread) {
       throw new HttpError(404, 'Thread not found');
     }
     return Response.json(thread);
+  } catch (error) {
+    return errorResponse(error);
+  }
+}
+
+export async function PATCH(request: NextRequest, ctx: Context) {
+  try {
+    const scope = await getClientScope('inbox');
+    const { id } = await ctx.params;
+    const body = assignThreadSchema.parse(await request.json());
+    return Response.json(await inboxService.assignThread(scope, id, body));
   } catch (error) {
     return errorResponse(error);
   }

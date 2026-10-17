@@ -7,9 +7,12 @@ import { Suspense, useEffect, useState, type ReactNode } from 'react';
 import { apiFetch } from '@/shared/lib/fetcher';
 import { cn } from '@/shared/lib/cn';
 import { getSocialAppNavItem, socialAppHome } from '../../config/app-nav';
+import type { ClientScopeState } from '../../hooks/use-client-scope';
 import { revalidatePosts } from '../../lib/posts.client';
 import { PostComposer } from '../posts/composer/post-composer';
 import { ChannelsPanel } from './channels-panel';
+import { ClientScopeProvider } from './client-scope-provider';
+import { ClientSwitcher } from './client-switcher';
 import { IconRail } from './icon-rail';
 import { SectionBackendPanel } from './section-backend-panel';
 import { SuccessToast } from './success-toast';
@@ -23,9 +26,16 @@ interface SocialShellProps {
   userName: string;
   organizationName: string;
   organizationSlug: string;
+  initialClientScope?: ClientScopeState | null;
 }
 
-function SocialShellBody({ children, userName, organizationName, organizationSlug }: SocialShellProps) {
+function SocialShellBody({
+  children,
+  userName,
+  organizationName,
+  organizationSlug,
+  initialClientScope,
+}: SocialShellProps) {
   const pathname = usePathname();
   const router = useRouter();
   const navItem = getSocialAppNavItem(pathname);
@@ -82,8 +92,11 @@ function SocialShellBody({ children, userName, organizationName, organizationSlu
               </span>
               <span className="text-base font-bold">Podosphere</span>
             </Link>
-            <h1 className="flex-1 text-xl font-semibold">{navItem?.label ?? 'Social'}</h1>
+            <h1 className="min-w-0 flex-1 truncate text-xl font-semibold">
+              {navItem?.label ?? 'Social'}
+            </h1>
             <div className="flex items-center gap-3">
+              <ClientSwitcher />
               <div
                 role="group"
                 aria-label="Color mode"
@@ -167,7 +180,9 @@ function SocialShellBody({ children, userName, organizationName, organizationSlu
 export function SocialShell(props: SocialShellProps) {
   return (
     <Suspense fallback={<div className="theme-social bg-background min-h-screen" />}>
-      <SocialShellBody {...props} />
+      <ClientScopeProvider initial={props.initialClientScope}>
+        <SocialShellBody {...props} />
+      </ClientScopeProvider>
     </Suspense>
   );
 }

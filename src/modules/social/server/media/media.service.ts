@@ -1,5 +1,6 @@
 import 'server-only';
 import type { SocialMedia, SocialMediaFormat } from '@/generated/prisma/client';
+import type { ClientScope } from '@/shared/server/client-scope';
 import { HttpError } from '@/shared/server/http-error';
 import {
   DEFAULT_MEDIA_FORMAT,
@@ -15,7 +16,7 @@ import { mediaRepository } from './media.repository';
 import type { ListMediaQuery } from './media.schema';
 
 interface UploadMediaInput {
-  organizationId: string;
+  scope: ClientScope;
   fileName: string;
   body: ReadableStream<Uint8Array> | null;
   declaredSize?: number;
@@ -33,6 +34,11 @@ const formatFromDb: Record<SocialMediaFormat, MediaFormat> = {
   REEL: 'reel',
   STORY: 'story',
 };
+
+/** Single selected client → that id; 'all' → null (agency-shared media). */
+function customerIdForWrite(scope: ClientScope): string | null {
+  return scope.customerIds !== 'all' && scope.customerIds.length === 1 ? scope.customerIds[0] : null;
+}
 
 function toMediaItem(media: SocialMedia): MediaItem {
   return {
@@ -83,9 +89,9 @@ async function readHead(reader: ReadableStreamDefaultReader<Uint8Array>, length:
 }
 
 export const mediaService = {
-  async list(organizationId: string, query: ListMediaQuery): Promise<MediaPage> {
+  async list(scope: ClientScope, query: ListMediaQuery): Promise<MediaPage> {
     const { total, results } = await mediaRepository.list({
-      organizationId,
+      scope,
       page: query.page,
       search: query.search || undefined,
       format: query.format ? formatToDb[query.format] : undefined,
@@ -100,7 +106,7 @@ export const mediaService = {
   },
 
   async upload({
-    organizationId,
+    scope,
     fileName,
     body,
     declaredSize,
@@ -170,7 +176,9 @@ export const mediaService = {
     const stored = await getStorage().save(limitedBody, detected);
 
     const media = await mediaRepository.create({
-      organizationId,
+      organizationId: scope.organizationId,
+      // null only for agency-shared media when scope is 'all'
+      customerId: customerIdForWrite(scope),
       name: stored.key,
       originalName: fileName,
       path: stored.url,
@@ -185,8 +193,8 @@ export const mediaService = {
   },
 
   // Soft delete only: scheduled posts may still reference the file.
-  async remove(organizationId: string, id: string): Promise<void> {
-    const media = await mediaRepository.findById(organizationId, id);
+  async remove(scope: ClientScope, id: string): Promise<void> {
+    const media = await mediaRepository.findById(scope, id);
     if (!media) {
       throw new HttpError(404, 'Media not found');
     }

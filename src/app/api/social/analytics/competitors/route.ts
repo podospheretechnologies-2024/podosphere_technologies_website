@@ -1,12 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/shared/lib/prisma';
-import { getCurrentOrganization } from '@/shared/server/current-organization';
-import { requireRole } from '@/shared/server/access';
+import { getClientScope } from '@/shared/server/client-scope';
 
 export async function POST(request: NextRequest) {
   try {
-    const organization = await getCurrentOrganization();
-    await requireRole('ADMIN');
+    const scope = await getClientScope('view');
     const body = await request.json();
     const { name, externalId, platform } = body;
 
@@ -16,7 +14,7 @@ export async function POST(request: NextRequest) {
 
     const competitor = await prisma.socialCompetitor.create({
       data: {
-        organizationId: organization.id,
+        organizationId: scope.organizationId,
         name,
         externalId,
         platform,
@@ -31,15 +29,14 @@ export async function POST(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    const organization = await getCurrentOrganization();
-    await requireRole('ADMIN');
+    const scope = await getClientScope('view');
     const url = new URL(request.url);
     const id = url.searchParams.get('id');
 
     if (!id) return new NextResponse('Missing ID', { status: 400 });
 
     const deleted = await prisma.socialCompetitor.deleteMany({
-      where: { id, organizationId: organization.id },
+      where: { id, organizationId: scope.organizationId },
     });
     if (deleted.count === 0) {
       return new NextResponse('Not found', { status: 404 });

@@ -10,6 +10,13 @@ const DEFAULT_PODOCRM_WHATSAPP_WEBHOOK_URL =
   'https://podocrm.podospheretechnologies.com/api/whatsapp/webhook';
 const PODOCRM_FORWARD_TIMEOUT_MS = 8_000;
 
+const OPT_OUT_KEYWORDS = new Set(['STOP', 'UNSUBSCRIBE', 'CANCEL', 'END', 'QUIT']);
+
+function isBroadcastOptOut(body: string): boolean {
+  const token = body.trim().toUpperCase().replace(/[.!]+$/, '');
+  return OPT_OUT_KEYWORDS.has(token);
+}
+
 interface WebhookContact {
   profile?: { name?: string };
   wa_id: string;
@@ -68,21 +75,42 @@ function messageBody(message: WebhookMessage): string {
   return `[${message.type}]`;
 }
 
-// Outbound messages are stored under the sender's organization, so route inbound replies to the
-// organization already talking to this contact, then to whichever one last used WhatsApp.
-async function resolveOrganizationId(waId: string): Promise<string> {
+/** Owner of a WhatsApp phone number (Embedded Signup connection), when present. */
+async function resolveConnection(phoneNumberId: string | undefined | null): Promise<{
+  organizationId: string;
+  customerId: string | null;
+} | null> {
+  if (!phoneNumberId) return null;
+  const connection = await prisma.socialWhatsAppConnection.findUnique({
+    where: { phoneNumberId },
+    select: { organizationId: true, customerId: true },
+  });
+  return connection;
+}
+
+// Prefer the Embedded Signup connection for this phone_number_id; otherwise route by existing
+// conversation with this contact, then fall back to the oldest organization.
+async function resolveOwner(
+  waId: string,
+  phoneNumberId: string | undefined | null
+): Promise<{ organizationId: string; customerId: string | null }> {
+  const connection = await resolveConnection(phoneNumberId);
+  if (connection) {
+    return connection;
+  }
+
   const conversation =
     (await prisma.whatsAppConversation.findFirst({
       where: { waId },
       orderBy: { lastMessageAt: 'desc' },
-      select: { organizationId: true },
+      select: { organizationId: true, customerId: true },
     })) ??
     (await prisma.whatsAppConversation.findFirst({
       orderBy: { lastMessageAt: 'desc' },
-      select: { organizationId: true },
+      select: { organizationId: true, customerId: true },
     }));
   if (conversation) {
-    return conversation.organizationId;
+    return { organizationId: conversation.organizationId, customerId: conversation.customerId };
   }
 
   const org = await prisma.organization.findFirst({
@@ -93,7 +121,7 @@ async function resolveOrganizationId(waId: string): Promise<string> {
   if (!org) {
     throw new HttpError(503, 'No organization configured for WhatsApp inbox');
   }
-  return org.id;
+  return { organizationId: org.id, customerId: null };
 }
 
 /** Resolve PodoCRM forward target, or null when forwarding is disabled. */
@@ -233,15 +261,21 @@ export const whatsappWebhookService = {
           (value.contacts ?? []).map((contact) => [contact.wa_id, contact.profile?.name ?? null])
         );
 
+        const webhookPhoneNumberId = value.metadata?.phone_number_id ?? null;
+
         for (const message of value.messages ?? []) {
           const body = messageBody(message);
           if (!body) {
             continue;
           }
           const timestamp = new Date(Number(message.timestamp) * 1000);
-          const organizationId = await resolveOrganizationId(message.from);
+          const { organizationId, customerId } = await resolveOwner(
+            message.from,
+            webhookPhoneNumberId
+          );
           const conversation = await whatsappChatRepository.upsertConversation({
             organizationId,
+            customerId,
             waId: message.from,
             contactName: nameByWaId.get(message.from) ?? null,
             preview: body,
@@ -259,6 +293,12 @@ export const whatsappWebhookService = {
             source: 'customer',
             timestamp,
           });
+          if (isBroadcastOptOut(body)) {
+            await prisma.whatsAppConversation.update({
+              where: { id: conversation.id },
+              data: { optedOutAt: timestamp },
+            });
+          }
           stored += 1;
         }
 
@@ -270,9 +310,13 @@ export const whatsappWebhookService = {
             continue;
           }
           const timestamp = new Date(Number(echo.timestamp) * 1000);
-          const organizationId = await resolveOrganizationId(recipientWaId);
+          const { organizationId, customerId } = await resolveOwner(
+            recipientWaId,
+            webhookPhoneNumberId
+          );
           const conversation = await whatsappChatRepository.upsertConversation({
             organizationId,
+            customerId,
             waId: recipientWaId,
             contactName: nameByWaId.get(recipientWaId) ?? null,
             preview: body,

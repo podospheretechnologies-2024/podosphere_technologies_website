@@ -19,11 +19,21 @@ model Organization {
   maxUsers           Int                @default(5)
   maxChannels        Int                @default(20)
   logoUrl            String?            @db.VarChar(2048)
-  themeColor         String?            @db.VarChar(7)
+  /** Agency brand colour for white-label portal (DB column `themeColor`). */
+  primaryColor       String?            @map("themeColor") @db.VarChar(7)
+  /** Optional portal heading; falls back to organization name. */
+  portalTitle        String?            @db.VarChar(120)
+  /** Optional white-label hostname (e.g. portal.client.com). Caddy on-demand TLS ask checks this. */
+  customDomain       String?            @unique @db.VarChar(253)
+  /** Buyer GSTIN captured at billing checkout; copied onto invoices. */
+  buyerGstin         String?            @db.VarChar(20)
+  /** Place of supply (state name or GST state code) for tax split. */
+  placeOfSupply      String?            @db.VarChar(120)
 
   users               User[]
   socialIntegrations  SocialIntegration[]
   socialCustomers     SocialCustomer[]
+  socialClientTemplates SocialClientTemplate[]
   socialPosts         SocialPost[]
   socialMedia         SocialMedia[]
   socialTags          SocialTag[]
@@ -33,7 +43,7 @@ model Organization {
   socialWebhooks      SocialWebhook[]
   socialNotifications SocialNotification[]
   socialPostErrors    SocialPostError[]
-  socialBrandKit      SocialBrandKit?
+  socialBrandKits     SocialBrandKit[]
   socialAiUsages      SocialAiUsage[]
   whatsappConversations WhatsAppConversation[]
   whatsappMessages      WhatsAppMessage[]
@@ -48,8 +58,9 @@ model Organization {
   leads                 SocialLead[]
   clientReports         SocialClientReport[]
   subscription          SocialSubscription?
+  billingInvoices       BillingInvoice[]
   whatsappBroadcasts    WhatsAppBroadcast[]
-  whatsappConnection    SocialWhatsAppConnection?
+  whatsappConnections   SocialWhatsAppConnection[]
 
   @@map("organizations")
 }
@@ -74,7 +85,8 @@ model User {
   isPlatformAdmin Boolean  @default(false)
   lastLoginAt     DateTime?
 
-  clientMemberships SocialClientMember[]
+  clientMemberships     SocialClientMember[]
+  assignedInboxThreads  SocialInboxThread[]
 
   organization Organization @relation(fields: [organizationId], references: [id])
 
@@ -114,4 +126,22 @@ model AuditLog {
 
   @@index([organizationId, createdAt])
   @@map("audit_logs")
+}
+
+/** Public / Meta App Review data-deletion requests (confirmation code + status URL). */
+model DataDeletionRequest {
+  id               String    @id @default(uuid())
+  confirmationCode String    @unique
+  /** Meta user id when the request came from the signed_request callback. */
+  metaUserId       String?
+  email            String?
+  workspaceName    String?
+  status           String    @default("received") // received | processing | completed
+  source           String    @default("meta_callback") // meta_callback | web_form
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  completedAt      DateTime?
+
+  @@index([status, createdAt])
+  @@map("data_deletion_requests")
 }

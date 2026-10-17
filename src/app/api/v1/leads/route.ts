@@ -5,8 +5,8 @@ import { errorResponse } from '@/shared/server/http-error';
 
 export async function GET(request: NextRequest) {
   try {
-    return await withApiKey('leads:read', request, async ({ organizationId }) => {
-      return Response.json(await inboxService.listLeads(organizationId));
+    return await withApiKey('leads:read', request, async ({ scope }) => {
+      return Response.json(await inboxService.listLeads(scope));
     });
   } catch (error) {
     return errorResponse(error);

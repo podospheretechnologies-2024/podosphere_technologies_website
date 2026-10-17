@@ -1,15 +1,15 @@
+import type { NextRequest } from 'next/server';
 import { inboxService } from '@/modules/social/server/inbox/inbox.service';
 import { planService } from '@/modules/social/server/billing/plan.service';
-import { getCurrentOrganization } from '@/shared/server/current-organization';
-import { requireRole } from '@/shared/server/access';
+import { getClientScope } from '@/shared/server/client-scope';
 import { errorResponse } from '@/shared/server/http-error';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const organization = await getCurrentOrganization();
-    await requireRole('ADMIN');
-    await planService.assertFeature(organization.id, 'leads');
-    return Response.json(await inboxService.listLeads(organization.id));
+    const scope = await getClientScope('leads');
+    await planService.assertFeature(scope.organizationId, 'leads');
+    const stage = request.nextUrl.searchParams.get('stage') ?? undefined;
+    return Response.json(await inboxService.listLeads(scope, stage ? { stage } : undefined));
   } catch (error) {
     return errorResponse(error);
   }

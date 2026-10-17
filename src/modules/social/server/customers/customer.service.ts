@@ -1,33 +1,27 @@
 import 'server-only';
 import { prisma } from '@/shared/lib/prisma';
 import { getAccess } from '@/shared/server/access';
+import { planService } from '../billing/plan.service';
 
 export const customerService = {
   async listCustomers() {
     const ctx = await getAccess();
     return prisma.socialCustomer.findMany({
-      where: { organizationId: ctx.organization.id },
-      orderBy: { createdAt: 'desc' }
+      where: { organizationId: ctx.organization.id, deletedAt: null },
+      orderBy: { createdAt: 'desc' },
     });
   },
 
-  async createCustomer(name: string, email: string) {
+  async createCustomer(name: string, _email: string) {
     const ctx = await getAccess();
-    
-    // Enforce plan limits
-    const count = await prisma.socialCustomer.count({
-      where: { organizationId: ctx.organization.id }
-    });
-    
-    if (count >= ctx.organization.maxClients) {
-      throw new Error(`Plan limit reached. Max clients: ${ctx.organization.maxClients}`);
-    }
+    await planService.assertClientCapacity(ctx.organization.id);
 
     return prisma.socialCustomer.create({
       data: {
         organizationId: ctx.organization.id,
         name,
-      }
+        onboardingStep: 'created',
+      },
     });
-  }
+  },
 };

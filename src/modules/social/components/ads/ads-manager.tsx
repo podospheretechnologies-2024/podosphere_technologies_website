@@ -26,6 +26,7 @@ import {
   Gauge,
   GripVertical,
   LayoutGrid,
+  Package,
   Pencil,
   Plus,
   RefreshCw,
@@ -44,6 +45,7 @@ import {
   type AdsDatePreset,
   type AdsStatusFilter,
 } from '../../config/ads';
+import { useAdAudiences, useAdCatalogs } from '../../hooks/use-ads';
 import type {
   AdAccountItem,
   AdsAdItem,
@@ -63,6 +65,7 @@ type MetaNavKey =
   | 'campaigns'
   | 'reporting'
   | 'audiences'
+  | 'catalogs'
   | 'settings'
   | 'billing'
   | 'events'
@@ -102,7 +105,8 @@ const META_NAV: {
   { key: 'overview', label: 'Account overview', inApp: true },
   { key: 'campaigns', label: 'Campaigns', inApp: true },
   { key: 'reporting', label: 'Ads Reporting', inApp: false },
-  { key: 'audiences', label: 'Audiences', inApp: false },
+  { key: 'audiences', label: 'Audiences', inApp: true },
+  { key: 'catalogs', label: 'Catalogs', inApp: true },
   { key: 'settings', label: 'Advertising settings', inApp: false },
   { key: 'billing', label: 'Billing and payments', inApp: false },
   { key: 'events', label: 'Events Manager', inApp: false },
@@ -787,6 +791,220 @@ function DateRangeMenu({
   );
 }
 
+function subtypeLabel(subtype: string): string {
+  return subtype
+    .toLowerCase()
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function sizeRangeLabel(lower: number | null, upper: number | null): string {
+  if (lower == null && upper == null) return '—';
+  if (lower != null && upper != null && lower !== upper) {
+    return `${numberFmt.format(lower)}–${numberFmt.format(upper)}`;
+  }
+  return numberFmt.format(upper ?? lower ?? 0);
+}
+
+function PanelHeader({
+  title,
+  description,
+  onBack,
+  onOpenInMeta,
+}: {
+  title: string;
+  description: string;
+  onBack: () => void;
+  onOpenInMeta: () => void;
+}) {
+  return (
+    <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+      <div>
+        <h2 className="text-[17px] font-bold text-[#050505]">{title}</h2>
+        <p className="text-[13px] text-[#65676B]">{description}</p>
+      </div>
+      <div className="flex gap-2">
+        <ToolbarBtn onClick={onBack}>View campaigns</ToolbarBtn>
+        <ToolbarBtn primary onClick={onOpenInMeta}>
+          Open in Meta ↗
+        </ToolbarBtn>
+      </div>
+    </div>
+  );
+}
+
+function AudiencesPanel({
+  accountId,
+  accountName,
+  onBack,
+}: {
+  accountId: string;
+  accountName: string;
+  onBack: () => void;
+}) {
+  const { data, isLoading, error } = useAdAudiences(accountId);
+  const audiences = data?.audiences ?? [];
+
+  return (
+    <div className="flex-1 overflow-auto bg-[#F0F2F5] p-4">
+      <PanelHeader
+        title="Custom audiences"
+        description={`Saved and lookalike audiences on ${accountName} (${actNumber(accountId)}).`}
+        onBack={onBack}
+        onOpenInMeta={() => openMetaTool('audiences', accountId)}
+      />
+      {isLoading && (
+        <div className="rounded-lg border border-[#DADDE1] bg-white p-6 text-[13px] text-[#65676B]">
+          Loading audiences from Meta…
+        </div>
+      )}
+      {error && (
+        <div className="rounded-lg border border-[#DADDE1] bg-white p-6 text-[13px] text-[#DC2626]">
+          {error.message}
+        </div>
+      )}
+      {!isLoading && !error && audiences.length === 0 && (
+        <div className="rounded-lg border border-[#DADDE1] bg-white p-6 text-[13px] text-[#65676B]">
+          No custom audiences on this ad account, or the system user cannot read them yet.
+        </div>
+      )}
+      {audiences.length > 0 && (
+        <div className="overflow-hidden rounded-lg border border-[#DADDE1] bg-white shadow-sm">
+          <table className="w-full text-left text-[13px]">
+            <thead className="bg-[#F5F6F7] text-[11px] font-semibold tracking-wide text-[#65676B] uppercase">
+              <tr>
+                <th className="px-4 py-2.5">Name</th>
+                <th className="px-4 py-2.5">Type</th>
+                <th className="px-4 py-2.5 text-right">Size</th>
+                <th className="px-4 py-2.5">Availability</th>
+                <th className="px-4 py-2.5">Delivery</th>
+              </tr>
+            </thead>
+            <tbody>
+              {audiences.map((audience) => (
+                <tr key={audience.id} className="border-t border-[#DADDE1]">
+                  <td className="px-4 py-2.5 font-medium text-[#050505]">{audience.name}</td>
+                  <td className="px-4 py-2.5 text-[#65676B]">{subtypeLabel(audience.subtype)}</td>
+                  <td className="px-4 py-2.5 text-right tabular-nums text-[#050505]">
+                    {sizeRangeLabel(audience.sizeLower, audience.sizeUpper)}
+                  </td>
+                  <td className="px-4 py-2.5 text-[#65676B]">{audience.operationStatus ?? '—'}</td>
+                  <td className="px-4 py-2.5 text-[#65676B]">{audience.deliveryStatus ?? '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CatalogsPanel({
+  accountId,
+  accountName,
+  onBack,
+}: {
+  accountId: string;
+  accountName: string;
+  onBack: () => void;
+}) {
+  const { data, isLoading, error } = useAdCatalogs(accountId);
+  const catalogs = data?.catalogs ?? [];
+
+  return (
+    <div className="flex-1 overflow-auto bg-[#F0F2F5] p-4">
+      <PanelHeader
+        title="Catalogs"
+        description={`Product catalogs owned by ${data?.businessName ?? accountName}'s business, with product sets and basic health.`}
+        onBack={onBack}
+        onOpenInMeta={() => openMetaTool('audiences', accountId)}
+      />
+      {isLoading && (
+        <div className="rounded-lg border border-[#DADDE1] bg-white p-6 text-[13px] text-[#65676B]">
+          Loading catalogs from Meta…
+        </div>
+      )}
+      {error && (
+        <div className="rounded-lg border border-[#DADDE1] bg-white p-6 text-[13px] text-[#DC2626]">
+          {error.message}
+        </div>
+      )}
+      {!isLoading && !error && !data?.businessId && (
+        <div className="rounded-lg border border-[#DADDE1] bg-white p-6 text-[13px] text-[#65676B]">
+          This ad account has no Business Manager attached, or the system user cannot see it.
+        </div>
+      )}
+      {!isLoading && !error && data?.businessId && catalogs.length === 0 && (
+        <div className="rounded-lg border border-[#DADDE1] bg-white p-6 text-[13px] text-[#65676B]">
+          No catalogs owned by this business.
+        </div>
+      )}
+      {catalogs.length > 0 && (
+        <div className="space-y-3">
+          {catalogs.map((catalog) => {
+            const noProducts = (catalog.productCount ?? 0) === 0;
+            return (
+              <div
+                key={catalog.id}
+                className="overflow-hidden rounded-lg border border-[#DADDE1] bg-white shadow-sm"
+              >
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#DADDE1] px-4 py-3">
+                  <div>
+                    <p className="text-[14px] font-semibold text-[#050505]">{catalog.name}</p>
+                    <p className="text-[12px] text-[#65676B]">
+                      {catalog.vertical ? subtypeLabel(catalog.vertical) : 'Catalog'} ·{' '}
+                      {catalog.id}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={cn(
+                        'inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[12px] font-medium',
+                        noProducts ? 'bg-[#FDEDED] text-[#DC2626]' : 'bg-[#E7F3FF] text-[#1877F2]'
+                      )}
+                    >
+                      {noProducts
+                        ? 'No products — check feed'
+                        : `${numberFmt.format(catalog.productCount ?? 0)} products`}
+                    </span>
+                    <span className="text-[12px] text-[#65676B]">
+                      {catalog.feedCount == null
+                        ? ''
+                        : `${numberFmt.format(catalog.feedCount)} feed${catalog.feedCount === 1 ? '' : 's'}`}
+                    </span>
+                  </div>
+                </div>
+                {catalog.productSets.length > 0 ? (
+                  <ul className="divide-y divide-[#F0F2F5]">
+                    {catalog.productSets.map((set) => (
+                      <li
+                        key={set.id}
+                        className="flex items-center justify-between px-4 py-2 text-[13px]"
+                      >
+                        <span className="text-[#050505]">{set.name}</span>
+                        <span className="tabular-nums text-[#65676B]">
+                          {set.productCount == null
+                            ? '—'
+                            : `${numberFmt.format(set.productCount)} products`}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="px-4 py-3 text-[12px] text-[#65676B]">
+                    No product sets in this catalog yet.
+                  </p>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function AdsManager({
   data,
   accounts,
@@ -822,7 +1040,9 @@ export function AdsManager({
 }) {
   const currency = data.account.currency;
   const [level, setLevel] = useState<ManagerLevel>('campaigns');
-  const [shellView, setShellView] = useState<'campaigns' | 'overview'>('campaigns');
+  const [shellView, setShellView] = useState<'campaigns' | 'overview' | 'audiences' | 'catalogs'>(
+    'campaigns'
+  );
   const [search, setSearch] = useState('');
   const [extraFilter, setExtraFilter] = useState<ExtraFilter>('none');
   const [seeMoreOpen, setSeeMoreOpen] = useState(false);
@@ -852,6 +1072,14 @@ export function AdsManager({
     setShellView('overview');
   }
 
+  function goAudiences() {
+    setShellView('audiences');
+  }
+
+  function goCatalogs() {
+    setShellView('catalogs');
+  }
+
   function handleNav(key: MetaNavKey) {
     if (key === 'campaigns') {
       goCampaigns();
@@ -859,6 +1087,14 @@ export function AdsManager({
     }
     if (key === 'overview') {
       goOverview();
+      return;
+    }
+    if (key === 'audiences') {
+      goAudiences();
+      return;
+    }
+    if (key === 'catalogs') {
+      goCatalogs();
       return;
     }
     openMetaTool(key, accountId);
@@ -1396,16 +1632,20 @@ export function AdsManager({
                     ? BarChart3
                     : item.key === 'audiences'
                       ? Users
-                      : item.key === 'settings'
-                        ? SlidersHorizontal
-                        : item.key === 'billing'
-                          ? CreditCard
-                          : item.key === 'events'
-                            ? Star
-                            : Columns3;
+                      : item.key === 'catalogs'
+                        ? Package
+                        : item.key === 'settings'
+                          ? SlidersHorizontal
+                          : item.key === 'billing'
+                            ? CreditCard
+                            : item.key === 'events'
+                              ? Star
+                              : Columns3;
             const active =
               (item.key === 'campaigns' && shellView === 'campaigns') ||
-              (item.key === 'overview' && shellView === 'overview');
+              (item.key === 'overview' && shellView === 'overview') ||
+              (item.key === 'audiences' && shellView === 'audiences') ||
+              (item.key === 'catalogs' && shellView === 'catalogs');
             return (
               <button
                 key={item.key}
@@ -1750,7 +1990,11 @@ export function AdsManager({
       )}
 
       {/* Search */}
-      {shellView === 'overview' ? (
+      {shellView === 'audiences' ? (
+        <AudiencesPanel accountId={accountId} accountName={data.account.name} onBack={goCampaigns} />
+      ) : shellView === 'catalogs' ? (
+        <CatalogsPanel accountId={accountId} accountName={data.account.name} onBack={goCampaigns} />
+      ) : shellView === 'overview' ? (
         <div className="flex-1 overflow-auto bg-[#F0F2F5] p-4">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
             <div>

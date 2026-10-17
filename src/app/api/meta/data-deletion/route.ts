@@ -30,16 +30,24 @@ export async function POST(request: Request) {
       `[meta] data deletion requested user=${payload.user_id} code=${confirmationCode}`
     );
 
-    const integrations = await prisma.socialIntegration.findMany({
-      where: {
-        providerIdentifier: { in: ['facebook', 'instagram'] },
-        additionalSettings: { path: '$.metaUserId', equals: payload.user_id }
-      }
+    await prisma.dataDeletionRequest.upsert({
+      where: { confirmationCode },
+      create: {
+        confirmationCode,
+        metaUserId: payload.user_id,
+        status: 'processing',
+        source: 'meta_callback',
+      },
+      update: {
+        metaUserId: payload.user_id,
+        status: 'processing',
+      },
     });
 
-    for (const integration of integrations) {
-      await getIntegrationQueue().add(INTEGRATION_JOB.deleteData, { integrationId: integration.id });
-    }
+    // Worker deletes matching FB/IG integrations and marks the request completed.
+    await getIntegrationQueue().add(INTEGRATION_JOB.processDeletionRequest, {
+      confirmationCode,
+    });
 
     return Response.json({
       url: `${APP_URL}/data-deletion?code=${confirmationCode}`,

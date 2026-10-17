@@ -1,7 +1,8 @@
 import 'server-only';
 import type { Prisma, SocialCreationMethod, SocialPostState } from '@/generated/prisma/client';
 import { prisma } from '@/shared/lib/prisma';
-import { getAccess } from '@/shared/server/access';
+import type { ClientScope } from '@/shared/server/client-scope';
+import { scopeWhere } from '@/shared/server/client-scope';
 import { POSTS_PAGE_SIZE, type PostListFilter } from '../../config/posts';
 import type { PostMedia } from '../../types/post';
 
@@ -58,6 +59,13 @@ function listFilter(filter: PostListFilter): {
 // Each channel's thread is stored as a chain: the first post has no parent and
 // every comment points at the item before it, which is the order it is published in.
 async function createThreads(tx: Prisma.TransactionClient, data: CreateGroupData) {
+  // A post belongs to the same client as its channel (PODO_SOCIAL_CLIENT_PLAN.md 4.2).
+  const channels = await tx.socialIntegration.findMany({
+    where: { organizationId: data.organizationId, id: { in: data.threads.map((t) => t.integrationId) } },
+    select: { id: true, customerId: true },
+  });
+  const customerByIntegration = new Map(channels.map((c) => [c.id, c.customerId]));
+
   for (const thread of data.threads) {
     let parentPostId: string | null = null;
     for (const value of thread.values) {
@@ -65,6 +73,7 @@ async function createThreads(tx: Prisma.TransactionClient, data: CreateGroupData
         data: {
           organizationId: data.organizationId,
           integrationId: thread.integrationId,
+          customerId: customerByIntegration.get(thread.integrationId) ?? null,
           group: data.group,
           state: data.state,
           publishDate: data.publishDate,
@@ -86,8 +95,8 @@ async function createThreads(tx: Prisma.TransactionClient, data: CreateGroupData
 }
 
 export const postRepository = {
-  async list(organizationId: string, page: number, filter: PostListFilter) {
-    const { clientIds } = await getAccess();
+  async list(scope: ClientScope, page: number, filter: PostListFilter) {
+    const { organizationId, customerIds } = scope;
     const { where: filterWhere, orderBy } = listFilter(filter);
     const where: Prisma.SocialPostWhereInput = {
       organizationId,
@@ -95,7 +104,7 @@ export const postRepository = {
       parentPostId: null,
       integration: { 
         deletedAt: null,
-        customerId: clientIds === 'all' ? undefined : { in: clientIds } 
+        customerId: customerIds === 'all' ? undefined : { in: customerIds },
       },
       ...filterWhere,
     };
@@ -114,8 +123,8 @@ export const postRepository = {
     return { total, results };
   },
 
-  async listRange(organizationId: string, start: Date, end: Date) {
-    const { clientIds } = await getAccess();
+  async listRange(scope: ClientScope, start: Date, end: Date) {
+    const { organizationId, customerIds } = scope;
     return prisma.socialPost.findMany({
       where: {
         organizationId,
@@ -123,7 +132,7 @@ export const postRepository = {
         parentPostId: null,
         integration: { 
           deletedAt: null,
-          customerId: clientIds === 'all' ? undefined : { in: clientIds } 
+          customerId: customerIds === 'all' ? undefined : { in: customerIds },
         },
         publishDate: { gte: start, lt: end },
       },
@@ -134,8 +143,8 @@ export const postRepository = {
 
   // Failed posts go back to the queue; the error is cleared because it belongs
   // to the previous attempt.
-  async reschedule(organizationId: string, group: string, publishDate: Date): Promise<void> {
-    const where = { organizationId, group, deletedAt: null };
+  async reschedule(scope: ClientScope, group: string, publishDate: Date): Promise<void> {
+    const where = { ...scopeWhere(scope), group, deletedAt: null };
     await prisma.$transaction([
       prisma.socialPost.updateMany({ where, data: { publishDate } }),
       prisma.socialPost.updateMany({
@@ -182,9 +191,9 @@ export const postRepository = {
     return posts.map((post) => post.publishDate);
   },
 
-  findGroup(organizationId: string, group: string) {
+  findGroup(scope: ClientScope, group: string) {
     return prisma.socialPost.findMany({
-      where: { organizationId, group, deletedAt: null },
+      where: { ...scopeWhere(scope), group, deletedAt: null },
       include: postInclude,
       orderBy: { createdAt: 'asc' },
     });
@@ -206,9 +215,9 @@ export const postRepository = {
     });
   },
 
-  async softDeleteGroup(organizationId: string, group: string): Promise<number> {
+  async softDeleteGroup(scope: ClientScope, group: string): Promise<number> {
     const { count } = await prisma.socialPost.updateMany({
-      where: { organizationId, group, deletedAt: null },
+      where: { ...scopeWhere(scope), group, deletedAt: null },
       data: { deletedAt: new Date() },
     });
     return count;

@@ -5,8 +5,9 @@ export const ALERT_QUEUE_NAME = 'social-alert-queue';
 
 export const ALERT_JOB = {
   evaluateRules: 'alerts.evaluate',
-  generateReports: 'reports.monthly.generate',
-};
+  slaSweep: 'alerts.slaSweep',
+} as const;
+// Monthly PDF reports: social-reports-queue / REPORT_JOB.generateMonthly.
 
 let queue: Queue | undefined;
 

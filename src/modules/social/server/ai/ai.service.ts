@@ -2,6 +2,7 @@ import 'server-only';
 import OpenAI from 'openai';
 import { z } from 'zod';
 import { getServerEnv } from '@/shared/lib/env';
+import { organizationScope } from '@/shared/server/client-scope';
 import { HttpError } from '@/shared/server/http-error';
 import { AI_POST_VARIATIONS, type AiImageOrientation, type AiPostFormat } from '../../config/ai';
 import { POST_MAX_THREAD_ITEMS } from '../../config/posts';
@@ -213,7 +214,7 @@ export const aiService = {
 
     const bytes = Buffer.from(base64, 'base64');
     return mediaService.upload({
-      organizationId,
+      scope: organizationScope(organizationId),
       fileName: `ai-image-${Date.now()}.png`,
       body: new Blob([new Uint8Array(bytes)]).stream(),
       declaredSize: bytes.byteLength,

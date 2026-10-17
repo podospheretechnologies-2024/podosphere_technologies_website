@@ -25,7 +25,21 @@ export function WhatsAppGrowthTools() {
   const [broadcasts, setBroadcasts] = useState<BroadcastRow[]>([]);
   const [message, setMessage] = useState<string | null>(null);
   const [template, setTemplate] = useState({ name: '', language: 'en', category: 'UTILITY', body: '' });
-  const [broadcast, setBroadcast] = useState({ name: '', templateName: '', language: 'en', phones: '', variables: '' });
+  const [broadcast, setBroadcast] = useState({
+    name: '',
+    templateName: '',
+    language: 'en',
+    phones: '',
+    variables: '',
+    consentAcknowledged: false,
+  });
+  const [estimate, setEstimate] = useState<{
+    messageCount: number;
+    optedOutCount: number;
+    estimatedCostPaise: number;
+    estimatedCostInr: number;
+    ratePaise: number;
+  } | null>(null);
 
   const [health, setHealth] = useState<any>(null);
   const [webhookUrl, setWebhookUrl] = useState('');
@@ -114,7 +128,50 @@ export function WhatsAppGrowthTools() {
     setMessage(response.ok ? `Template submitted (${payload.status ?? 'PENDING'}). Meta must approve it.` : payload.error || 'Template failed');
   }
 
+  async function estimateBroadcast() {
+    setMessage(null);
+    setEstimate(null);
+    const phones = broadcast.phones.split(/[\s,]+/).filter(Boolean);
+    const response = await fetch('/api/social/whatsapp/broadcasts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'estimate', phones }),
+    });
+    const payload = (await response.json()) as {
+      error?: string;
+      messageCount?: number;
+      optedOutCount?: number;
+      estimatedCostPaise?: number;
+      estimatedCostInr?: number;
+      ratePaise?: number;
+    };
+    if (!response.ok || payload.messageCount === undefined) {
+      setMessage(payload.error || 'Could not estimate cost');
+      return;
+    }
+    setEstimate({
+      messageCount: payload.messageCount,
+      optedOutCount: payload.optedOutCount ?? 0,
+      estimatedCostPaise: payload.estimatedCostPaise ?? 0,
+      estimatedCostInr: payload.estimatedCostInr ?? 0,
+      ratePaise: payload.ratePaise ?? 0,
+    });
+  }
+
   async function sendBroadcast() {
+    if (!broadcast.consentAcknowledged) {
+      setMessage('Acknowledge recipient consent before sending.');
+      return;
+    }
+    if (!estimate) {
+      setMessage('Estimate cost first, then confirm send.');
+      return;
+    }
+    const confirmed = window.confirm(
+      `Send ${estimate.messageCount} messages (~₹${estimate.estimatedCostInr.toFixed(2)})? ${estimate.optedOutCount} opted-out will be skipped.`
+    );
+    if (!confirmed) return;
+
     const response = await fetch('/api/social/whatsapp/broadcasts', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -124,10 +181,22 @@ export function WhatsAppGrowthTools() {
         language: broadcast.language,
         phones: broadcast.phones.split(/[\s,]+/).filter(Boolean),
         variables: broadcast.variables.split('|').map((part) => part.trim()).filter(Boolean),
+        consentAcknowledged: true,
       }),
     });
-    const payload = (await response.json()) as { error?: string; sent?: number; total?: number };
-    setMessage(response.ok ? `Sent ${payload.sent}/${payload.total}` : payload.error || 'Broadcast failed');
+    const payload = (await response.json()) as {
+      error?: string;
+      sent?: number;
+      total?: number;
+      skippedOptedOut?: number;
+      estimatedCostPaise?: number;
+    };
+    setMessage(
+      response.ok
+        ? `Sent ${payload.sent}/${payload.total} (skipped ${payload.skippedOptedOut ?? 0} opted-out · est. ₹${((payload.estimatedCostPaise ?? 0) / 100).toFixed(2)})`
+        : payload.error || 'Broadcast failed'
+    );
+    setEstimate(null);
     reload();
   }
 
@@ -184,8 +253,31 @@ export function WhatsAppGrowthTools() {
             <p className="text-xs font-semibold">Broadcast an approved template</p>
             <input className="border-border h-10 w-full rounded-xl border px-3 text-sm" placeholder="Campaign name" value={broadcast.name} onChange={(event) => setBroadcast({ ...broadcast, name: event.target.value })} />
             <input className="border-border h-10 w-full rounded-xl border px-3 text-sm" placeholder="Approved template name" value={broadcast.templateName} onChange={(event) => setBroadcast({ ...broadcast, templateName: event.target.value })} />
-            <textarea className="border-border w-full rounded-xl border px-3 py-2 text-sm" rows={3} placeholder="Phones, one per line" value={broadcast.phones} onChange={(event) => setBroadcast({ ...broadcast, phones: event.target.value })} />
-            <Button type="button" variant="secondary" onClick={() => void sendBroadcast()}>Send broadcast</Button>
+            <textarea className="border-border w-full rounded-xl border px-3 py-2 text-sm" rows={3} placeholder="Phones, one per line" value={broadcast.phones} onChange={(event) => { setBroadcast({ ...broadcast, phones: event.target.value }); setEstimate(null); }} />
+            <label className="text-muted-foreground flex items-start gap-2 text-xs">
+              <input
+                type="checkbox"
+                className="mt-0.5"
+                checked={broadcast.consentAcknowledged}
+                onChange={(event) => setBroadcast({ ...broadcast, consentAcknowledged: event.target.checked })}
+              />
+              I confirm these recipients opted in to WhatsApp messages and can opt out via STOP.
+            </label>
+            {estimate && (
+              <p className="text-muted-foreground text-xs">
+                Estimate: {estimate.messageCount} messages × ₹{(estimate.ratePaise / 100).toFixed(2)} ≈ ₹
+                {estimate.estimatedCostInr.toFixed(2)}
+                {estimate.optedOutCount > 0 ? ` · ${estimate.optedOutCount} opted-out skipped` : ''}
+              </p>
+            )}
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" variant="secondary" onClick={() => void estimateBroadcast()}>
+                Estimate cost
+              </Button>
+              <Button type="button" variant="secondary" onClick={() => void sendBroadcast()} disabled={!broadcast.consentAcknowledged || !estimate}>
+                Confirm and send
+              </Button>
+            </div>
           </div>
         </div>
 

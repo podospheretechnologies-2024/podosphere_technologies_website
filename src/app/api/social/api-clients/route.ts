@@ -20,6 +20,7 @@ const schema = z.object({
   permissions: z.array(z.string()).min(1),
   dailyLimit: z.number().int().min(1).max(100000).optional(),
   ipAllowlist: z.string().max(2000).optional(),
+  customerId: z.string().uuid().nullable().optional(),
 });
 
 export async function POST(request: NextRequest) {

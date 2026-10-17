@@ -1,19 +1,20 @@
 import 'server-only';
 import type { Prisma, SocialMedia, SocialMediaFormat } from '@/generated/prisma/client';
 import { prisma } from '@/shared/lib/prisma';
+import { scopeWhere, type ClientScope } from '@/shared/server/client-scope';
 import { MEDIA_PAGE_SIZE } from '../../config/media';
 
 interface ListMediaParams {
-  organizationId: string;
+  scope: ClientScope;
   page: number;
   search?: string;
   format?: SocialMediaFormat;
 }
 
 export const mediaRepository = {
-  async list({ organizationId, page, search, format }: ListMediaParams) {
+  async list({ scope, page, search, format }: ListMediaParams) {
     const where: Prisma.SocialMediaWhereInput = {
-      organizationId,
+      ...scopeWhere(scope),
       deletedAt: null,
       status: 'READY',
       ...(search ? { originalName: { contains: search } } : {}),
@@ -37,10 +38,13 @@ export const mediaRepository = {
     return prisma.socialMedia.create({ data });
   },
 
-  findById(organizationId: string, id: string): Promise<SocialMedia | null> {
-    return prisma.socialMedia.findFirst({ where: { id, organizationId, deletedAt: null } });
+  findById(scope: ClientScope, id: string): Promise<SocialMedia | null> {
+    return prisma.socialMedia.findFirst({
+      where: { id, ...scopeWhere(scope), deletedAt: null },
+    });
   },
 
+  /** Org-wide by id (workers / publish). Prefer findById(scope) for request paths. */
   findManyByIds(organizationId: string, ids: string[]): Promise<SocialMedia[]> {
     return prisma.socialMedia.findMany({
       where: { id: { in: ids }, organizationId, deletedAt: null, status: 'READY' },

@@ -6,6 +6,7 @@ import useSWR from 'swr';
 import { Button } from '@/shared/components/ui/button';
 import { cn } from '@/shared/lib/cn';
 import { fetcher } from '@/shared/lib/fetcher';
+import { useClientScopeKey } from '../../hooks/use-client-scope';
 import { WHATSAPP_API_ROUTE } from '../../hooks/use-whatsapp';
 import { sendWhatsAppMessage } from '../../lib/whatsapp.client';
 import type {
@@ -48,14 +49,19 @@ function outboundOriginLabel(message: {
 }
 
 export function WhatsAppInbox({ number }: { number: WhatsAppNumber }) {
+  const scopeKey = useClientScopeKey();
   const {
     data: conversations = [],
     error,
     isLoading,
     mutate: mutateList,
-  } = useSWR<WhatsAppConversationItem[]>(`${WHATSAPP_API_ROUTE}/conversations`, fetcher, {
-    refreshInterval: 15_000,
-  });
+  } = useSWR<WhatsAppConversationItem[]>(
+    [`${WHATSAPP_API_ROUTE}/conversations`, scopeKey],
+    ([url]) => fetcher(url),
+    {
+      refreshInterval: 15_000,
+    }
+  );
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [draft, setDraft] = useState('');
@@ -82,12 +88,14 @@ export function WhatsAppInbox({ number }: { number: WhatsAppNumber }) {
     }
   }, [filtered, selectedId]);
 
-  const detailKey = selectedId ? `${WHATSAPP_API_ROUTE}/conversations/${selectedId}` : null;
+  const detailKey = selectedId
+    ? ([`${WHATSAPP_API_ROUTE}/conversations/${selectedId}`, scopeKey] as const)
+    : null;
   const {
     data: detail,
     mutate: mutateDetail,
     isLoading: detailLoading,
-  } = useSWR<WhatsAppConversationDetail>(detailKey, fetcher, {
+  } = useSWR<WhatsAppConversationDetail>(detailKey, ([url]) => fetcher(url), {
     refreshInterval: 8_000,
   });
 

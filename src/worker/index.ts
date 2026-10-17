@@ -5,6 +5,8 @@ import { startAdsWorker } from '@/modules/social/server/ads/ads.worker';
 import { startAnalyticsWorker } from '@/modules/social/server/analytics/analytics.worker';
 import { startIntegrationWorker } from '@/modules/social/server/integrations/integration.worker';
 import { startAlertWorker } from '@/modules/social/server/alerts/alert.worker';
+import { startReportWorker } from '@/modules/social/server/reports/report.worker';
+import { startWeeklyPlanWorker } from '@/modules/social/server/ai/weekly-plan.worker';
 
 // Background process for queued jobs. Every module that needs background work
 // starts its workers here.
@@ -15,7 +17,9 @@ async function main() {
     await startAdsWorker(),
     await startAnalyticsWorker(),
     await startIntegrationWorker(),
-    await startAlertWorker(),
+    await startAlertWorker(), // alerts.evaluate + alerts.slaSweep
+    await startReportWorker(),
+    await startWeeklyPlanWorker(),
   ];
   console.log('[worker] started');
 

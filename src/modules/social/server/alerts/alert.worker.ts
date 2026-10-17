@@ -5,13 +5,14 @@ import { getAlertQueue, closeAlertQueue, ALERT_JOB, ALERT_QUEUE_NAME } from './a
 import { alertService } from './alert.service';
 
 const EVALUATE_ALERTS_EVERY_MS = 60 * 60 * 1000; // Hourly
+const SLA_SWEEP_EVERY_MS = 5 * 60 * 1000; // Every 5 minutes
 
 function processJob(job: Job) {
   switch (job.name) {
     case ALERT_JOB.evaluateRules:
       return alertService.runAllAlerts();
-    case ALERT_JOB.generateReports:
-      return alertService.generateMonthlyReport(job.data.customerId);
+    case ALERT_JOB.slaSweep:
+      return alertService.evaluateSlaBreaches();
     default:
       throw new Error(`Unknown job "${job.name}"`);
   }
@@ -25,9 +26,11 @@ export async function startAlertWorker(): Promise<{ close(): Promise<void> }> {
     { every: EVALUATE_ALERTS_EVERY_MS },
     { name: ALERT_JOB.evaluateRules }
   );
-  // Monthly report jobs would be scheduled by a cron on the 1st of every month
-  // instead of an interval scheduler.
-
+  await queue.upsertJobScheduler(
+    ALERT_JOB.slaSweep,
+    { every: SLA_SWEEP_EVERY_MS },
+    { name: ALERT_JOB.slaSweep }
+  );
   const worker = new Worker(ALERT_QUEUE_NAME, processJob, {
     connection: createQueueConnection(),
     concurrency: 2,

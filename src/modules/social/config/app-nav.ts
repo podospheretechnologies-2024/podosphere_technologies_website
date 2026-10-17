@@ -6,6 +6,7 @@ import {
   Image as ImageIcon,
   Inbox,
   KeyRound,
+  LayoutDashboard,
   Megaphone,
   MessageCircle,
   Plug,
@@ -28,6 +29,12 @@ export interface SocialAppNavItem {
 }
 
 export const socialAppNav: SocialAppNavItem[] = [
+  {
+    key: 'overview',
+    label: 'Overview',
+    href: `${SOCIAL_BASE_PATH}/overview`,
+    icon: LayoutDashboard,
+  },
   {
     key: 'calendar',
     label: 'Calendar',
@@ -123,7 +130,7 @@ export const socialAppNav: SocialAppNavItem[] = [
   },
 ];
 
-export const socialAppHome = `${SOCIAL_BASE_PATH}/calendar`;
+export const socialAppHome = `${SOCIAL_BASE_PATH}/overview`;
 
 export function getSocialAppNavItem(pathname: string): SocialAppNavItem | undefined {
   return socialAppNav.find(

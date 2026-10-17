@@ -1,34 +1,44 @@
 import 'server-only';
 import type { SocialTag } from '@/generated/prisma/client';
 import { prisma } from '@/shared/lib/prisma';
+import { scopeWhere, type ClientScope } from '@/shared/server/client-scope';
 import type { SaveTagBody } from './tag.schema';
 
 export const tagRepository = {
-  list(organizationId: string): Promise<SocialTag[]> {
+  list(scope: ClientScope): Promise<SocialTag[]> {
     return prisma.socialTag.findMany({
-      where: { organizationId, deletedAt: null },
+      where: { ...scopeWhere(scope), deletedAt: null },
       orderBy: { name: 'asc' },
     });
   },
 
-  findById(organizationId: string, id: string): Promise<SocialTag | null> {
-    return prisma.socialTag.findFirst({ where: { id, organizationId, deletedAt: null } });
+  findById(scope: ClientScope, id: string): Promise<SocialTag | null> {
+    return prisma.socialTag.findFirst({ where: { id, ...scopeWhere(scope), deletedAt: null } });
   },
 
+  /** Org-wide by id (posts / templates). Prefer findById(scope) for request paths. */
   findManyByIds(organizationId: string, ids: string[]): Promise<SocialTag[]> {
     return prisma.socialTag.findMany({
       where: { id: { in: ids }, organizationId, deletedAt: null },
     });
   },
 
-  findByName(organizationId: string, name: string): Promise<SocialTag | null> {
+  findByName(
+    organizationId: string,
+    customerId: string | null,
+    name: string
+  ): Promise<SocialTag | null> {
     return prisma.socialTag.findFirst({
-      where: { organizationId, deletedAt: null, name: { equals: name } }, // MySQL collation is case-insensitive
+      where: { organizationId, customerId, deletedAt: null, name: { equals: name } }, // MySQL collation is case-insensitive
     });
   },
 
-  create(organizationId: string, data: SaveTagBody): Promise<SocialTag> {
-    return prisma.socialTag.create({ data: { organizationId, ...data } });
+  create(
+    organizationId: string,
+    customerId: string | null,
+    data: SaveTagBody
+  ): Promise<SocialTag> {
+    return prisma.socialTag.create({ data: { organizationId, customerId, ...data } });
   },
 
   update(id: string, data: SaveTagBody): Promise<SocialTag> {

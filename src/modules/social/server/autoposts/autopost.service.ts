@@ -1,5 +1,6 @@
 import 'server-only';
 import type { SocialAutoPost } from '@/generated/prisma/client';
+import { organizationScope, type ClientScope } from '@/shared/server/client-scope';
 import { HttpError } from '@/shared/server/http-error';
 import { AI_MIN_POST_LENGTH } from '../../config/ai';
 import { AUTOPOST_DEFAULT_TEMPLATE, AUTOPOST_MAX_ITEMS_PER_RUN } from '../../config/automation';
@@ -13,6 +14,11 @@ import { postService } from '../posts/post.service';
 import { autopostRepository } from './autopost.repository';
 import type { SaveAutopostBody } from './autopost.schema';
 import { fetchFeed, type FeedItem } from './rss-feed';
+
+/** Single selected client → that id; 'all' → null (agency-shared). */
+function customerIdForWrite(scope: ClientScope): string | null {
+  return scope.customerIds !== 'all' && scope.customerIds.length === 1 ? scope.customerIds[0] : null;
+}
 
 // integrationIds is a JSON column (MySQL has no list columns); always read it through here.
 function integrationIdsOf(autopost: SocialAutoPost): string[] {
@@ -37,19 +43,26 @@ function toAutopostItem(autopost: SocialAutoPost): AutopostItem {
   };
 }
 
-async function findOrThrow(organizationId: string, id: string) {
-  const autopost = await autopostRepository.findById(organizationId, id);
+async function findOrThrow(scope: ClientScope, id: string) {
+  const autopost = await autopostRepository.findById(scope, id);
   if (!autopost) {
     throw new HttpError(404, 'Feed not found');
   }
   return autopost;
 }
 
-async function assertChannels(organizationId: string, integrationIds: string[]) {
+async function assertChannels(scope: ClientScope, integrationIds: string[]) {
   const ids = [...new Set(integrationIds)];
-  const integrations = await integrationRepository.findManyByIds(organizationId, ids);
+  const integrations = await integrationRepository.findManyByIds(scope.organizationId, ids);
   if (integrations.length !== ids.length) {
     throw new HttpError(400, 'One of the selected channels no longer exists');
+  }
+  if (scope.customerIds !== 'all') {
+    for (const integration of integrations) {
+      if (!integration.customerId || !scope.customerIds.includes(integration.customerId)) {
+        throw new HttpError(400, 'One of the selected channels is outside the current client');
+      }
+    }
   }
   return ids;
 }
@@ -181,7 +194,7 @@ async function runFeed(autopost: SocialAutoPost): Promise<AutopostRunResult> {
       : new Date();
 
     await postService.create(
-      autopost.organizationId,
+      organizationScope(autopost.organizationId),
       {
         type: autopost.onSlot ? 'schedule' : 'now',
         date: date.toISOString(),
@@ -201,22 +214,25 @@ async function runFeed(autopost: SocialAutoPost): Promise<AutopostRunResult> {
 }
 
 export const autopostService = {
-  async list(organizationId: string): Promise<AutopostItem[]> {
-    return (await autopostRepository.list(organizationId)).map(toAutopostItem);
+  async list(scope: ClientScope): Promise<AutopostItem[]> {
+    return (await autopostRepository.list(scope)).map(toAutopostItem);
   },
 
-  async create(organizationId: string, body: SaveAutopostBody): Promise<AutopostItem> {
-    const integrationIds = await assertChannels(organizationId, body.integrationIds);
+  async create(scope: ClientScope, body: SaveAutopostBody): Promise<AutopostItem> {
+    const integrationIds = await assertChannels(scope, body.integrationIds);
     await assertFeed(body.url);
     return toAutopostItem(
-      await autopostRepository.create(organizationId, { ...body, integrationIds })
+      await autopostRepository.create(scope.organizationId, customerIdForWrite(scope), {
+        ...body,
+        integrationIds,
+      })
     );
   },
 
   // A new feed link starts over, like a newly added feed.
-  async update(organizationId: string, id: string, body: SaveAutopostBody): Promise<AutopostItem> {
-    const autopost = await findOrThrow(organizationId, id);
-    const integrationIds = await assertChannels(organizationId, body.integrationIds);
+  async update(scope: ClientScope, id: string, body: SaveAutopostBody): Promise<AutopostItem> {
+    const autopost = await findOrThrow(scope, id);
+    const integrationIds = await assertChannels(scope, body.integrationIds);
     const urlChanged = body.url !== autopost.url;
     if (urlChanged) {
       await assertFeed(body.url);
@@ -230,14 +246,14 @@ export const autopostService = {
     );
   },
 
-  async remove(organizationId: string, id: string): Promise<void> {
-    await findOrThrow(organizationId, id);
+  async remove(scope: ClientScope, id: string): Promise<void> {
+    await findOrThrow(scope, id);
     await autopostRepository.softDelete(id);
   },
 
   // "Check now" button: runs even when the feed is paused.
-  async run(organizationId: string, id: string): Promise<AutopostRunResult> {
-    return runFeed(await findOrThrow(organizationId, id));
+  async run(scope: ClientScope, id: string): Promise<AutopostRunResult> {
+    return runFeed(await findOrThrow(scope, id));
   },
 
   // Worker job for one feed; feeds paused or deleted since the sweep are skipped.

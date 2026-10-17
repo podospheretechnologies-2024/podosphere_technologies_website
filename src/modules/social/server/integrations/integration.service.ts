@@ -5,6 +5,7 @@ import { prisma } from '@/shared/lib/prisma';
 import { getServerEnv } from '@/shared/lib/env';
 import { HttpError } from '@/shared/server/http-error';
 import { logAudit } from '@/shared/server/audit.service';
+import type { ClientScope } from '@/shared/server/client-scope';
 import type {
   AvailableProvider,
   ChannelItem,
@@ -18,7 +19,9 @@ import { integrationRepository } from './integration.repository';
 import type { CallbackQuery } from './integration.schema';
 import { oauthStateStore } from './oauth-state';
 import { getIntegrationQueue, INTEGRATION_JOB } from './integration.queue';
+import { trySubscribePageAfterConnect } from './providers/meta/meta-webhook-subscribe';
 import { planService } from '../billing/plan.service';
+import { clientTemplateService } from '../client-templates/client-template.service';
 
 // Refresh tokens this long before they expire so a scheduled post never uses a stale one.
 const REFRESH_BUFFER_MS = 10 * 60 * 1000;
@@ -95,8 +98,8 @@ const EXTRA_CHANNEL_PROVIDERS: AvailableProvider[] = [
 ];
 
 export const integrationService = {
-  async list(organizationId: string): Promise<ChannelsResponse> {
-    const rows = await integrationRepository.list(organizationId);
+  async list(scope: ClientScope): Promise<ChannelsResponse> {
+    const rows = await integrationRepository.list(scope);
     return {
       channels: rows.map(toChannelItem),
       providers: [...integrationRegistry.list().map(toAvailableProvider), ...EXTRA_CHANNEL_PROVIDERS],
@@ -207,8 +210,17 @@ export const integrationService = {
           ...toTokenFields(details),
         })
       );
+
+      // Page + Instagram webhooks: subscribe the Facebook Page so Meta delivers
+      // feed/messages/leadgen to POST /api/webhooks/meta. Best-effort; never blocks connect.
+      if (identifier === 'facebook' || identifier === 'instagram') {
+        const meta = details.metadata as { facebookPageId?: string } | undefined;
+        const pageId =
+          identifier === 'facebook' ? details.internalId : meta?.facebookPageId;
+        void trySubscribePageAfterConnect(pageId, details.accessToken);
+      }
     }
-    
+
     // Log the connection event
     await logAudit({
       action: 'integration.connect',
@@ -216,7 +228,23 @@ export const integrationService = {
       targetId: integrations[0]?.id,
       metadata: { identifier, count: accounts.length }
     });
-    
+
+    // Template bootstrap: posting schedule hints + set channel remapping.
+    if (state.customerId && integrations.length > 0) {
+      try {
+        await clientTemplateService.applyChannelBootstrap(
+          organizationId,
+          state.customerId,
+          integrations.map((i) => ({
+            id: i.id,
+            providerIdentifier: i.providerIdentifier,
+          }))
+        );
+      } catch (error) {
+        console.error('[social] template channel bootstrap failed', error);
+      }
+    }
+
     return { integrations, customerId: state.customerId };
   },
 

@@ -7,6 +7,15 @@ enum SocialPostState {
   ERROR
 }
 
+// Multi-step approval for client-scoped drafts (PODO_SOCIAL_CLIENT_PLAN.md P1).
+// null = not in an approval workflow. Posts stay DRAFT until APPROVED → QUEUE.
+enum SocialApprovalStep {
+  INTERNAL
+  CLIENT
+  APPROVED
+  REJECTED
+}
+
 enum SocialCreationMethod {
   WEB
   API
@@ -78,18 +87,51 @@ model SocialCustomer {
   id             String    @id @default(uuid())
   organizationId String
   name           String
+  // Onboarding wizard: created → connect_link → channels → brand_kit → done
+  onboardingStep String    @default("created") @db.VarChar(32)
+  // Copied from SocialClientTemplate on apply: postingScheduleHints + sourceChannels.
+  templateBootstrap Json?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
   deletedAt      DateTime?
 
-  organization Organization        @relation(fields: [organizationId], references: [id])
-  integrations SocialIntegration[]
-  members      SocialClientMember[]
-  approvers    ClientApprover[]
-  adAccounts   AdAccount[]
+  organization          Organization               @relation(fields: [organizationId], references: [id])
+  integrations          SocialIntegration[]
+  members               SocialClientMember[]
+  approvers             ClientApprover[]
+  adAccounts            AdAccount[]
+  posts                 SocialPost[]
+  media                 SocialMedia[]
+  brandKits             SocialBrandKit[]
+  inboxThreads          SocialInboxThread[]
+  leads                 SocialLead[]
+  reports               SocialClientReport[]
+  tags                  SocialTag[]
+  signatures            SocialSignature[]
+  sets                  SocialSet[]
+  autoPosts             SocialAutoPost[]
+  whatsappConversations WhatsAppConversation[]
+  whatsappBroadcasts    WhatsAppBroadcast[]
+  whatsappConnections   SocialWhatsAppConnection[]
+  apiClients            SocialApiClient[]
 
   @@index([organizationId])
   @@map("social_customers")
+}
+
+// Agency-reusable snapshot of a client's setup (brand kit, tags, signatures, sets, schedule hints).
+model SocialClientTemplate {
+  id             String   @id @default(uuid())
+  organizationId String
+  name           String
+  data           Json
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId])
+  @@map("social_client_templates")
 }
 
 // One row per channel. Posts created together share the same `group`;
@@ -97,10 +139,13 @@ model SocialCustomer {
 model SocialPost {
   id             String               @id @default(cuid())
   organizationId String
+  customerId     String?
   integrationId  String
   group          String
   parentPostId   String?
   state          SocialPostState      @default(QUEUE)
+  // null when not in review; INTERNAL / CLIENT while waiting; APPROVED / REJECTED terminal.
+  approvalStep   SocialApprovalStep?
   publishDate    DateTime
   content        String               @db.Text
   // Minutes to wait after the previous item of a thread.
@@ -119,6 +164,7 @@ model SocialPost {
   deletedAt      DateTime?
 
   organization Organization        @relation(fields: [organizationId], references: [id])
+  customer     SocialCustomer?     @relation(fields: [customerId], references: [id])
   integration  SocialIntegration   @relation(fields: [integrationId], references: [id])
   parentPost   SocialPost?         @relation("SocialPostThread", fields: [parentPostId], references: [id])
   children     SocialPost[]        @relation("SocialPostThread")
@@ -132,12 +178,15 @@ model SocialPost {
   @@index([state])
   @@index([publishDate])
   @@index([deletedAt])
+  @@index([organizationId, customerId])
+  @@index([organizationId, customerId, approvalStep])
   @@map("social_posts")
 }
 
 model SocialMedia {
   id                 String            @id @default(uuid())
   organizationId     String
+  customerId         String?
   name               String
   originalName       String?           @db.VarChar(512)
   path               String            @db.VarChar(1024)
@@ -154,18 +203,21 @@ model SocialMedia {
   updatedAt          DateTime          @updatedAt
   deletedAt          DateTime?
 
-  organization Organization @relation(fields: [organizationId], references: [id])
+  organization Organization    @relation(fields: [organizationId], references: [id])
+  customer     SocialCustomer? @relation(fields: [customerId], references: [id])
 
   @@index([organizationId])
   @@index([type])
   @@index([format])
   @@index([deletedAt])
+  @@index([organizationId, customerId])
   @@map("social_media")
 }
 
 model SocialTag {
   id             String    @id @default(uuid())
   organizationId String
+  customerId     String?
   name           String
   color          String
   createdAt      DateTime  @default(now())
@@ -173,9 +225,11 @@ model SocialTag {
   deletedAt      DateTime?
 
   organization Organization        @relation(fields: [organizationId], references: [id])
+  customer     SocialCustomer?     @relation(fields: [customerId], references: [id])
   posts        SocialTagsOnPosts[]
 
   @@index([organizationId])
+  @@index([organizationId, customerId])
   @@map("social_tags")
 }
 
@@ -195,15 +249,18 @@ model SocialTagsOnPosts {
 model SocialSignature {
   id             String    @id @default(uuid())
   organizationId String
+  customerId     String?
   content        String    @db.Text
   autoAdd        Boolean   @default(false)
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
   deletedAt      DateTime?
 
-  organization Organization @relation(fields: [organizationId], references: [id])
+  organization Organization    @relation(fields: [organizationId], references: [id])
+  customer     SocialCustomer? @relation(fields: [customerId], references: [id])
 
   @@index([organizationId])
+  @@index([organizationId, customerId])
   @@map("social_signatures")
 }
 
@@ -211,14 +268,17 @@ model SocialSignature {
 model SocialSet {
   id             String   @id @default(uuid())
   organizationId String
+  customerId     String?
   name           String
   content        Json
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  organization Organization @relation(fields: [organizationId], references: [id])
+  organization Organization    @relation(fields: [organizationId], references: [id])
+  customer     SocialCustomer? @relation(fields: [customerId], references: [id])
 
   @@index([organizationId])
+  @@index([organizationId, customerId])
   @@map("social_sets")
 }
 
@@ -226,6 +286,7 @@ model SocialSet {
 model SocialAutoPost {
   id              String    @id @default(uuid())
   organizationId  String
+  customerId      String?
   title           String
   url             String    @db.VarChar(2048)
   lastUrl         String?   @db.VarChar(2048)
@@ -240,9 +301,11 @@ model SocialAutoPost {
   updatedAt       DateTime  @updatedAt
   deletedAt       DateTime?
 
-  organization Organization @relation(fields: [organizationId], references: [id])
+  organization Organization    @relation(fields: [organizationId], references: [id])
+  customer     SocialCustomer? @relation(fields: [customerId], references: [id])
 
   @@index([organizationId])
+  @@index([organizationId, customerId])
   @@map("social_auto_posts")
 }
 
@@ -308,15 +371,20 @@ model SocialPostError {
 }
 
 // Podo AI brand kit: voice, audience, words to use/avoid, FAQs. Read into every AI prompt.
+// One kit per (organization, client). MySQL allows multiple NULLs in a unique index, so
+// agency kits (customerId = null) are de-duped in app code (findFirst + update/create).
 model SocialBrandKit {
   id             String   @id @default(uuid())
-  organizationId String   @unique
+  organizationId String
+  customerId     String?
   data           Json
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  organization Organization @relation(fields: [organizationId], references: [id])
+  organization Organization    @relation(fields: [organizationId], references: [id])
+  customer     SocialCustomer? @relation(fields: [customerId], references: [id])
 
+  @@unique([organizationId, customerId])
   @@map("social_brand_kits")
 }
 
@@ -340,23 +408,28 @@ model SocialAiUsage {
 
 // WhatsApp Cloud API conversation (one contact chatting with the business number).
 model WhatsAppConversation {
-  id             String   @id @default(cuid())
+  id             String    @id @default(cuid())
   organizationId String
+  customerId     String?
   /// WhatsApp id of the contact (usually E.164 without +).
   waId           String
   contactName    String?
   lastMessageAt  DateTime
   lastInboundAt  DateTime?
-  lastPreview    String?  @db.VarChar(500)
-  unreadCount    Int      @default(0)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  lastPreview    String?   @db.VarChar(500)
+  unreadCount    Int       @default(0)
+  /// Set when the contact texts STOP / UNSUBSCRIBE (broadcast opt-out).
+  optedOutAt     DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   organization Organization      @relation(fields: [organizationId], references: [id])
+  customer     SocialCustomer?   @relation(fields: [customerId], references: [id])
   messages     WhatsAppMessage[]
 
   @@unique([organizationId, waId])
   @@index([organizationId, lastMessageAt])
+  @@index([organizationId, customerId])
   @@map("whatsapp_conversations")
 }
 
@@ -408,19 +481,19 @@ model SocialGoogleSheetsConnection {
 
 // Cached spreadsheet + row data for the connected Google account.
 model SocialGoogleSpreadsheet {
-  id             String    @id @default(uuid())
-  connectionId   String
-  spreadsheetId  String
-  name           String
-  url            String    @db.VarChar(2048)
-  modifiedTime   DateTime?
-  sheetNames     Json
-  headers        Json
-  rows           Json
-  rowCount       Int       @default(0)
-  syncedAt       DateTime  @default(now())
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  id            String    @id @default(uuid())
+  connectionId  String
+  spreadsheetId String
+  name          String
+  url           String    @db.VarChar(2048)
+  modifiedTime  DateTime?
+  sheetNames    Json
+  headers       Json
+  rows          Json
+  rowCount      Int       @default(0)
+  syncedAt      DateTime  @default(now())
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   connection SocialGoogleSheetsConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
 
@@ -431,17 +504,17 @@ model SocialGoogleSpreadsheet {
 
 // PodoCRM WhatsApp sync link (redeem PSL-… code from CRM Connectors).
 model SocialPodoCrmWhatsAppSync {
-  id                 String   @id @default(uuid())
-  organizationId     String   @unique
+  id               String    @id @default(uuid())
+  organizationId   String    @unique
   /// Encrypted HMAC secret from CRM link response — never return plaintext to the UI.
-  syncSecret         String   @db.Text
-  phoneNumberId      String
-  podocrmCompanyId   String
-  podocrmBaseUrl     String   @db.VarChar(512)
-  linkedAt           DateTime @default(now())
-  lastPingAt         DateTime?
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  syncSecret       String    @db.Text
+  phoneNumberId    String
+  podocrmCompanyId String
+  podocrmBaseUrl   String    @db.VarChar(512)
+  linkedAt         DateTime  @default(now())
+  lastPingAt       DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
   organization Organization @relation(fields: [organizationId], references: [id])
 
@@ -450,18 +523,18 @@ model SocialPodoCrmWhatsAppSync {
 }
 
 model AdAccount {
-  id             String    @id @default(uuid())
-  organizationId String              
+  id             String   @id @default(uuid())
+  organizationId String
   customerId     String?
-  externalId     String              // "act_123…"
+  externalId     String // "act_123…"
   name           String
-  currency       String    @db.VarChar(3)
+  currency       String   @db.VarChar(3)
   timezone       String
   status         Int
-  tokenSource    String    @default("system_user")
-  createdAt      DateTime  @default(now())
+  tokenSource    String   @default("system_user")
+  createdAt      DateTime @default(now())
 
-  organization Organization @relation(fields: [organizationId], references: [id])
+  organization Organization    @relation(fields: [organizationId], references: [id])
   customer     SocialCustomer? @relation(fields: [customerId], references: [id])
 
   @@unique([externalId])
@@ -474,12 +547,12 @@ model SocialClientMember {
   organizationId String
   userId         String
   customerId     String
-  permissions    Json     
+  permissions    Json
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  organization Organization @relation(fields: [organizationId], references: [id])
-  user         User         @relation(fields: [userId], references: [id])
+  organization Organization   @relation(fields: [organizationId], references: [id])
+  user         User           @relation(fields: [userId], references: [id])
   customer     SocialCustomer @relation(fields: [customerId], references: [id])
 
   @@unique([userId, customerId])
@@ -494,9 +567,12 @@ model ClientApprover {
   email          String
   name           String?
   lastSeenAt     DateTime?
+  // Bumped every time a one-time magic link is consumed, and can be bumped manually to revoke
+  // every outstanding link/session for this approver. Embedded in magic-link JWTs as `ver`.
+  tokenVersion   Int       @default(0)
   createdAt      DateTime  @default(now())
 
-  organization Organization @relation(fields: [organizationId], references: [id])
+  organization Organization   @relation(fields: [organizationId], references: [id])
   customer     SocialCustomer @relation(fields: [customerId], references: [id])
 
   @@unique([customerId, email])
@@ -506,8 +582,8 @@ model ClientApprover {
 model SocialInsightDaily {
   id            String   @id @default(uuid())
   integrationId String
-  date          DateTime @db.Date      
-  metric        String                 
+  date          DateTime @db.Date
+  metric        String
   value         Decimal  @db.Decimal(20, 4)
   fetchedAt     DateTime @updatedAt
 
@@ -515,15 +591,15 @@ model SocialInsightDaily {
   @@map("social_insights_daily")
 }
 
-model SocialExternalPost {           
-  id             String   @id @default(uuid())
+model SocialExternalPost {
+  id             String    @id @default(uuid())
   integrationId  String
-  externalId     String              
-  socialPostId   String?             
-  type           String              
-  caption        String?  @db.Text
-  permalink      String?  @db.VarChar(2048)
-  thumbnailUrl   String?  @db.VarChar(2048)
+  externalId     String
+  socialPostId   String?
+  type           String
+  caption        String?   @db.Text
+  permalink      String?   @db.VarChar(2048)
+  thumbnailUrl   String?   @db.VarChar(2048)
   publishedAt    DateTime
   likes          Int?
   comments       Int?
@@ -532,7 +608,7 @@ model SocialExternalPost {
   reach          Int?
   impressions    Int?
   videoViews     Int?
-  engagementRate Decimal? @db.Decimal(8, 4)
+  engagementRate Decimal?  @db.Decimal(8, 4)
   metricsAt      DateTime?
 
   @@unique([integrationId, externalId])
@@ -543,9 +619,9 @@ model SocialExternalPost {
 model SocialSyncState {
   id             String    @id @default(uuid())
   organizationId String
-  integrationId  String?   
-  adAccountId    String?   
-  kind           String    
+  integrationId  String?
+  adAccountId    String?
+  kind           String
   cursor         String?   @db.Text
   lastRunAt      DateTime?
   lastSuccessAt  DateTime?
@@ -558,10 +634,10 @@ model SocialSyncState {
   @@map("social_sync_states")
 }
 
-model AdEntity {                     // campaign / adset / ad
+model AdEntity {
   id          String   @id @default(uuid())
   adAccountId String
-  level       String                 // "campaign" | "adset" | "ad"
+  level       String // "campaign" | "adset" | "ad"
   externalId  String
   parentId    String?
   name        String
@@ -578,8 +654,8 @@ model AdInsightDaily {
   id          String   @id @default(uuid())
   adAccountId String
   level       String
-  entityId    String                 // externalId of campaign / adset / ad
-  date        DateTime @db.Date      
+  entityId    String // externalId of campaign / adset / ad
+  date        DateTime @db.Date
   spend       Decimal  @db.Decimal(14, 2)
   impressions BigInt
   reach       BigInt
@@ -596,15 +672,15 @@ model AdInsightDaily {
 }
 
 model SocialCompetitor {
-  id             String    @id @default(uuid())
+  id             String   @id @default(uuid())
   organizationId String
-  customerId     String?   @map("customer_id")
+  customerId     String?  @map("customer_id")
   name           String
-  platform       String    // "instagram" or "facebook"
-  externalId     String    // The public ID or Username of the competitor
-  createdAt      DateTime  @default(now())
+  platform       String // "instagram" or "facebook"
+  externalId     String // The public ID or Username of the competitor
+  createdAt      DateTime @default(now())
 
-  snapshots      CompetitorSnapshot[]
+  snapshots CompetitorSnapshot[]
 
   @@index([organizationId])
   @@index([customerId])
@@ -612,14 +688,14 @@ model SocialCompetitor {
 }
 
 model CompetitorSnapshot {
-  id             String    @id @default(uuid())
+  id             String   @id @default(uuid())
   competitorId   String
-  date           DateTime  @default(now())
+  date           DateTime @default(now())
   followers      Int
   postsCount     Int?
   engagementRate Float?
 
-  competitor     SocialCompetitor @relation(fields: [competitorId], references: [id], onDelete: Cascade)
+  competitor SocialCompetitor @relation(fields: [competitorId], references: [id], onDelete: Cascade)
 
   @@index([competitorId])
   @@map("competitor_snapshots")
@@ -629,6 +705,8 @@ model CompetitorSnapshot {
 model SocialApiClient {
   id             String    @id @default(uuid())
   organizationId String
+  /** When set, `/api/v1/*` is limited to this client; null = whole organization. */
+  customerId     String?
   name           String
   tokenHash      String    @unique
   tokenPrefix    String    @db.VarChar(16)
@@ -639,10 +717,12 @@ model SocialApiClient {
   lastUsedAt     DateTime?
   createdAt      DateTime  @default(now())
 
-  organization Organization      @relation(fields: [organizationId], references: [id])
+  organization Organization        @relation(fields: [organizationId], references: [id])
+  customer     SocialCustomer?     @relation(fields: [customerId], references: [id], onDelete: SetNull)
   usages       SocialApiUsageLog[]
 
   @@index([organizationId])
+  @@index([organizationId, customerId])
   @@map("social_api_clients")
 }
 
@@ -660,20 +740,32 @@ model SocialApiUsageLog {
 }
 
 model SocialInboxThread {
-  id             String   @id @default(uuid())
-  organizationId String
-  platform       String
-  externalId     String
-  contactName    String?
-  lastPreview    String?  @db.VarChar(500)
-  lastMessageAt  DateTime
-  createdAt      DateTime @default(now())
+  id              String    @id @default(uuid())
+  organizationId  String
+  customerId      String?
+  platform        String
+  externalId      String
+  contactName     String?
+  lastPreview     String?   @db.VarChar(500)
+  lastMessageAt   DateTime
+  assigneeId      String?
+  slaDueAt        DateTime?
+  firstResponseAt DateTime?
+  // Set by alerts.slaSweep when slaDueAt passed with no first response.
+  slaBreachedAt   DateTime?
+  createdAt       DateTime  @default(now())
 
-  organization Organization        @relation(fields: [organizationId], references: [id])
+  organization Organization         @relation(fields: [organizationId], references: [id])
+  customer     SocialCustomer?      @relation(fields: [customerId], references: [id])
+  assignee     User?                @relation(fields: [assigneeId], references: [id], onDelete: SetNull)
   messages     SocialInboxMessage[]
 
   @@unique([organizationId, platform, externalId])
   @@index([organizationId, lastMessageAt])
+  @@index([organizationId, customerId])
+  @@index([organizationId, assigneeId])
+  @@index([organizationId, slaDueAt])
+  @@index([slaDueAt, firstResponseAt, slaBreachedAt])
   @@map("social_inbox_threads")
 }
 
@@ -694,33 +786,45 @@ model SocialInboxMessage {
 model SocialLead {
   id             String   @id @default(uuid())
   organizationId String
+  customerId     String?
   source         String
   externalId     String
   name           String?
   email          String?
   phone          String?
+  stage          String   @default("new")
   payload        Json
   createdAt      DateTime @default(now())
 
-  organization Organization @relation(fields: [organizationId], references: [id])
+  organization Organization    @relation(fields: [organizationId], references: [id])
+  customer     SocialCustomer? @relation(fields: [customerId], references: [id])
 
   @@unique([organizationId, source, externalId])
   @@index([organizationId, createdAt])
+  @@index([organizationId, customerId])
+  @@index([organizationId, stage])
   @@map("social_leads")
 }
 
 model SocialClientReport {
   id             String   @id @default(uuid())
   organizationId String
+  customerId     String?
   title          String
   periodStart    DateTime
   periodEnd      DateTime
   body           String   @db.Text
+  // AI wins / losses / next steps; null when Claude is off or generation soft-failed.
+  narrative      String?  @db.Text
+  // Served via local storage route (/api/social/media/files/…) or cloud URL.
+  pdfUrl         String?  @db.VarChar(2048)
   createdAt      DateTime @default(now())
 
-  organization Organization @relation(fields: [organizationId], references: [id])
+  organization Organization    @relation(fields: [organizationId], references: [id])
+  customer     SocialCustomer? @relation(fields: [customerId], references: [id])
 
   @@index([organizationId, createdAt])
+  @@index([organizationId, customerId])
   @@map("social_client_reports")
 }
 
@@ -740,21 +844,62 @@ model SocialSubscription {
   @@map("social_subscriptions")
 }
 
+/// GST tax invoice metadata for Razorpay payments (PDF via invoice-pdf + uploads storage).
+model BillingInvoice {
+  id                 String   @id @default(uuid())
+  organizationId     String
+  number             String
+  /// Seller GSTIN (from BILLING_SELLER_GSTIN at issue time).
+  gstin              String?
+  /// Buyer GSTIN snapshot from organization / checkout.
+  buyerGstin         String?  @db.VarChar(20)
+  /// Place of supply snapshot (state name or GST state code).
+  placeOfSupply      String?  @db.VarChar(120)
+  plan               String?
+  taxableAmountPaise Int      @default(0)
+  cgstPaise          Int      @default(0)
+  sgstPaise          Int      @default(0)
+  igstPaise          Int      @default(0)
+  totalPaise         Int      @default(0)
+  currency           String   @default("INR")
+  pdfUrl             String?  @db.VarChar(2048)
+  razorpayPaymentId  String?
+  razorpayOrderId    String?
+  /// Extra line items / notes.
+  metadata           Json?
+  status             String   @default("issued")
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@unique([organizationId, number])
+  @@index([organizationId, createdAt])
+  @@map("billing_invoices")
+}
+
 model WhatsAppBroadcast {
-  id              String   @id @default(uuid())
-  organizationId  String
-  name            String
-  templateName    String
-  language        String
-  status          String   @default("draft")
-  recipientCount  Int      @default(0)
-  sentCount       Int      @default(0)
-  createdAt       DateTime @default(now())
+  id                  String    @id @default(uuid())
+  organizationId      String
+  customerId          String?
+  name                String
+  templateName        String
+  language            String
+  status              String    @default("draft")
+  recipientCount      Int       @default(0)
+  sentCount           Int       @default(0)
+  /// Operator acknowledged recipient consent before send.
+  consentAcknowledged Boolean   @default(false)
+  consentAt           DateTime?
+  estimatedCostPaise  Int?
+  createdAt           DateTime  @default(now())
 
   organization Organization                 @relation(fields: [organizationId], references: [id])
+  customer     SocialCustomer?              @relation(fields: [customerId], references: [id])
   recipients   WhatsAppBroadcastRecipient[]
 
   @@index([organizationId, createdAt])
+  @@index([organizationId, customerId])
   @@map("whatsapp_broadcasts")
 }
 
@@ -773,18 +918,22 @@ model WhatsAppBroadcastRecipient {
 }
 
 // Client WABA connected through WhatsApp Embedded Signup.
+// phoneNumberId is globally unique so webhooks can resolve the connection.
 model SocialWhatsAppConnection {
-  id              String   @id @default(uuid())
-  organizationId  String   @unique
-  wabaId          String
-  phoneNumberId   String
-  displayPhone    String?
-  businessName    String?
-  accessToken     String   @db.Text
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id             String   @id @default(uuid())
+  organizationId String
+  customerId     String?
+  wabaId         String
+  phoneNumberId  String   @unique
+  displayPhone   String?
+  businessName   String?
+  accessToken    String   @db.Text
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
-  organization Organization @relation(fields: [organizationId], references: [id])
+  organization Organization    @relation(fields: [organizationId], references: [id])
+  customer     SocialCustomer? @relation(fields: [customerId], references: [id])
 
+  @@index([organizationId, customerId])
   @@map("social_whatsapp_connections")
 }

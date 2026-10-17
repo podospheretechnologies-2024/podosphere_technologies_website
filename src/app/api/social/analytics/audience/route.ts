@@ -1,15 +1,13 @@
 import { prisma } from '@/shared/lib/prisma';
-import { getCurrentOrganization } from '@/shared/server/current-organization';
-import { requireRole } from '@/shared/server/access';
+import { getClientScope, scopeWhere } from '@/shared/server/client-scope';
 import { errorResponse } from '@/shared/server/http-error';
 
 export async function GET() {
   try {
-    const organization = await getCurrentOrganization();
-    await requireRole('ADMIN');
+    const scope = await getClientScope('view');
 
     const integrations = await prisma.socialIntegration.findMany({
-      where: { organizationId: organization.id, deletedAt: null },
+      where: { ...scopeWhere(scope), deletedAt: null },
       select: { id: true, name: true, providerIdentifier: true },
     });
 
@@ -27,7 +25,7 @@ export async function GET() {
     }
 
     const competitors = await prisma.socialCompetitor.findMany({
-      where: { organizationId: organization.id },
+      where: { organizationId: scope.organizationId },
       include: { snapshots: { orderBy: { date: 'asc' } } },
     });
 

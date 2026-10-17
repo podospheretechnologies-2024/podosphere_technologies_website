@@ -1,0 +1,31 @@
+# Podosphere — Caddy on-demand TLS for org custom domains
+#
+# Point agency DNS (A/CNAME) at this host, set Organization.customDomain via
+# PUT /api/social/settings/custom-domain, then Caddy will mint certs only when
+# GET /api/caddy/ask?domain={hostname} returns 200 (hostname matches an org).
+#
+# Replace APP_UPSTREAM with your Next.js listen address (e.g. 127.0.0.1:3000).
+# Replace ASK_URL with a reachable URL for this app's ask endpoint
+# (e.g. http://127.0.0.1:3000/api/caddy/ask or https://app.yourplatform.com/api/caddy/ask).
+
+{
+	email admin@example.com
+	on_demand_tls {
+		# Ask endpoint: 200 → issue cert; anything else → refuse.
+		# Caddy appends ?domain=<hostname> (or configure ask with {host}).
+		ask http://127.0.0.1:3000/api/caddy/ask
+	}
+}
+
+# Platform apex / www (optional — keep your existing site block if you already have one)
+# app.example.com, www.example.com {
+# 	reverse_proxy 127.0.0.1:3000
+# }
+
+# Catch-all: any Host that passes on-demand ask → Next app
+:443 {
+	tls {
+		on_demand
+	}
+	reverse_proxy 127.0.0.1:3000
+}

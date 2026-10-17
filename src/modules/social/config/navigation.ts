@@ -3,6 +3,11 @@ import type { NavItem, NavSection } from '@/shared/types/navigation';
 export const SOCIAL_BASE_PATH = '/dashboard/social';
 
 export const socialSections = {
+  overview: {
+    label: 'Overview',
+    href: `${SOCIAL_BASE_PATH}/overview`,
+    description: 'Agency snapshot across clients from stored data.',
+  },
   calendar: {
     label: 'Calendar',
     href: `${SOCIAL_BASE_PATH}/calendar`,

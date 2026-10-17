@@ -1,7 +1,7 @@
 import 'server-only';
 import type { SocialIntegration } from '@/generated/prisma/client';
 import { prisma } from '@/shared/lib/prisma';
-import { getAccess } from '@/shared/server/access';
+import { scopeWhere, type ClientScope } from '@/shared/server/client-scope';
 
 export interface UpsertIntegrationData {
   organizationId: string;
@@ -25,14 +25,9 @@ export interface UpdateTokensData {
 }
 
 export const integrationRepository = {
-  async list(organizationId: string) {
-    const { clientIds } = await getAccess();
+  async list(scope: ClientScope) {
     return prisma.socialIntegration.findMany({
-      where: { 
-        organizationId, 
-        deletedAt: null,
-        customerId: clientIds === 'all' ? undefined : { in: clientIds }
-      },
+      where: { ...scopeWhere(scope), deletedAt: null },
       include: { customer: { select: { id: true, name: true } } },
       orderBy: { createdAt: 'asc' },
     });

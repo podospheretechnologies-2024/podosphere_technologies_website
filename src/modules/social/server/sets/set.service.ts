@@ -1,5 +1,6 @@
 import 'server-only';
 import type { Prisma, SocialSet } from '@/generated/prisma/client';
+import type { ClientScope } from '@/shared/server/client-scope';
 import { HttpError } from '@/shared/server/http-error';
 import type { PostMedia } from '../../types/post';
 import type { TemplateContent, TemplateItem } from '../../types/settings';
@@ -27,8 +28,13 @@ function toTemplateItem(set: SocialSet): TemplateItem {
   };
 }
 
-async function findOrThrow(organizationId: string, id: string) {
-  const set = await setRepository.findById(organizationId, id);
+/** Single selected client → that id; 'all' → null (agency-shared). */
+function customerIdForWrite(scope: ClientScope): string | null {
+  return scope.customerIds !== 'all' && scope.customerIds.length === 1 ? scope.customerIds[0] : null;
+}
+
+async function findOrThrow(scope: ClientScope, id: string) {
+  const set = await setRepository.findById(scope, id);
   if (!set) {
     throw new HttpError(404, 'Template not found');
   }
@@ -37,12 +43,12 @@ async function findOrThrow(organizationId: string, id: string) {
 
 // Only references that still exist are stored, so a template never points at
 // a deleted channel, tag or file.
-async function buildContent(organizationId: string, body: CreateSetBody): Promise<TemplateContent> {
+async function buildContent(scope: ClientScope, body: CreateSetBody): Promise<TemplateContent> {
   const mediaIds = [...new Set(body.values.flatMap((value) => value.mediaIds))];
   const [integrations, tags, media] = await Promise.all([
-    integrationRepository.findManyByIds(organizationId, body.integrationIds),
-    tagRepository.findManyByIds(organizationId, body.tagIds),
-    mediaIds.length ? mediaRepository.findManyByIds(organizationId, mediaIds) : [],
+    integrationRepository.findManyByIds(scope.organizationId, body.integrationIds),
+    tagRepository.findManyByIds(scope.organizationId, body.tagIds),
+    mediaIds.length ? mediaRepository.findManyByIds(scope.organizationId, mediaIds) : [],
   ]);
 
   const mediaById = new Map<string, PostMedia>(
@@ -68,28 +74,29 @@ async function buildContent(organizationId: string, body: CreateSetBody): Promis
 }
 
 export const setService = {
-  async list(organizationId: string): Promise<TemplateItem[]> {
-    return (await setRepository.list(organizationId)).map(toTemplateItem);
+  async list(scope: ClientScope): Promise<TemplateItem[]> {
+    return (await setRepository.list(scope)).map(toTemplateItem);
   },
 
-  async create(organizationId: string, body: CreateSetBody): Promise<TemplateItem> {
-    const content = await buildContent(organizationId, body);
+  async create(scope: ClientScope, body: CreateSetBody): Promise<TemplateItem> {
+    const content = await buildContent(scope, body);
     return toTemplateItem(
       await setRepository.create(
-        organizationId,
+        scope.organizationId,
+        customerIdForWrite(scope),
         body.name,
         content as unknown as Prisma.InputJsonValue
       )
     );
   },
 
-  async rename(organizationId: string, id: string, body: RenameSetBody): Promise<TemplateItem> {
-    await findOrThrow(organizationId, id);
+  async rename(scope: ClientScope, id: string, body: RenameSetBody): Promise<TemplateItem> {
+    await findOrThrow(scope, id);
     return toTemplateItem(await setRepository.rename(id, body.name));
   },
 
-  async remove(organizationId: string, id: string): Promise<void> {
-    await findOrThrow(organizationId, id);
+  async remove(scope: ClientScope, id: string): Promise<void> {
+    await findOrThrow(scope, id);
     await setRepository.delete(id);
   },
 };

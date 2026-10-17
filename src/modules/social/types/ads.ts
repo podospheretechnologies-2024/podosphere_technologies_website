@@ -143,6 +143,39 @@ export interface AdsLeadItem {
   fields: { name: string; values: string[] }[];
 }
 
+export interface AdsAudienceItem {
+  id: string;
+  name: string;
+  subtype: string;
+  sizeLower: number | null;
+  sizeUpper: number | null;
+  operationStatus: string | null;
+  deliveryStatus: string | null;
+  createdTime: string | null;
+  updatedTime: string | null;
+}
+
+export interface AdsProductSetItem {
+  id: string;
+  name: string;
+  productCount: number | null;
+}
+
+export interface AdsCatalogItem {
+  id: string;
+  name: string;
+  vertical: string | null;
+  productCount: number | null;
+  feedCount: number | null;
+  productSets: AdsProductSetItem[];
+}
+
+export interface AdsCatalogsResult {
+  businessId: string | null;
+  businessName: string | null;
+  catalogs: AdsCatalogItem[];
+}
+
 export interface AdsOverview {
   account: AdAccountItem;
   /** Present when the request used a Meta date_preset. */

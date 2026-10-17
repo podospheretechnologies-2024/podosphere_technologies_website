@@ -1,5 +1,6 @@
 import { getAccess } from '@/shared/server/access';
 import { adminService } from '@/modules/admin/server/admin.service';
+import { ImpersonateOwnerButton } from '@/modules/admin/components/impersonate-owner-button';
 import { redirect } from 'next/navigation';
 
 export const metadata = { title: 'Platform Health | PodoSphere' };
@@ -55,7 +56,7 @@ export default async function SuperAdminPage() {
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{org._count.socialCustomers}</td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{org.createdAt.toLocaleDateString()}</td>
                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                  <button className="text-indigo-600 hover:text-indigo-900">Impersonate Owner</button>
+                  <ImpersonateOwnerButton ownerUserId={org.users[0]?.id ?? null} />
                 </td>
               </tr>
             ))}

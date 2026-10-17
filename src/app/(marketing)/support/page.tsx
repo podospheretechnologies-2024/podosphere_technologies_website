@@ -24,6 +24,9 @@ export default function SupportPage() {
           <li>
             Email: <strong>{legal.contactEmail}</strong>
           </li>
+          <li>
+            Postal: {legal.company}, {legal.address}
+          </li>
           <li>Hours: {legal.supportHours}. We reply within one business day.</li>
         </ul>
         <p>

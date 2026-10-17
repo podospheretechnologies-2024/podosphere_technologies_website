@@ -17,9 +17,9 @@ const schema = z.discriminatedUnion('type', [
 
 export async function POST(request: NextRequest) {
   try {
-    return await withApiKey('whatsapp:send', request, async ({ organizationId }) => {
+    return await withApiKey('whatsapp:send', request, async ({ scope }) => {
       const body = schema.parse(await request.json());
-      const result = await whatsappService.send(organizationId, body);
+      const result = await whatsappService.send(scope, body);
       return Response.json(result);
     });
   } catch (error) {

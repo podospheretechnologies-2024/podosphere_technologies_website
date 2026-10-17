@@ -1,16 +1,18 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/shared/lib/prisma';
-import { getAccess, requireRole } from '@/shared/server/access';
+import { requireRole } from '@/shared/server/access';
+import { getClientScope } from '@/shared/server/client-scope';
 import { customerService } from '@/modules/social/server/customers/customer.service';
 import { logAudit } from '@/shared/server/audit.service';
 
 export async function GET() {
   try {
-    const ctx = await getAccess();
-    
-    // Fetch clients along with their approvers and linked ad accounts
+    const scope = await getClientScope('view');
     const clients = await prisma.socialCustomer.findMany({
-      where: { organizationId: ctx.organization.id },
+      where: {
+        organizationId: scope.organizationId,
+        ...(scope.customerIds === 'all' ? {} : { id: { in: scope.customerIds } }),
+      },
       include: {
         approvers: true,
         adAccounts: true,

@@ -1,18 +1,12 @@
-import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
-import { approvalService } from '@/modules/social/server/approvals/approval.service';
 import { prisma } from '@/shared/lib/prisma';
 import { integrationRegistry } from '@/modules/social/server/integrations/core/integration.registry';
+import { getPortalSession } from '@/shared/server/portal-session';
 
 export async function GET() {
-  const cookieStore = await cookies();
-  const token = cookieStore.get('approver_session')?.value;
-  
-  if (!token) return new NextResponse('Unauthorized', { status: 401 });
-
   try {
-    const verified = await approvalService.verifyToken(token);
-    
+    const verified = await getPortalSession();
+
     const integrations = await prisma.socialIntegration.findMany({
       where: {
         organizationId: verified.organizationId,

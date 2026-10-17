@@ -3,6 +3,8 @@ import { createHash, randomBytes } from 'node:crypto';
 import type { NextRequest } from 'next/server';
 import { prisma } from '@/shared/lib/prisma';
 import { redis } from '@/shared/lib/redis';
+import type { ClientScope } from '@/shared/server/client-scope';
+import { organizationScope } from '@/shared/server/client-scope';
 import { HttpError } from '@/shared/server/http-error';
 import { planService } from '../billing/plan.service';
 
@@ -28,6 +30,7 @@ export const apiClientService = {
     const rows = await prisma.socialApiClient.findMany({
       where: { organizationId },
       orderBy: { createdAt: 'desc' },
+      include: { customer: { select: { id: true, name: true } } },
     });
     return rows.map((row) => ({
       id: row.id,
@@ -37,6 +40,8 @@ export const apiClientService = {
       dailyLimit: row.dailyLimit,
       ipAllowlist: row.ipAllowlist,
       status: row.status,
+      customerId: row.customerId,
+      customerName: row.customer?.name ?? null,
       lastUsedAt: row.lastUsedAt?.toISOString() ?? null,
       createdAt: row.createdAt.toISOString(),
     }));
@@ -44,7 +49,13 @@ export const apiClientService = {
 
   async create(
     organizationId: string,
-    input: { name: string; permissions: string[]; dailyLimit?: number; ipAllowlist?: string }
+    input: {
+      name: string;
+      permissions: string[];
+      dailyLimit?: number;
+      ipAllowlist?: string;
+      customerId?: string | null;
+    }
   ) {
     await planService.assertFeature(organizationId, 'api');
     const permissions = input.permissions.filter((item): item is ApiPermission =>
@@ -53,10 +64,24 @@ export const apiClientService = {
     if (permissions.length === 0) {
       throw new HttpError(400, 'Choose at least one permission');
     }
+
+    let customerId: string | null = null;
+    if (input.customerId) {
+      const customer = await prisma.socialCustomer.findFirst({
+        where: { id: input.customerId, organizationId, deletedAt: null },
+        select: { id: true },
+      });
+      if (!customer) {
+        throw new HttpError(400, 'Client not found');
+      }
+      customerId = customer.id;
+    }
+
     const secret = `ps_live_${randomBytes(24).toString('base64url')}`;
     const row = await prisma.socialApiClient.create({
       data: {
         organizationId,
+        customerId,
         name: input.name.trim(),
         tokenHash: hashToken(secret),
         tokenPrefix: secret.slice(0, 12),
@@ -65,7 +90,7 @@ export const apiClientService = {
         ipAllowlist: input.ipAllowlist?.trim() || null,
       },
     });
-    return { id: row.id, token: secret, tokenPrefix: row.tokenPrefix };
+    return { id: row.id, token: secret, tokenPrefix: row.tokenPrefix, customerId: row.customerId };
   },
 
   async revoke(organizationId: string, id: string) {
@@ -82,7 +107,7 @@ export const apiClientService = {
 export async function withApiKey(
   permission: ApiPermission,
   request: NextRequest,
-  handler: (ctx: { organizationId: string }) => Promise<Response>
+  handler: (ctx: { organizationId: string; scope: ClientScope }) => Promise<Response>
 ): Promise<Response> {
   const header = request.headers.get('authorization') ?? '';
   const token = header.startsWith('Bearer ') ? header.slice(7).trim() : '';
@@ -111,7 +136,8 @@ export async function withApiKey(
     throw new HttpError(429, 'Daily API limit reached');
   }
 
-  const response = await handler({ organizationId: client.organizationId });
+  const scope = organizationScope(client.organizationId, client.customerId);
+  const response = await handler({ organizationId: client.organizationId, scope });
   void prisma.socialApiClient
     .update({ where: { id: client.id }, data: { lastUsedAt: new Date() } })
     .catch(() => undefined);

@@ -1,6 +1,6 @@
 /**
- * Company details shown on the Privacy, Terms, Data deletion and Support pages (Meta App settings links to them).
- * TODO before going live: fill in the real contact email and registered address, and have the text reviewed.
+ * Company details shown on the Privacy, Terms, Data deletion and Support pages
+ * (Meta App settings → Privacy / Terms / Support / Data deletion URLs).
  */
 export const legal = {
   company: 'PodoSphere Technologies Pvt Ltd',
@@ -11,5 +11,5 @@ export const legal = {
   whatsappLink: 'https://wa.me/919119105802',
   supportHours: 'Monday to Saturday, 10 am to 7 pm IST',
   jurisdiction: 'India',
-  lastUpdated: '28 September 2026',
+  lastUpdated: '17 October 2026',
 };

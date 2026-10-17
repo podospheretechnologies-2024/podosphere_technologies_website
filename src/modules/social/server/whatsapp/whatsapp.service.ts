@@ -1,5 +1,6 @@
 import 'server-only';
 import { getServerEnv } from '@/shared/lib/env';
+import type { ClientScope } from '@/shared/server/client-scope';
 import { HttpError } from '@/shared/server/http-error';
 import type {
   SendWhatsAppInput,
@@ -240,8 +241,13 @@ function toChatMessage(
   };
 }
 
+/** Single selected client → that id; 'all' → null (agency-shared). */
+function customerIdForWrite(scope: ClientScope): string | null {
+  return scope.customerIds !== 'all' && scope.customerIds.length === 1 ? scope.customerIds[0] : null;
+}
+
 async function recordOutbound(
-  organizationId: string,
+  scope: ClientScope,
   to: string,
   body: string,
   messageId: string,
@@ -251,14 +257,15 @@ async function recordOutbound(
   const contactId = waId ?? to;
   const timestamp = new Date();
   const conversation = await whatsappChatRepository.upsertConversation({
-    organizationId,
+    organizationId: scope.organizationId,
+    customerId: customerIdForWrite(scope),
     waId: contactId,
     preview: body,
     timestamp,
     inbound: false,
   });
   await whatsappChatRepository.createMessage({
-    organizationId,
+    organizationId: scope.organizationId,
     conversationId: conversation.id,
     wamid: messageId || null,
     direction: 'outbound',
@@ -295,24 +302,24 @@ export const whatsappService = {
     };
   },
 
-  async listConversations(organizationId: string): Promise<WhatsAppConversationItem[]> {
-    const rows = await whatsappChatRepository.listConversations(organizationId);
+  async listConversations(scope: ClientScope): Promise<WhatsAppConversationItem[]> {
+    const rows = await whatsappChatRepository.listConversations(scope);
     return rows.map(toConversationItem);
   },
 
   async getConversation(
-    organizationId: string,
+    scope: ClientScope,
     conversationId: string
   ): Promise<WhatsAppConversationDetail> {
-    const conversation = await whatsappChatRepository.findConversationById(
-      organizationId,
-      conversationId
-    );
+    const conversation = await whatsappChatRepository.findConversationById(scope, conversationId);
     if (!conversation) {
       throw new HttpError(404, 'Conversation not found');
     }
-    await whatsappChatRepository.markRead(organizationId, conversationId);
-    const messages = await whatsappChatRepository.listMessages(organizationId, conversationId);
+    await whatsappChatRepository.markRead(scope, conversationId);
+    const messages = await whatsappChatRepository.listMessages(
+      scope.organizationId,
+      conversationId
+    );
     return {
       conversation: toConversationItem({ ...conversation, unreadCount: 0 }),
       messages: messages.map(toChatMessage),
@@ -320,7 +327,7 @@ export const whatsappService = {
   },
 
   async send(
-    organizationId: string,
+    scope: ClientScope,
     input: SendWhatsAppInput,
     options?: { senderName?: string | null }
   ): Promise<SendWhatsAppResult> {
@@ -350,16 +357,9 @@ export const whatsappService = {
     const senderLabel = options?.senderName
       ? `${options.senderName} (PodoSocial)`
       : 'PodoSocial';
-    await recordOutbound(
-      organizationId,
-      input.to,
-      preview,
-      result.messageId,
-      result.waId,
-      senderLabel
-    );
+    await recordOutbound(scope, input.to, preview, result.messageId, result.waId, senderLabel);
 
-    void podoCrmWhatsAppSyncService.echoOutbound(organizationId, {
+    void podoCrmWhatsAppSyncService.echoOutbound(scope.organizationId, {
       wamid: result.messageId,
       to: result.waId ?? input.to,
       type: input.type,

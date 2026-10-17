@@ -5,15 +5,36 @@ import { cookies } from 'next/headers';
 import { HttpError } from './http-error';
 import type { User, Organization } from '@/generated/prisma/client';
 
-export type ClientPermission = 
-  | 'view' 
-  | 'draft' 
-  | 'publish' 
-  | 'approve' 
-  | 'inbox' 
-  | 'ads_view' 
-  | 'ads_manage' 
-  | 'leads' 
+/**
+ * Per-client permission matrix (SocialClientMember.permissions for MEMBER; OWNER/ADMIN bypass).
+ *
+ * Roles
+ * - OWNER / ADMIN: full access to every client in the organization (`can()` always true).
+ * - MEMBER: only clients listed in SocialClientMember; each row carries a permissions[] string list.
+ * - Platform admin impersonating: acts as the target user (same role/permissions as them).
+ *
+ * Rule: any granted permission implies `view` on that client (see `can()` below).
+ *
+ * Permission meanings
+ * - view       — see the client and its read-only surfaces
+ * - draft      — create / edit draft posts
+ * - publish    — schedule or publish posts
+ * - approve    — manage client approvers and magic links; act on approval workflows
+ * - inbox      — read and reply in the social inbox
+ * - ads_view   — view ad accounts / campaigns / insights
+ * - ads_manage — create or mutate ads entities
+ * - leads      — view and manage leads
+ * - reports    — view / generate client reports
+ */
+export type ClientPermission =
+  | 'view'
+  | 'draft'
+  | 'publish'
+  | 'approve'
+  | 'inbox'
+  | 'ads_view'
+  | 'ads_manage'
+  | 'leads'
   | 'reports';
 
 export interface AccessContext {

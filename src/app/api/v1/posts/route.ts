@@ -16,10 +16,10 @@ export function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    return await withApiKey('posts:write', request, async ({ organizationId }) => {
+    return await withApiKey('posts:write', request, async ({ scope }) => {
       const body = schema.parse(await request.json());
       const created = await postService.create(
-        organizationId,
+        scope,
         {
           type: body.publishAt ? 'schedule' : 'draft',
           date: body.publishAt ?? new Date().toISOString(),

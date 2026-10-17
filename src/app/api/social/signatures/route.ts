@@ -1,15 +1,13 @@
 import type { NextRequest } from 'next/server';
 import { saveSignatureSchema } from '@/modules/social/server/signatures/signature.schema';
 import { signatureService } from '@/modules/social/server/signatures/signature.service';
-import { getCurrentOrganization } from '@/shared/server/current-organization';
-import { requireRole } from '@/shared/server/access';
+import { getClientScope } from '@/shared/server/client-scope';
 import { errorResponse } from '@/shared/server/http-error';
 
 export async function GET() {
   try {
-    const organization = await getCurrentOrganization();
-    await requireRole('ADMIN');
-    return Response.json(await signatureService.list(organization.id));
+    const scope = await getClientScope('view');
+    return Response.json(await signatureService.list(scope));
   } catch (error) {
     return errorResponse(error);
   }
@@ -17,10 +15,9 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    const organization = await getCurrentOrganization();
-    await requireRole('ADMIN');
+    const scope = await getClientScope('draft');
     const body = saveSignatureSchema.parse(await request.json());
-    return Response.json(await signatureService.create(organization.id, body), { status: 201 });
+    return Response.json(await signatureService.create(scope, body), { status: 201 });
   } catch (error) {
     return errorResponse(error);
   }

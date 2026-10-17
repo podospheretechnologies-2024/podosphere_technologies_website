@@ -7,11 +7,16 @@ import { Input } from '@/shared/components/ui/input';
 import { Button } from '@/shared/components/ui/button';
 import { Trash } from 'lucide-react';
 import dayjs from 'dayjs';
+import { useClientScopeKey } from '../../hooks/use-client-scope';
 
 const fetcher = (url: string) => fetch(url).then(r => r.json());
 
 export function AudiencePanel() {
-  const { data, error, mutate } = useSWR('/api/social/analytics/audience', fetcher);
+  const scopeKey = useClientScopeKey();
+  const { data, error, mutate } = useSWR(
+    ['/api/social/analytics/audience', scopeKey],
+    ([url]) => fetcher(url)
+  );
   const [newCompetitor, setNewCompetitor] = useState({ name: '', platform: 'instagram', externalId: '' });
   const [loading, setLoading] = useState(false);
 

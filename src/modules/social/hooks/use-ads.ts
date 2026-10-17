@@ -1,7 +1,14 @@
 import useSWR from 'swr';
 import { fetcher } from '@/shared/lib/fetcher';
 import type { AdsDatePreset } from '../config/ads';
-import type { AdAccountItem, AdsEntityHistory, AdsOverview } from '../types/ads';
+import type {
+  AdAccountItem,
+  AdsAudienceItem,
+  AdsCatalogsResult,
+  AdsEntityHistory,
+  AdsOverview,
+} from '../types/ads';
+import { useClientScopeKey } from './use-client-scope';
 
 export const ADS_ACCOUNTS_API_ROUTE = '/api/social/ads/accounts';
 
@@ -10,9 +17,12 @@ export type AdsOverviewDateInput =
   | { mode: 'range'; since: string; until: string };
 
 export function useAdAccounts() {
-  return useSWR<{ configured: boolean; accounts: AdAccountItem[] }>(ADS_ACCOUNTS_API_ROUTE, fetcher, {
-    revalidateOnFocus: false,
-  });
+  const scopeKey = useClientScopeKey();
+  return useSWR<{ configured: boolean; accounts: AdAccountItem[] }>(
+    [ADS_ACCOUNTS_API_ROUTE, scopeKey],
+    ([url]) => fetcher(url),
+    { revalidateOnFocus: false }
+  );
 }
 
 function overviewKey(accountId: string | null, date: AdsOverviewDateInput) {
@@ -31,9 +41,29 @@ function dateQueryString(date: AdsOverviewDateInput) {
 }
 
 export function useAdsOverview(accountId: string | null, date: AdsOverviewDateInput) {
-  return useSWR<AdsOverview>(overviewKey(accountId, date), fetcher, {
+  const scopeKey = useClientScopeKey();
+  const url = overviewKey(accountId, date);
+  return useSWR<AdsOverview>(url ? [url, scopeKey] : null, ([path]) => fetcher(path), {
     revalidateOnFocus: false,
     keepPreviousData: true,
+  });
+}
+
+export function useAdAudiences(accountId: string | null) {
+  const scopeKey = useClientScopeKey();
+  const url = accountId ? `${ADS_ACCOUNTS_API_ROUTE}/${accountId}/audiences` : null;
+  return useSWR<{ audiences: AdsAudienceItem[] }>(
+    url ? [url, scopeKey] : null,
+    ([path]) => fetcher(path),
+    { revalidateOnFocus: false }
+  );
+}
+
+export function useAdCatalogs(accountId: string | null) {
+  const scopeKey = useClientScopeKey();
+  const url = accountId ? `${ADS_ACCOUNTS_API_ROUTE}/${accountId}/catalogs` : null;
+  return useSWR<AdsCatalogsResult>(url ? [url, scopeKey] : null, ([path]) => fetcher(path), {
+    revalidateOnFocus: false,
   });
 }
 
@@ -43,9 +73,12 @@ export function useAdsEntityHistory(
   entityId: string | null,
   date: AdsOverviewDateInput
 ) {
-  const key =
+  const scopeKey = useClientScopeKey();
+  const url =
     accountId && kind && entityId
       ? `${ADS_ACCOUNTS_API_ROUTE}/${accountId}/entities/${entityId}?kind=${kind}&${dateQueryString(date)}`
       : null;
-  return useSWR<AdsEntityHistory>(key, fetcher, { revalidateOnFocus: false });
+  return useSWR<AdsEntityHistory>(url ? [url, scopeKey] : null, ([path]) => fetcher(path), {
+    revalidateOnFocus: false,
+  });
 }

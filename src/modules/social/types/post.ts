@@ -4,6 +4,9 @@ import type { TagItem } from './settings';
 
 export type PostState = 'draft' | 'queue' | 'published' | 'error';
 
+/** Multi-step approval; null/undefined when the post is not in review. */
+export type ApprovalStep = 'INTERNAL' | 'CLIENT' | 'APPROVED' | 'REJECTED';
+
 export interface PostMedia {
   id: string;
   url: string;
@@ -24,6 +27,8 @@ export interface PostListItem {
   id: string;
   group: string;
   state: PostState;
+  approvalStep: ApprovalStep | null;
+  customerId: string | null;
   publishDate: string;
   content: string;
   media: PostMedia[];
