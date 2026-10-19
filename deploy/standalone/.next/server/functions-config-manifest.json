@@ -14,6 +14,9 @@
         }
       ]
     },
+    "/api/social/ai/threads/[id]/messages": {
+      "maxDuration": 120
+    },
     "/api/social/analytics": {
       "maxDuration": 120
     }

@@ -1,0 +1,12 @@
+var R=require("../../../../../../../chunks/[turbopack]_runtime.js")("server/app/api/social/ads/accounts/[id]/token/route.js")
+R.c("server/chunks/[externals]__0w0n-46._.js")
+R.c("server/chunks/_09_mk7b._.js")
+R.c("server/chunks/[root-of-the-server]__1lqgvpv._.js")
+R.c("server/chunks/[root-of-the-server]__0em76xv._.js")
+R.c("server/chunks/_1ssqwfv._.js")
+R.c("server/chunks/1q8-_next_dist_0pvdlbw._.js")
+R.c("server/chunks/_1jettlw._.js")
+R.c("server/chunks/_0d0zqf6._.js")
+R.c("server/chunks/1oeh_server_app_api_social_ads_accounts_[id]_token_route_actions_1928aej.js")
+R.m(15240)
+module.exports=R.m(15240).exports

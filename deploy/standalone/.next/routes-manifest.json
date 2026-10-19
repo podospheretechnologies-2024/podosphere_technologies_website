@@ -64,6 +64,54 @@
       "namedRegex": "^/api/social/ads/accounts/(?<nxtPid>[^/]+?)/entities/(?<nxtPentityId>[^/]+?)(?:/)?$"
     },
     {
+      "page": "/api/social/ads/accounts/[id]/token",
+      "regex": "^/api/social/ads/accounts/([^/]+?)/token(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/social/ads/accounts/(?<nxtPid>[^/]+?)/token(?:/)?$"
+    },
+    {
+      "page": "/api/social/ai/actions/[id]/approve",
+      "regex": "^/api/social/ai/actions/([^/]+?)/approve(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/social/ai/actions/(?<nxtPid>[^/]+?)/approve(?:/)?$"
+    },
+    {
+      "page": "/api/social/ai/actions/[id]/reject",
+      "regex": "^/api/social/ai/actions/([^/]+?)/reject(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/social/ai/actions/(?<nxtPid>[^/]+?)/reject(?:/)?$"
+    },
+    {
+      "page": "/api/social/ai/threads/[id]",
+      "regex": "^/api/social/ai/threads/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/social/ai/threads/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/api/social/ai/threads/[id]/messages",
+      "regex": "^/api/social/ai/threads/([^/]+?)/messages(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/social/ai/threads/(?<nxtPid>[^/]+?)/messages(?:/)?$"
+    },
+    {
+      "page": "/api/social/analytics/competitors/[id]/summary",
+      "regex": "^/api/social/analytics/competitors/([^/]+?)/summary(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/social/analytics/competitors/(?<nxtPid>[^/]+?)/summary(?:/)?$"
+    },
+    {
       "page": "/api/social/api-clients/[id]",
       "regex": "^/api/social/api\\-clients/([^/]+?)(?:/)?$",
       "routeKeys": {
@@ -136,6 +184,30 @@
       "namedRegex": "^/api/social/inbox/(?<nxtPid>[^/]+?)(?:/)?$"
     },
     {
+      "page": "/api/social/inbox/[id]/hide",
+      "regex": "^/api/social/inbox/([^/]+?)/hide(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/social/inbox/(?<nxtPid>[^/]+?)/hide(?:/)?$"
+    },
+    {
+      "page": "/api/social/inbox/[id]/reply",
+      "regex": "^/api/social/inbox/([^/]+?)/reply(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/social/inbox/(?<nxtPid>[^/]+?)/reply(?:/)?$"
+    },
+    {
+      "page": "/api/social/inbox/[id]/triage",
+      "regex": "^/api/social/inbox/([^/]+?)/triage(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/social/inbox/(?<nxtPid>[^/]+?)/triage(?:/)?$"
+    },
+    {
       "page": "/api/social/integrations/callback/[provider]",
       "regex": "^/api/social/integrations/callback/([^/]+?)(?:/)?$",
       "routeKeys": {
@@ -168,6 +240,22 @@
       "namedRegex": "^/api/social/leads/(?<nxtPid>[^/]+?)(?:/)?$"
     },
     {
+      "page": "/api/social/leads/[id]/push",
+      "regex": "^/api/social/leads/([^/]+?)/push(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/social/leads/(?<nxtPid>[^/]+?)/push(?:/)?$"
+    },
+    {
+      "page": "/api/social/leads/[id]/score",
+      "regex": "^/api/social/leads/([^/]+?)/score(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/social/leads/(?<nxtPid>[^/]+?)/score(?:/)?$"
+    },
+    {
       "page": "/api/social/media/files/[...key]",
       "regex": "^/api/social/media/files/(.+?)(?:/)?$",
       "routeKeys": {
@@ -184,6 +272,22 @@
       "namedRegex": "^/api/social/media/(?<nxtPid>[^/]+?)(?:/)?$"
     },
     {
+      "page": "/api/social/media/[id]/variant",
+      "regex": "^/api/social/media/([^/]+?)/variant(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/social/media/(?<nxtPid>[^/]+?)/variant(?:/)?$"
+    },
+    {
+      "page": "/api/social/notifications/[id]",
+      "regex": "^/api/social/notifications/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/social/notifications/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
       "page": "/api/social/posts/[group]",
       "regex": "^/api/social/posts/([^/]+?)(?:/)?$",
       "routeKeys": {
@@ -198,6 +302,14 @@
         "nxtPgroup": "nxtPgroup"
       },
       "namedRegex": "^/api/social/posts/(?<nxtPgroup>[^/]+?)/approval(?:/)?$"
+    },
+    {
+      "page": "/api/social/saved-replies/[id]",
+      "regex": "^/api/social/saved\\-replies/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/social/saved\\-replies/(?<nxtPid>[^/]+?)(?:/)?$"
     },
     {
       "page": "/api/social/sets/[id]",
@@ -240,6 +352,14 @@
       "namedRegex": "^/api/social/webhooks/(?<nxtPid>[^/]+?)/test(?:/)?$"
     },
     {
+      "page": "/api/social/whatsapp/auto-replies/[id]",
+      "regex": "^/api/social/whatsapp/auto\\-replies/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/social/whatsapp/auto\\-replies/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
       "page": "/api/social/whatsapp/conversations/[id]",
       "regex": "^/api/social/whatsapp/conversations/([^/]+?)(?:/)?$",
       "routeKeys": {
@@ -254,6 +374,14 @@
         "nxtPid": "nxtPid"
       },
       "namedRegex": "^/dashboard/social/clients/(?<nxtPid>[^/]+?)/onboarding(?:/)?$"
+    },
+    {
+      "page": "/l/[code]",
+      "regex": "^/l/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPcode": "nxtPcode"
+      },
+      "namedRegex": "^/l/(?<nxtPcode>[^/]+?)(?:/)?$"
     }
   ],
   "staticRoutes": [
@@ -366,6 +494,12 @@
       "namedRegex": "^/api/social/ads/accounts/sync(?:/)?$"
     },
     {
+      "page": "/api/social/ads/creative-helper",
+      "regex": "^/api/social/ads/creative\\-helper(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/social/ads/creative\\-helper(?:/)?$"
+    },
+    {
       "page": "/api/social/ai",
       "regex": "^/api/social/ai(?:/)?$",
       "routeKeys": {},
@@ -382,6 +516,12 @@
       "regex": "^/api/social/ai/brand\\-kit(?:/)?$",
       "routeKeys": {},
       "namedRegex": "^/api/social/ai/brand\\-kit(?:/)?$"
+    },
+    {
+      "page": "/api/social/ai/branded-template",
+      "regex": "^/api/social/ai/branded\\-template(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/social/ai/branded\\-template(?:/)?$"
     },
     {
       "page": "/api/social/ai/copilot",
@@ -408,6 +548,12 @@
       "namedRegex": "^/api/social/ai/thread(?:/)?$"
     },
     {
+      "page": "/api/social/ai/threads",
+      "regex": "^/api/social/ai/threads(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/social/ai/threads(?:/)?$"
+    },
+    {
       "page": "/api/social/ai/url-posts",
       "regex": "^/api/social/ai/url\\-posts(?:/)?$",
       "routeKeys": {},
@@ -430,6 +576,12 @@
       "regex": "^/api/social/analytics/audience(?:/)?$",
       "routeKeys": {},
       "namedRegex": "^/api/social/analytics/audience(?:/)?$"
+    },
+    {
+      "page": "/api/social/analytics/best-times",
+      "regex": "^/api/social/analytics/best\\-times(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/social/analytics/best\\-times(?:/)?$"
     },
     {
       "page": "/api/social/analytics/competitors",
@@ -552,6 +704,12 @@
       "namedRegex": "^/api/social/meta/webhooks(?:/)?$"
     },
     {
+      "page": "/api/social/notifications",
+      "regex": "^/api/social/notifications(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/social/notifications(?:/)?$"
+    },
+    {
       "page": "/api/social/overview",
       "regex": "^/api/social/overview(?:/)?$",
       "routeKeys": {},
@@ -576,10 +734,28 @@
       "namedRegex": "^/api/social/posts/calendar(?:/)?$"
     },
     {
+      "page": "/api/social/posts/csv",
+      "regex": "^/api/social/posts/csv(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/social/posts/csv(?:/)?$"
+    },
+    {
+      "page": "/api/social/posts/csv/preview",
+      "regex": "^/api/social/posts/csv/preview(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/social/posts/csv/preview(?:/)?$"
+    },
+    {
       "page": "/api/social/reports",
       "regex": "^/api/social/reports(?:/)?$",
       "routeKeys": {},
       "namedRegex": "^/api/social/reports(?:/)?$"
+    },
+    {
+      "page": "/api/social/saved-replies",
+      "regex": "^/api/social/saved\\-replies(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/social/saved\\-replies(?:/)?$"
     },
     {
       "page": "/api/social/sets",
@@ -592,6 +768,12 @@
       "regex": "^/api/social/settings/custom\\-domain(?:/)?$",
       "routeKeys": {},
       "namedRegex": "^/api/social/settings/custom\\-domain(?:/)?$"
+    },
+    {
+      "page": "/api/social/short-links",
+      "regex": "^/api/social/short\\-links(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/social/short\\-links(?:/)?$"
     },
     {
       "page": "/api/social/signatures",
@@ -616,6 +798,12 @@
       "regex": "^/api/social/whatsapp(?:/)?$",
       "routeKeys": {},
       "namedRegex": "^/api/social/whatsapp(?:/)?$"
+    },
+    {
+      "page": "/api/social/whatsapp/auto-replies",
+      "regex": "^/api/social/whatsapp/auto\\-replies(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/social/whatsapp/auto\\-replies(?:/)?$"
     },
     {
       "page": "/api/social/whatsapp/broadcasts",

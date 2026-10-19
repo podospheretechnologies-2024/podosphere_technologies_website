@@ -1,0 +1,3 @@
+{
+  "/api/social/saved-replies/[id]/route": "app/api/social/saved-replies/[id]/route.js"
+}

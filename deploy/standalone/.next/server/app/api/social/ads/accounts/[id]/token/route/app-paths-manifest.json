@@ -1,0 +1,3 @@
+{
+  "/api/social/ads/accounts/[id]/token/route": "app/api/social/ads/accounts/[id]/token/route.js"
+}
