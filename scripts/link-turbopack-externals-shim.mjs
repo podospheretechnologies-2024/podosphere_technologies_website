@@ -1,24 +1,21 @@
 /**
  * Next/Turbopack externalizes some deps as `<name>-<hash>` (and
- * `@scope/<name>-<hash>`). Those virtual package names exist only in the
- * build machine's resolution graph. On a 2GB Linux host we copy `.next`
- * from a laptop pack and run `next start` against real packages — so we
- * shim every hashed id found in `.next` back to the real package.
+ * `@scope/<name>-<hash>`). On a 2GB Linux host we copy `.next` from a laptop
+ * pack and run `next start` — those virtual names are missing, so we create
+ * tiny re-export packages that point at the real installs.
  *
  * Usage (repo root, after syncing .next):
  *   node scripts/link-turbopack-externals-shim.mjs
  */
 import {
   existsSync,
-  lstatSync,
   mkdirSync,
   readdirSync,
   readFileSync,
   rmSync,
-  symlinkSync,
   writeFileSync,
 } from 'node:fs';
-import { dirname, join, relative } from 'node:path';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -54,10 +51,7 @@ function walk(dir) {
     const text = readFileSync(p, 'utf8');
     let m;
     while ((m = hashedPkgRe.exec(text))) {
-      const id = m[1];
-      // Skip paths that look like file hashes / chunk names with extensions.
-      if (id.includes('.') && !id.startsWith('@')) continue;
-      hashed.add(id);
+      hashed.add(m[1]);
     }
   }
 }
@@ -78,61 +72,105 @@ function packageExists(pkg) {
   return existsSync(join(nm, ...pkg.split('/')));
 }
 
-function ensureShim(hashedName, realName) {
-  const shimPath = join(nm, ...hashedName.split('/'));
-  const realPath = join(nm, ...realName.split('/'));
-
-  if (!existsSync(realPath)) {
+/**
+ * Write a real mini-package (not a symlink). Symlinks break under pnpm + ESM
+ * (`import('sharp-hash')` → ERR_MODULE_NOT_FOUND even when the link exists).
+ */
+function writeShim(hashedName, realName) {
+  if (!packageExists(realName)) {
     console.warn(`Skip ${hashedName}: real package ${realName} not installed`);
     return false;
   }
 
-  // Already a correct symlink?
-  try {
-    const st = lstatSync(shimPath);
-    if (st.isSymbolicLink()) {
-      console.log(`OK (symlink) ${hashedName}`);
-      return true;
-    }
-  } catch {
-    // missing
-  }
-
+  const shimPath = join(nm, ...hashedName.split('/'));
   rmSync(shimPath, { recursive: true, force: true });
-  mkdirSync(dirname(shimPath), { recursive: true });
+  mkdirSync(shimPath, { recursive: true });
 
-  // Prefer directory symlink of the whole package (works for sharp, pg, …).
-  // For scoped hashes like @prisma/client-HASH where we only need runtime,
-  // full-package symlink still works if realName is @prisma/client.
-  const rel = relative(dirname(shimPath), realPath);
-  try {
-    symlinkSync(rel, shimPath, process.platform === 'win32' ? 'junction' : 'dir');
-    console.log(`Linked ${hashedName} → ${realName}`);
-    return true;
-  } catch (error) {
-    // Fallback: tiny package that re-exports.
-    mkdirSync(shimPath, { recursive: true });
-    writeFileSync(
-      join(shimPath, 'package.json'),
-      JSON.stringify(
-        {
-          name: hashedName,
-          version: '0.0.0-shim',
-          private: true,
-          main: 'index.js',
-          type: 'commonjs',
+  // Scoped deep paths like @prisma/client-HASH must re-export the parent package
+  // and also expose ./runtime/* — mirror by pointing package.json exports at real.
+  const isScopedDeep = hashedName.includes('/');
+
+  writeFileSync(
+    join(shimPath, 'package.json'),
+    JSON.stringify(
+      {
+        name: hashedName,
+        version: '0.0.0-shim',
+        private: true,
+        type: 'commonjs',
+        main: 'index.js',
+        exports: {
+          '.': './index.js',
+          './package.json': './package.json',
+          './*': './*',
         },
-        null,
-        2
-      )
-    );
-    writeFileSync(
-      join(shimPath, 'index.js'),
-      `module.exports = require(${JSON.stringify(realName)});\n`
-    );
-    console.log(`Wrote re-export shim ${hashedName} → ${realName} (${error.message})`);
-    return true;
+      },
+      null,
+      2
+    )
+  );
+
+  writeFileSync(
+    join(shimPath, 'index.js'),
+    `'use strict';\nmodule.exports = require(${JSON.stringify(realName)});\n`
+  );
+
+  // For @prisma/client-HASH/runtime/client — create runtime re-exports.
+  if (isScopedDeep || realName === '@prisma/client' || realName === 'sharp') {
+    const realRuntime = join(nm, ...realName.split('/'), 'runtime');
+    if (existsSync(realRuntime)) {
+      const runtimeDir = join(shimPath, 'runtime');
+      mkdirSync(runtimeDir, { recursive: true });
+      // Proxy files commonly requested by Turbopack.
+      for (const file of readdirSync(realRuntime)) {
+        if (!/\.(js|mjs|cjs|json|wasm)$/i.test(file) && !file.endsWith('.node')) {
+          continue;
+        }
+        const target = join(realName, 'runtime', file).replace(/\\/g, '/');
+        // require/import path from shim runtime file → real package runtime file
+        if (file.endsWith('.mjs')) {
+          writeFileSync(
+            join(runtimeDir, file),
+            `export * from ${JSON.stringify(target)};\nexport { default } from ${JSON.stringify(target)};\n`
+          );
+        } else if (file.endsWith('.js') || file.endsWith('.cjs')) {
+          writeFileSync(
+            join(runtimeDir, file),
+            `'use strict';\nmodule.exports = require(${JSON.stringify(target)});\n`
+          );
+        }
+      }
+    }
   }
+
+  // Also drop a copy under .next/node_modules for resolvers that start from chunks/.
+  const nextNm = join(root, '.next', 'node_modules', ...hashedName.split('/'));
+  rmSync(nextNm, { recursive: true, force: true });
+  mkdirSync(dirname(nextNm), { recursive: true });
+  // Cheap: duplicate the shim package.json + index (runtime optional).
+  mkdirSync(nextNm, { recursive: true });
+  writeFileSync(
+    join(nextNm, 'package.json'),
+    JSON.stringify(
+      {
+        name: hashedName,
+        version: '0.0.0-shim',
+        private: true,
+        type: 'commonjs',
+        main: 'index.js',
+        exports: { '.': './index.js', './package.json': './package.json' },
+      },
+      null,
+      2
+    )
+  );
+  writeFileSync(
+    join(nextNm, 'index.js'),
+    `'use strict';\nmodule.exports = require(${JSON.stringify(realName)});\n`
+  );
+
+  console.log(`Shimmed ${hashedName} → ${realName}`);
+  return true;
 }
 
 let linked = 0;
@@ -144,13 +182,16 @@ for (const id of [...hashed].sort()) {
     skipped++;
     continue;
   }
-  // Only shim if the hashed name is not already a real install path.
-  if (packageExists(id) && id === real) {
-    skipped++;
-    continue;
-  }
-  if (ensureShim(id, real)) linked++;
+  if (writeShim(id, real)) linked++;
   else skipped++;
 }
 
-console.log(`Done. linked=${linked} skipped=${skipped} scanned=${hashed.size}`);
+// Always ensure known hashes from the current Windows pack (scan can miss ESM import forms).
+for (const [hash, real] of Object.entries({
+  'sharp-9b5cd53f6851c3b7': 'sharp',
+  '@prisma/client-24e0c89f9a65f861': '@prisma/client',
+})) {
+  if (writeShim(hash, real)) linked++;
+}
+
+console.log(`Done. shimmed≈${linked} skipped=${skipped} scanned=${hashed.size}`);
