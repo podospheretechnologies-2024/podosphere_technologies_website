@@ -18,7 +18,7 @@ fi
 rm -rf .next
 mkdir -p .next
 cp -a deploy/standalone/.next/. .next/
-node scripts/link-turbopack-prisma-shim.mjs
+node scripts/link-turbopack-externals-shim.mjs
 
 echo "==> restart pm2 (next start on :3100)"
 pm2 delete podo-social-web 2>/dev/null || true
