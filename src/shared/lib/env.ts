@@ -48,6 +48,11 @@ const serverEnvSchema = z.object({
   // Google Sheets plug (OAuth). Optional — Connect stays disabled until both are set.
   GOOGLE_CLIENT_ID: z.string().optional(),
   GOOGLE_CLIENT_SECRET: z.string().optional(),
+  // Google Ads connector (reuses the Google OAuth client above). Connect stays disabled until the developer token is set.
+  GOOGLE_ADS_DEVELOPER_TOKEN: z.string().optional(),
+  // Manager (MCC) customer id, digits only; sent as login-customer-id when accounts are reached through it.
+  GOOGLE_ADS_LOGIN_CUSTOMER_ID: z.string().optional(),
+  GOOGLE_ADS_API_VERSION: z.string().optional(),
   // Pinterest (OAuth + /v5/pins). Optional — Connect stays disabled until both are set.
   PINTEREST_CLIENT_ID: z.string().optional(),
   PINTEREST_CLIENT_SECRET: z.string().optional(),

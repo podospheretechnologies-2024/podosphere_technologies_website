@@ -109,6 +109,7 @@ model SocialCustomer {
   members               SocialClientMember[]
   approvers             ClientApprover[]
   adAccounts            AdAccount[]
+  googleAdsAccounts     SocialGoogleAdsAccount[]
   posts                 SocialPost[]
   media                 SocialMedia[]
   brandKits             SocialBrandKit[]
@@ -704,6 +705,56 @@ model AdAccount {
   @@unique([externalId])
   @@index([organizationId, customerId])
   @@map("ad_accounts")
+}
+
+// Google Ads connector: one OAuth connection per organization (read-only reporting).
+model SocialGoogleAdsConnection {
+  id              String    @id @default(uuid())
+  organizationId  String    @unique
+  email           String
+  name            String?
+  picture         String?   @db.VarChar(2048)
+  accessToken     String    @db.Text
+  refreshToken    String?   @db.Text
+  tokenExpiration DateTime?
+  scopes          String    @db.Text
+  /// Manager (MCC) customer id sent as login-customer-id; null = use GOOGLE_ADS_LOGIN_CUSTOMER_ID / direct access.
+  loginCustomerId String?
+  lastSyncedAt    DateTime?
+  /// Last account-discovery error (e.g. developer token not approved); shown in the UI.
+  lastError       String?   @db.VarChar(512)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  organization Organization           @relation(fields: [organizationId], references: [id])
+  accounts     SocialGoogleAdsAccount[]
+
+  @@map("social_google_ads_connections")
+}
+
+// Leaf Google Ads customer accounts reachable from the connection; optionally assigned to a client.
+model SocialGoogleAdsAccount {
+  id               String   @id @default(uuid())
+  organizationId   String
+  connectionId     String
+  customerId       String?
+  /// Digits only, e.g. "1234567890".
+  googleCustomerId String
+  /// Manager account used to reach this customer (login-customer-id header); null when accessed directly.
+  loginCustomerId  String?
+  name             String
+  currency         String   @db.VarChar(3)
+  timeZone         String
+  status           String
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  connection SocialGoogleAdsConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  customer   SocialCustomer?           @relation(fields: [customerId], references: [id])
+
+  @@unique([connectionId, googleCustomerId])
+  @@index([organizationId, customerId])
+  @@map("social_google_ads_accounts")
 }
 
 model SocialClientMember {

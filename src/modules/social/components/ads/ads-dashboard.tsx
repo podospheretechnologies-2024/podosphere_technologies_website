@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { EmptyState } from '@/shared/components/ui/empty-state';
 import {
   ADS_DEFAULT_DATE_PRESET,
@@ -12,13 +12,14 @@ import { useAdAccounts, useAdsOverview, type AdsOverviewDateInput } from '../../
 import type { AdAccountItem } from '../../types/ads';
 import { AdsDetailPanel, type AdsDetailSelection } from './ads-detail-panel';
 import { AdsManager } from './ads-manager';
+import { GoogleAdsPanel } from './google-ads-panel';
 
 function preferredAccount(accounts: AdAccountItem[]): string | null {
   const own = accounts.find((account) => /podosphere/i.test(account.name));
   return (own ?? accounts[0])?.id ?? null;
 }
 
-export function AdsDashboard() {
+function MetaAdsDashboard() {
   const accountsQuery = useAdAccounts();
   const [selected, setSelected] = useState<string | null>(null);
   const [datePreset, setDatePreset] = useState<AdsDatePreset>(ADS_DEFAULT_DATE_PRESET);
@@ -72,13 +73,22 @@ export function AdsDashboard() {
     try {
       setIsSyncing(true);
       const res = await fetch('/api/social/ads/accounts/sync', { method: 'POST' });
-      if (res.ok) {
-        await accountsQuery.mutate();
+      if (!res.ok) {
+        const body = (await res.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(body?.error ?? `Sync failed (${res.status})`);
       }
+      await accountsQuery.mutate();
+      await overview.mutate();
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : 'Sync failed');
     } finally {
       setIsSyncing(false);
     }
   }
+
+  const needsTokenSync =
+    Boolean(overview.error?.message) &&
+    /no meta token stored|META_SYSTEM_USER_TOKEN/i.test(overview.error?.message ?? '');
 
   if (accounts.length === 0) {
     return (
@@ -107,8 +117,18 @@ export function AdsDashboard() {
   return (
     <div className="-m-5 flex min-h-[calc(100vh-3rem)] flex-col bg-[#F0F2F5]">
       {overview.error && (
-        <div className="border-b border-[#FECACA] bg-[#FEF2F2] px-4 py-2 text-sm text-[#DC2626]">
-          {overview.error.message}
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#FECACA] bg-[#FEF2F2] px-4 py-2 text-sm text-[#DC2626]">
+          <p className="min-w-0 flex-1">{overview.error.message}</p>
+          {needsTokenSync && (
+            <button
+              type="button"
+              disabled={isSyncing}
+              onClick={() => void syncAccounts()}
+              className="shrink-0 rounded-md bg-[#1877F2] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#166FE5] disabled:opacity-50"
+            >
+              {isSyncing ? 'Syncing…' : 'Sync tokens from Meta'}
+            </button>
+          )}
         </div>
       )}
       {!overview.data && !overview.error && (
@@ -147,6 +167,52 @@ export function AdsDashboard() {
           onClose={() => setDetail(null)}
         />
       )}
+    </div>
+  );
+}
+
+type AdsPlatform = 'meta' | 'google';
+
+const PLATFORMS: { value: AdsPlatform; label: string }[] = [
+  { value: 'meta', label: 'Meta Ads' },
+  { value: 'google', label: 'Google Ads' },
+];
+
+export function AdsDashboard() {
+  const [platform, setPlatform] = useState<AdsPlatform>('meta');
+
+  // The Google OAuth callback returns to ?platform=google.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('platform') === 'google') {
+      setPlatform('google');
+    }
+  }, []);
+
+  return (
+    <div className="-m-5 bg-[#F0F2F5]">
+      <div
+        role="tablist"
+        aria-label="Ad platform"
+        className="flex gap-1 border-b border-[#DADCE0] bg-white px-5 pt-2"
+      >
+        {PLATFORMS.map((item) => (
+          <button
+            key={item.value}
+            type="button"
+            role="tab"
+            aria-selected={platform === item.value}
+            onClick={() => setPlatform(item.value)}
+            className={`-mb-px border-b-2 px-4 py-2 text-sm font-semibold transition ${
+              platform === item.value
+                ? 'border-[#1877F2] text-[#1877F2]'
+                : 'border-transparent text-[#606770] hover:text-[#1C1E21]'
+            }`}
+          >
+            {item.label}
+          </button>
+        ))}
+      </div>
+      <div className="p-5">{platform === 'meta' ? <MetaAdsDashboard /> : <GoogleAdsPanel />}</div>
     </div>
   );
 }
