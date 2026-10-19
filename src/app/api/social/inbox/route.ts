@@ -9,10 +9,18 @@ export async function GET(request: NextRequest) {
     const scope = await getClientScope('inbox');
     await planService.assertFeature(scope.organizationId, 'inbox');
     const assigneeParam = request.nextUrl.searchParams.get('assigneeId');
-    const options =
-      assigneeParam === null
-        ? undefined
-        : { assigneeId: assigneeParam === '' || assigneeParam === 'unassigned' ? null : assigneeParam };
+    const aiLabel = request.nextUrl.searchParams.get('aiLabel') ?? undefined;
+    const aiPriority = request.nextUrl.searchParams.get('aiPriority') ?? undefined;
+    const options = {
+      ...(assigneeParam === null
+        ? {}
+        : {
+            assigneeId:
+              assigneeParam === '' || assigneeParam === 'unassigned' ? null : assigneeParam,
+          }),
+      ...(aiLabel ? { aiLabel } : {}),
+      ...(aiPriority ? { aiPriority } : {}),
+    };
     return Response.json(await inboxService.listThreads(scope, options));
   } catch (error) {
     return errorResponse(error);

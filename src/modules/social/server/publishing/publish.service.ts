@@ -16,10 +16,11 @@ import type {
 import { integrationRepository } from '../integrations/integration.repository';
 import { integrationService } from '../integrations/integration.service';
 import { mediaRepository } from '../media/media.repository';
+import { notificationService } from '../notifications/notification.service';
+import { recurrenceService } from '../posts/recurrence.service';
 import { readMedia } from '../posts/post.service';
 import { getStorage } from '../storage/storage.factory';
-import { webhookService } from '../webhooks/webhook.service';
-import { publishQueue, type PublishPostJobData } from './publish.queue';
+import { webhookService } from '../webhooks/webhook.service';import { publishQueue, type PublishPostJobData } from './publish.queue';
 import { publishRepository } from './publish.repository';
 
 // The sweep also queues posts due soon, in case their job was lost (e.g. Redis was flushed).
@@ -60,6 +61,9 @@ async function loadMedia(provider: SocialProvider, post: PublishablePost): Promi
   });
 }
 
+/** Providers whose `comment()` API posts a follow-up under the main post. */
+const FIRST_COMMENT_PROVIDERS = new Set(['facebook', 'instagram', 'linkedin']);
+
 function blockedReason(post: PublishablePost, provider: SocialProvider | undefined) {
   const { integration } = post;
   if (!provider) {
@@ -77,6 +81,44 @@ function blockedReason(post: PublishablePost, provider: SocialProvider | undefin
   return null;
 }
 
+// Best-effort: the main post already succeeded; a failed first comment is logged only.
+async function publishFirstComment(
+  provider: SocialProvider,
+  post: PublishablePost,
+  releaseId: string
+): Promise<void> {
+  const message = post.firstComment?.trim();
+  if (!message || post.parentPostId || !FIRST_COMMENT_PROVIDERS.has(provider.identifier)) {
+    return;
+  }
+
+  const target = {
+    internalId: post.integration.internalId,
+    accessToken: await integrationService.getAccessToken(post.integration),
+  };
+  try {
+    await provider.comment(
+      target,
+      { rootReleaseId: releaseId, parentReleaseId: releaseId },
+      { content: message, media: [] }
+    );
+  } catch (error) {
+    console.error(
+      `[social] first comment failed for post ${post.id} (${provider.identifier}):`,
+      error instanceof Error ? error.message : error
+    );
+  }
+}
+
+function integrationSettings(
+  additionalSettings: unknown
+): Record<string, unknown> | undefined {
+  if (additionalSettings && typeof additionalSettings === 'object' && !Array.isArray(additionalSettings)) {
+    return additionalSettings as Record<string, unknown>;
+  }
+  return undefined;
+}
+
 async function publishToProvider(
   provider: SocialProvider,
   post: PublishablePost
@@ -84,6 +126,7 @@ async function publishToProvider(
   const target = {
     internalId: post.integration.internalId,
     accessToken: await integrationService.getAccessToken(post.integration),
+    settings: integrationSettings(post.integration.additionalSettings),
   };
   const item = { content: post.content, media: await loadMedia(provider, post) };
 
@@ -121,10 +164,14 @@ export const publishService = {
     const provider = integrationRegistry.get(post.integration.providerIdentifier);
     const blocked = blockedReason(post, provider);
     if (blocked || !provider) {
+      const message = blocked ?? 'Unknown provider';
       await publishRepository.markFailed(post, {
         platform: post.integration.providerIdentifier,
-        message: blocked ?? 'Unknown provider',
+        message,
       });
+      void notificationService
+        .postFailed(post.organizationId, post.id, post.integration.providerIdentifier, message)
+        .catch((err) => console.error('[publish] post_failed notify failed', err));
       return 'failed';
     }
 
@@ -139,18 +186,29 @@ export const publishService = {
         throw error;
       }
 
+      const message =
+        error instanceof ProviderError ? error.message : `Could not publish to ${provider.name}`;
       await publishRepository.markFailed(post, {
         platform: provider.identifier,
-        message:
-          error instanceof ProviderError ? error.message : `Could not publish to ${provider.name}`,
+        message,
         body: error instanceof ProviderError ? error.body : String(error),
       });
+      void notificationService
+        .postFailed(post.organizationId, post.id, provider.identifier, message)
+        .catch((err) => console.error('[publish] post_failed notify failed', err));
       return 'failed';
     }
 
     await publishRepository.markPublished(post.id, result);
     if (!post.parentPostId) {
+      await publishFirstComment(provider, post, result.releaseId);
       await webhookService.queuePublished(post.integration.id, post.id);
+      // Clone the next run once every channel root in the group has published.
+      try {
+        await recurrenceService.afterGroupPublished(post.organizationId, post.group);
+      } catch (error) {
+        console.error(`[social] recurrence clone failed for group ${post.group}`, error);
+      }
     }
 
     const next = await publishRepository.findNext(post.id);

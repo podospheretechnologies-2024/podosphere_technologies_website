@@ -8,7 +8,7 @@ export async function POST(request: NextRequest) {
   try {
     const scope = await getClientScope('draft');
     const body = generateImageSchema.parse(await request.json());
-    return Response.json(await aiService.generateImage(scope.organizationId, body), { status: 201 });
+    return Response.json(await aiService.generateImage(scope, body), { status: 201 });
   } catch (error) {
     return errorResponse(error);
   }

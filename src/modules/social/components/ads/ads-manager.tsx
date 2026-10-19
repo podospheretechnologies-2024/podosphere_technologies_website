@@ -32,12 +32,13 @@ import {
   RefreshCw,
   Search,
   SlidersHorizontal,
+  Sparkles,
   Star,
   Trash2,
   Users,
   X,
 } from 'lucide-react';
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { startTransition, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { cn } from '@/shared/lib/cn';
 import {
   ADS_DATE_PRESETS,
@@ -1063,6 +1064,48 @@ export function AdsManager({
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const [sorting, setSorting] = useState([{ id: 'spend', desc: true }]);
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: ADS_PAGE_SIZE });
+  const [creativeBusy, setCreativeBusy] = useState(false);
+
+  async function runCreativeHelper() {
+    if (creativeBusy) return;
+    const adSetId = selectedAdSetIds[0] ?? null;
+    const adSet = adSetId ? data.adSets.find((item) => item.id === adSetId) : undefined;
+    setCreativeBusy(true);
+    setViewNotice('Generating AI creatives…');
+    try {
+      const res = await fetch('/api/social/ads/creative-helper', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          adAccountId: accountId,
+          adSetId: adSet?.id,
+          adSetName: adSet?.name,
+          campaignName: adSet?.campaignName ?? undefined,
+          includeImagePrompt: true,
+        }),
+      });
+      const json = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        message?: string;
+        draft?: { variations?: unknown[] };
+      };
+      if (!res.ok) {
+        throw new Error(json.error ?? json.message ?? 'Could not generate creatives');
+      }
+      const count = json.draft?.variations?.length ?? 3;
+      startTransition(() => {
+        setViewNotice(
+          `${count} draft creatives queued for approval${adSet ? ` (${adSet.name})` : ''}. Not published.`
+        );
+      });
+    } catch (error) {
+      startTransition(() => {
+        setViewNotice(error instanceof Error ? error.message : 'Could not generate creatives');
+      });
+    } finally {
+      setCreativeBusy(false);
+    }
+  }
 
   function goCampaigns() {
     setShellView('campaigns');
@@ -2180,6 +2223,18 @@ export function AdsManager({
           <ToolbarBtn title="A/B test in Meta Ads Manager" onClick={openSelectedInMeta}>
             <FlaskConical className="size-3.5" />
             A/B test
+          </ToolbarBtn>
+          <ToolbarBtn
+            title={
+              selectedAdSetIds[0]
+                ? 'Generate AI creatives for the selected ad set (draft only — never publishes)'
+                : 'Generate AI creatives from brand kit (draft only — never publishes)'
+            }
+            disabled={creativeBusy}
+            onClick={() => void runCreativeHelper()}
+          >
+            <Sparkles className="size-3.5" />
+            {creativeBusy ? 'Generating…' : 'AI creatives'}
           </ToolbarBtn>
           <div className="relative">
             <ToolbarBtn

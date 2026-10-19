@@ -1,6 +1,11 @@
 import { prisma } from '@/shared/lib/prisma';
 import { getClientScope, scopeWhere } from '@/shared/server/client-scope';
 import { errorResponse } from '@/shared/server/http-error';
+import {
+  parseCompetitorMedia,
+  topPostsThisMonth,
+} from '@/modules/social/server/analytics/competitor-media';
+import { isClaudeConfigured } from '@/modules/social/server/ai/claude.client';
 
 export async function GET() {
   try {
@@ -40,7 +45,16 @@ export async function GET() {
         date: row.date,
         value: Number(row.value),
       })),
-      competitors,
+      aiSummaryAvailable: isClaudeConfigured(),
+      competitors: competitors.map((comp) => {
+        const latest = comp.snapshots[comp.snapshots.length - 1];
+        const recentMedia = parseCompetitorMedia(latest?.recentMedia);
+        return {
+          ...comp,
+          snapshots: comp.snapshots.map(({ recentMedia: _media, ...snap }) => snap),
+          topPosts: topPostsThisMonth(recentMedia, 5),
+        };
+      }),
     });
   } catch (error) {
     return errorResponse(error);

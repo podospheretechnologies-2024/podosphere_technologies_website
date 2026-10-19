@@ -20,3 +20,20 @@ export const POST_LIST_FILTER_LABELS: Record<PostListFilter, string> = {
 export const POST_SAVE_TYPES = ['draft', 'schedule', 'now'] as const;
 
 export type PostSaveType = (typeof POST_SAVE_TYPES)[number];
+
+/** Composer / API recurrence frequencies (F9). */
+export const RECURRENCE_RULES = ['daily', 'weekly', 'monthly'] as const;
+
+export type RecurrenceRule = (typeof RECURRENCE_RULES)[number];
+
+export const RECURRENCE_RULE_LABELS: Record<RecurrenceRule, string> = {
+  daily: 'Every day',
+  weekly: 'Every week',
+  monthly: 'Every month',
+};
+
+/** Cap so a misconfigured loop cannot schedule forever in one request. */
+export const RECURRENCE_MAX_RUNS_CAP = 365;
+
+/** Evergreen clones stay at least this many days after the last publish. */
+export const EVERGREEN_MIN_GAP_DAYS = 7;

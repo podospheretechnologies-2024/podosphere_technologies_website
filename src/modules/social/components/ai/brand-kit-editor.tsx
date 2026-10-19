@@ -42,7 +42,9 @@ export function BrandKitEditor() {
     <section className="border-border bg-surface space-y-4 rounded-2xl border p-4">
       <div>
         <h2 className="text-sm font-semibold">Brand kit</h2>
-        <p className="text-muted-foreground text-xs">Voice, audience and compliance notes for every AI reply.</p>
+        <p className="text-muted-foreground text-xs">
+          Voice, logo and colours for AI copy and branded image templates.
+        </p>
       </div>
       <div className="grid gap-3 md:grid-cols-2">
         {BRAND_KIT_FIELDS.map((field) => (

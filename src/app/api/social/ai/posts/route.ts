@@ -8,7 +8,7 @@ export async function POST(request: NextRequest) {
   try {
     const scope = await getClientScope('draft');
     const body = generatePostsSchema.parse(await request.json());
-    return Response.json(await aiService.generatePosts(scope.organizationId, body));
+    return Response.json(await aiService.generatePosts(scope, body));
   } catch (error) {
     return errorResponse(error);
   }

@@ -1,10 +1,11 @@
 import 'server-only';
-import { createHmac, timingSafeEqual } from 'node:crypto';
 import { getServerEnv } from '@/shared/lib/env';
 import { prisma } from '@/shared/lib/prisma';
 import { HttpError } from '@/shared/server/http-error';
-import { whatsappChatRepository } from './whatsapp-chat.repository';
 import { podoCrmWhatsAppSyncService } from '../podocrm/podocrm-whatsapp-sync.service';
+import { autoReplyService } from './auto-reply.service';
+import { whatsappChatRepository } from './whatsapp-chat.repository';
+import { verifyMetaHubSignature } from './meta-webhook-signature';
 
 const DEFAULT_PODOCRM_WHATSAPP_WEBHOOK_URL =
   'https://podocrm.podospheretechnologies.com/api/whatsapp/webhook';
@@ -165,16 +166,7 @@ export const whatsappWebhookService = {
       // Allow in local/dev when secret is not set yet; production should set META_APP_SECRET.
       return;
     }
-    if (!signatureHeader?.startsWith('sha256=')) {
-      throw new HttpError(401, 'Missing Meta signature');
-    }
-    const expected = createHmac('sha256', secret).update(rawBody).digest('hex');
-    const provided = signatureHeader.slice('sha256='.length);
-    const a = Buffer.from(expected, 'utf8');
-    const b = Buffer.from(provided, 'utf8');
-    if (a.length !== b.length || !timingSafeEqual(a, b)) {
-      throw new HttpError(401, 'Invalid Meta signature');
-    }
+    verifyMetaHubSignature(rawBody, signatureHeader, secret);
   },
 
   /**
@@ -273,6 +265,26 @@ export const whatsappWebhookService = {
             message.from,
             webhookPhoneNumberId
           );
+
+          // Skip auto-reply on Meta webhook retries (same wamid already stored).
+          const alreadyStored = message.id
+            ? await prisma.whatsAppMessage.findUnique({
+                where: { wamid: message.id },
+                select: { id: true },
+              })
+            : null;
+
+          // F15: match + send before saving the inbound message.
+          if (!alreadyStored) {
+            await autoReplyService.maybeReply({
+              organizationId,
+              customerId,
+              waId: message.from,
+              body,
+              skip: isBroadcastOptOut(body),
+            });
+          }
+
           const conversation = await whatsappChatRepository.upsertConversation({
             organizationId,
             customerId,

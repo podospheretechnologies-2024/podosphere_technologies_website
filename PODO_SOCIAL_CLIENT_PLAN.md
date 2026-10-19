@@ -1,7 +1,10 @@
 # Podo Social — Client-wise Data & New Feature Plan
 
-> Written 9 Oct 2026. Planning document only: nothing in this file has been built yet.
-> Read with `PODO_SOCIAL.md` (sections 15–18) and `PODO_SOCIAL_ACCOUNTS_AND_DATA.md`. Read `AGENTS.md` before writing code (Next.js 16).
+> Written 9 Oct 2026 as a **planning** doc.  
+> **Ship status (18 Oct 2026):** client scope, brand kit per client, inbox/leads/media/WhatsApp `customerId`,
+> switcher, templates, approvals, reports — **built**. Do not treat §3 “not client-scoped” tables as current.
+> Current done/pending: **`SOCIAL_PENDING.md`** + **`PENDING_CHANGES.md`**.
+> Read `AGENTS.md` before writing code (Next.js 16).
 > Competitor notes describe **publicly visible product behaviour**. Their internal tech stacks are not public; re-check
 > features on their sites before using any claim in marketing.
 

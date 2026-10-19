@@ -1,5 +1,5 @@
 import 'server-only';
-import { createHash, randomBytes } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 import type { NextRequest } from 'next/server';
 import { prisma } from '@/shared/lib/prisma';
 import { redis } from '@/shared/lib/redis';
@@ -7,23 +7,10 @@ import type { ClientScope } from '@/shared/server/client-scope';
 import { organizationScope } from '@/shared/server/client-scope';
 import { HttpError } from '@/shared/server/http-error';
 import { planService } from '../billing/plan.service';
+import { extractBearerToken, hashApiToken, isIpAllowed } from './api-key';
 
 export const API_PERMISSIONS = ['posts:write', 'analytics:read', 'leads:read', 'whatsapp:send'] as const;
 export type ApiPermission = (typeof API_PERMISSIONS)[number];
-
-function hashToken(token: string): string {
-  return createHash('sha256').update(token).digest('hex');
-}
-
-function ipAllowed(allowlist: string | null, ip: string | null): boolean {
-  if (!allowlist?.trim()) return true;
-  if (!ip) return false;
-  return allowlist
-    .split(',')
-    .map((part) => part.trim())
-    .filter(Boolean)
-    .some((rule) => ip === rule || ip.startsWith(rule.replace(/\/\d+$/, '')));
-}
 
 export const apiClientService = {
   async list(organizationId: string) {
@@ -83,7 +70,7 @@ export const apiClientService = {
         organizationId,
         customerId,
         name: input.name.trim(),
-        tokenHash: hashToken(secret),
+        tokenHash: hashApiToken(secret),
         tokenPrefix: secret.slice(0, 12),
         permissions,
         dailyLimit: input.dailyLimit ?? 1000,
@@ -109,12 +96,11 @@ export async function withApiKey(
   request: NextRequest,
   handler: (ctx: { organizationId: string; scope: ClientScope }) => Promise<Response>
 ): Promise<Response> {
-  const header = request.headers.get('authorization') ?? '';
-  const token = header.startsWith('Bearer ') ? header.slice(7).trim() : '';
+  const token = extractBearerToken(request.headers.get('authorization'));
   if (!token) {
     throw new HttpError(401, 'Missing API key');
   }
-  const client = await prisma.socialApiClient.findUnique({ where: { tokenHash: hashToken(token) } });
+  const client = await prisma.socialApiClient.findUnique({ where: { tokenHash: hashApiToken(token) } });
   if (!client || client.status !== 'active') {
     throw new HttpError(401, 'API key is invalid or revoked');
   }
@@ -123,7 +109,7 @@ export async function withApiKey(
     throw new HttpError(403, `API key is missing ${permission}`);
   }
   const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? null;
-  if (!ipAllowed(client.ipAllowlist, ip)) {
+  if (!isIpAllowed(client.ipAllowlist, ip)) {
     throw new HttpError(403, 'IP is not allowed for this key');
   }
   const day = new Date().toISOString().slice(0, 10);

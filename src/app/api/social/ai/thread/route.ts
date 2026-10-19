@@ -8,7 +8,7 @@ export async function POST(request: NextRequest) {
   try {
     const scope = await getClientScope('draft');
     const body = splitThreadSchema.parse(await request.json());
-    return Response.json(await aiService.splitThread(scope.organizationId, body));
+    return Response.json(await aiService.splitThread(scope, body));
   } catch (error) {
     return errorResponse(error);
   }

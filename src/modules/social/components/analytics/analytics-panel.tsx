@@ -19,6 +19,7 @@ import { downloadAnalyticsReport } from '../../lib/analytics-download';
 import type { AnalyticsActivity, AnalyticsSummary } from '../../types/analytics';
 import { ActivityChart } from './activity-chart';
 import { AnalyticsChannelPicker } from './analytics-channel-picker';
+import { BestTimesHeatmap } from './best-times-heatmap';
 import { ChannelBreakdown } from './channel-breakdown';
 import { PostPerformance } from './post-performance';
 import { PostTimeline } from './post-timeline';
@@ -343,6 +344,8 @@ export function AnalyticsPanel() {
             />
             <ChannelBreakdown channels={view.channels} posts={view.posts} />
           </div>
+
+          <BestTimesHeatmap integrationId={channelFilter === 'all' ? null : channelFilter} />
 
           <PostPerformance posts={view.posts} />
 

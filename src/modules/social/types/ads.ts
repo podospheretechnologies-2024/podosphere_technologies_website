@@ -8,6 +8,10 @@ export interface AdAccountItem {
   /** 1 = active; anything else is disabled, unsettled, closed, … */
   status: number;
   amountSpent: number;
+  /** True when an encrypted per-account Meta token is stored (never expose the token). */
+  hasToken: boolean;
+  /** True when Graph rejected the stored token; agency must set a new one. */
+  refreshNeeded: boolean;
 }
 
 export interface AdsTotals {

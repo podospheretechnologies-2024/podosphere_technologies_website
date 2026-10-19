@@ -46,3 +46,28 @@ Writes `./backups/podo_social_YYYYMMDD-HHMMSS.sql` via `mysqldump` inside `podos
 5. Spot-check login / one client view
 
 Full commands: [`scripts/restore-mysql.md`](../scripts/restore-mysql.md).
+
+## Razorpay billing
+
+Checkout and GST invoices need these env vars (values from the Razorpay dashboard — do not invent or commit secrets):
+
+| Env | Required for | Notes |
+|-----|--------------|--------|
+| `RAZORPAY_KEY_ID` | Checkout | Key ID |
+| `RAZORPAY_KEY_SECRET` | Checkout + API | Key secret |
+| `RAZORPAY_WEBHOOK_SECRET` | `/api/webhooks/razorpay` | Webhook signing secret |
+| `RAZORPAY_PLAN_SOLO` | Subscription mode | Plan ID for Solo |
+| `RAZORPAY_PLAN_AGENCY_STARTER` | Subscription mode | Plan ID for Agency Starter |
+| `RAZORPAY_PLAN_AGENCY_GROWTH` | Subscription mode | Plan ID for Agency Growth |
+| `RAZORPAY_PLAN_AGENCY_PRO` | Subscription mode | Plan ID for Agency Pro |
+| `BILLING_SELLER_GSTIN` | GST invoice PDF | Optional until live |
+| `BILLING_SELLER_STATE` | CGST/SGST vs IGST | Optional 2-digit state code |
+| `BILLING_GST_PERCENT` | Tax split | Default `18` |
+
+Without `RAZORPAY_PLAN_*`, billing creates a one-time **order**. With plan IDs set, it creates a real Razorpay **subscription**.
+
+Webhook URL: `{APP_URL}/api/webhooks/razorpay`
+
+Enable at least: `payment.captured`, `order.paid`, `subscription.activated`, `subscription.charged`, `subscription.halted`, `subscription.cancelled`.
+
+Status on `SocialSubscription`: charged/activated → `active`; halted → `past_due` (org downgraded to Solo); cancelled → `cancelled` (org downgraded to Solo).

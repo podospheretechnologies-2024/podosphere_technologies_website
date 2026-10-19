@@ -24,6 +24,13 @@ enum SocialCreationMethod {
   UNKNOWN
 }
 
+// How often a repeating post group is cloned after a successful publish (F9).
+enum SocialRecurrenceRule {
+  DAILY
+  WEEKLY
+  MONTHLY
+}
+
 enum SocialMediaType {
   IMAGE
   VIDEO
@@ -91,6 +98,8 @@ model SocialCustomer {
   onboardingStep String    @default("created") @db.VarChar(32)
   // Copied from SocialClientTemplate on apply: postingScheduleHints + sourceChannels.
   templateBootstrap Json?
+  // Optional soft AI spend cap for this client (USD / calendar month). Null = no per-client cap.
+  aiMonthlyBudgetUsd Decimal? @db.Decimal(10, 2)
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
   deletedAt      DateTime?
@@ -108,12 +117,18 @@ model SocialCustomer {
   reports               SocialClientReport[]
   tags                  SocialTag[]
   signatures            SocialSignature[]
+  savedReplies          SocialSavedReply[]
   sets                  SocialSet[]
   autoPosts             SocialAutoPost[]
   whatsappConversations WhatsAppConversation[]
   whatsappBroadcasts    WhatsAppBroadcast[]
   whatsappConnections   SocialWhatsAppConnection[]
+  whatsappAutoReplies   SocialWhatsAppAutoReply[]
   apiClients            SocialApiClient[]
+  aiUsages              SocialAiUsage[]
+  aiThreads             SocialAiThread[]
+  aiActions             SocialAiAction[]
+  shortLinks            SocialShortLink[]
 
   @@index([organizationId])
   @@map("social_customers")
@@ -148,6 +163,8 @@ model SocialPost {
   approvalStep   SocialApprovalStep?
   publishDate    DateTime
   content        String               @db.Text
+  // Optional first comment under the published post (e.g. IG hashtags).
+  firstComment   String?              @map("first_comment") @db.Text
   // Minutes to wait after the previous item of a thread.
   delay          Int                  @default(0)
   settings       Json                 @default("{}")
@@ -183,6 +200,29 @@ model SocialPost {
   @@map("social_posts")
 }
 
+// Repeat schedule for a post group. After a successful publish the worker clones
+// the group for the next run and moves `group` to the clone.
+model SocialRecurrence {
+  id             String               @id @default(uuid())
+  organizationId String               @map("organization_id")
+  /// Current post group this recurrence is attached to (updated on each clone).
+  group          String               @unique
+  rule           SocialRecurrenceRule
+  until          DateTime?
+  maxRuns        Int?                 @map("max_runs")
+  runCount       Int                  @default(0) @map("run_count")
+  /// When true, the next clone prefers an empty calendar slot (light evergreen).
+  evergreen      Boolean              @default(false)
+  active         Boolean              @default(true)
+  createdAt      DateTime             @default(now()) @map("created_at")
+  updatedAt      DateTime             @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId, active])
+  @@map("social_recurrences")
+}
+
 model SocialMedia {
   id                 String            @id @default(uuid())
   organizationId     String
@@ -194,9 +234,16 @@ model SocialMedia {
   format             SocialMediaFormat @default(POST)
   mimeType           String?
   fileSize           Int               @default(0)
+  width              Int?
+  height             Int?
   thumbnail          String?           @db.VarChar(1024)
   thumbnailTimestamp Int?
   alt                String?           @db.Text
+  /// AI caption suggestions from vision on upload (string[]). Soft-fail if vision is off/unavailable.
+  captionIdeas       Json?             @map("caption_ideas")
+  /// One stored platform crop (helper can produce others on demand).
+  variantPath        String?           @map("variant_path") @db.VarChar(1024)
+  variantKey         String?           @map("variant_key") @db.VarChar(32)
   status             SocialMediaStatus @default(READY)
   processingError    String?           @db.Text
   createdAt          DateTime          @default(now())
@@ -262,6 +309,50 @@ model SocialSignature {
   @@index([organizationId])
   @@index([organizationId, customerId])
   @@map("social_signatures")
+}
+
+// Tracked short links with UTM params; public redirect at /l/[code].
+model SocialShortLink {
+  id             String    @id @default(uuid())
+  organizationId String
+  customerId     String?
+  code           String    @unique @db.VarChar(32)
+  targetUrl      String    @db.VarChar(2048)
+  utmSource      String?   @db.VarChar(120)
+  utmMedium      String?   @db.VarChar(120)
+  utmCampaign    String?   @db.VarChar(120)
+  utmTerm        String?   @db.VarChar(120)
+  utmContent     String?   @db.VarChar(120)
+  clicks         Int       @default(0)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+
+  organization Organization    @relation(fields: [organizationId], references: [id])
+  customer     SocialCustomer? @relation(fields: [customerId], references: [id])
+
+  @@index([organizationId])
+  @@index([organizationId, customerId])
+  @@map("social_short_links")
+}
+
+// Canned inbox replies (agency-wide when customerId is null, or per client).
+model SocialSavedReply {
+  id             String    @id @default(uuid())
+  organizationId String
+  customerId     String?
+  title          String    @db.VarChar(120)
+  body           String    @db.Text
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+
+  organization Organization    @relation(fields: [organizationId], references: [id])
+  customer     SocialCustomer? @relation(fields: [customerId], references: [id])
+
+  @@index([organizationId])
+  @@index([organizationId, customerId])
+  @@map("social_saved_replies")
 }
 
 // Reusable post templates (selected channels + content + settings).
@@ -337,18 +428,23 @@ model SocialWebhookIntegration {
   @@map("social_webhook_integrations")
 }
 
+/// In-app + optional email alerts for agencies (F12 / B2).
+/// `type` values: approval_needed | post_failed | token_expired | sla_breached | budget_80 | new_lead | alert
 model SocialNotification {
   id             String    @id @default(uuid())
   organizationId String
+  type           String    @default("alert") @db.VarChar(40)
   content        String    @db.Text
   link           String?   @db.VarChar(2048)
+  readAt         DateTime?
   createdAt      DateTime  @default(now())
   deletedAt      DateTime?
 
   organization Organization @relation(fields: [organizationId], references: [id])
 
-  @@index([organizationId])
-  @@index([createdAt])
+  @@index([organizationId, readAt])
+  @@index([organizationId, createdAt])
+  @@index([organizationId, type])
   @@map("social_notifications")
 }
 
@@ -392,6 +488,8 @@ model SocialBrandKit {
 model SocialAiUsage {
   id               String   @id @default(uuid())
   organizationId   String
+  // Client that triggered the call when scope is a single customer; null = agency / all-clients.
+  customerId       String?
   feature          String
   model            String
   inputTokens      Int      @default(0)
@@ -400,10 +498,71 @@ model SocialAiUsage {
   cacheWriteTokens Int      @default(0)
   createdAt        DateTime @default(now())
 
-  organization Organization @relation(fields: [organizationId], references: [id])
+  organization Organization    @relation(fields: [organizationId], references: [id])
+  customer     SocialCustomer? @relation(fields: [customerId], references: [id])
 
   @@index([organizationId, createdAt])
+  @@index([organizationId, customerId, createdAt])
   @@map("social_ai_usages")
+}
+
+// Copilot agent conversation (F7). Scope is fixed at create from session ClientScope.
+model SocialAiThread {
+  id             String   @id @default(uuid())
+  organizationId String
+  customerId     String?
+  userId         String?
+  title          String?  @db.VarChar(200)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization     @relation(fields: [organizationId], references: [id])
+  customer     SocialCustomer?  @relation(fields: [customerId], references: [id])
+  user         User?            @relation(fields: [userId], references: [id], onDelete: SetNull)
+  messages     SocialAiMessage[]
+  actions      SocialAiAction[]
+
+  @@index([organizationId, customerId, updatedAt])
+  @@index([organizationId, updatedAt])
+  @@map("social_ai_threads")
+}
+
+// Append-only turns. `content` is Anthropic message content JSON (text / tool_use / tool_result).
+model SocialAiMessage {
+  id        String   @id @default(uuid())
+  threadId  String
+  role      String   @db.VarChar(16) // user | assistant
+  content   Json
+  createdAt DateTime @default(now())
+
+  thread SocialAiThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+
+  @@index([threadId, createdAt])
+  @@map("social_ai_messages")
+}
+
+// Write-tool proposals. Status: pending | approved | rejected. Never auto-executes.
+model SocialAiAction {
+  id             String    @id @default(uuid())
+  organizationId String
+  customerId     String?
+  threadId       String
+  toolName       String    @db.VarChar(64)
+  payload        Json
+  status         String    @db.VarChar(16) @default("pending")
+  result         Json?
+  reviewedById   String?
+  reviewedAt     DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organization Organization    @relation(fields: [organizationId], references: [id])
+  customer     SocialCustomer? @relation(fields: [customerId], references: [id])
+  thread       SocialAiThread  @relation(fields: [threadId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, status, createdAt])
+  @@index([threadId, status])
+  @@map("social_ai_actions")
 }
 
 // WhatsApp Cloud API conversation (one contact chatting with the business number).
@@ -523,16 +682,21 @@ model SocialPodoCrmWhatsAppSync {
 }
 
 model AdAccount {
-  id             String   @id @default(uuid())
-  organizationId String
-  customerId     String?
-  externalId     String // "act_123…"
-  name           String
-  currency       String   @db.VarChar(3)
-  timezone       String
-  status         Int
-  tokenSource    String   @default("system_user")
-  createdAt      DateTime @default(now())
+  id                    String   @id @default(uuid())
+  organizationId        String
+  customerId            String?
+  externalId            String // "act_123…"
+  name                  String
+  currency              String   @db.VarChar(3)
+  /// IANA timezone from Meta `timezone_name` (e.g. "Asia/Kolkata"). Used for insight date buckets.
+  timezoneName          String   @map("timezone_name")
+  status                Int
+  tokenSource           String   @default("system_user")
+  /// AES-GCM encrypted Meta system-user / business token for this ad account (see `@/shared/lib/crypto`).
+  accessTokenEncrypted  String?  @db.Text
+  /// True when Graph returned an auth error (code 190); agency must set a fresh token.
+  refreshNeeded         Boolean  @default(false)
+  createdAt             DateTime @default(now())
 
   organization Organization    @relation(fields: [organizationId], references: [id])
   customer     SocialCustomer? @relation(fields: [customerId], references: [id])
@@ -583,11 +747,13 @@ model SocialInsightDaily {
   id            String   @id @default(uuid())
   integrationId String
   date          DateTime @db.Date
-  metric        String
+  /// Canonical keys: followers | reach | impressions | profile_views | website_clicks
+  metric        String   @db.VarChar(40)
   value         Decimal  @db.Decimal(20, 4)
   fetchedAt     DateTime @updatedAt
 
   @@unique([integrationId, date, metric])
+  @@index([metric])
   @@map("social_insights_daily")
 }
 
@@ -694,6 +860,8 @@ model CompetitorSnapshot {
   followers      Int
   postsCount     Int?
   engagementRate Float?
+  /** Recent public media from business_discovery: CompetitorMediaItem[] */
+  recentMedia    Json?    @map("recent_media")
 
   competitor SocialCompetitor @relation(fields: [competitorId], references: [id], onDelete: Cascade)
 
@@ -744,6 +912,10 @@ model SocialInboxThread {
   organizationId  String
   customerId      String?
   platform        String
+  // 'comment' | 'dm' — set on webhook ingest for reply/hide dispatch.
+  kind            String?
+  // Page id (facebook) or IG business account id from the webhook entry.
+  channelInternalId String?
   externalId      String
   contactName     String?
   lastPreview     String?   @db.VarChar(500)
@@ -753,6 +925,16 @@ model SocialInboxThread {
   firstResponseAt DateTime?
   // Set by alerts.slaSweep when slaDueAt passed with no first response.
   slaBreachedAt   DateTime?
+  // Set when a FB/IG comment on this thread is hidden via Graph is_hidden.
+  hiddenAt        DateTime?
+  // AI triage (on-demand POST …/triage). Labels: question|complaint|lead|spam|praise|other.
+  aiLabel         String?   @map("ai_label") @db.VarChar(32)
+  // low|normal|high|urgent
+  aiPriority      String?   @map("ai_priority") @db.VarChar(16)
+  // positive|neutral|negative
+  aiSentiment     String?   @map("ai_sentiment") @db.VarChar(16)
+  aiDraft         String?   @map("ai_draft") @db.Text
+  aiTriagedAt     DateTime? @map("ai_triaged_at")
   createdAt       DateTime  @default(now())
 
   organization Organization         @relation(fields: [organizationId], references: [id])
@@ -766,16 +948,20 @@ model SocialInboxThread {
   @@index([organizationId, assigneeId])
   @@index([organizationId, slaDueAt])
   @@index([slaDueAt, firstResponseAt, slaBreachedAt])
+  @@index([organizationId, aiLabel])
+  @@index([organizationId, aiPriority])
   @@map("social_inbox_threads")
 }
 
 model SocialInboxMessage {
-  id         String   @id @default(uuid())
+  id         String    @id @default(uuid())
   threadId   String
   direction  String
-  body       String   @db.Text
+  body       String    @db.Text
   externalId String?
-  createdAt  DateTime @default(now())
+  // Set when this inbound comment is hidden on Meta (is_hidden=true).
+  hiddenAt   DateTime?
+  createdAt  DateTime  @default(now())
 
   thread SocialInboxThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
 
@@ -784,7 +970,7 @@ model SocialInboxMessage {
 }
 
 model SocialLead {
-  id             String   @id @default(uuid())
+  id             String    @id @default(uuid())
   organizationId String
   customerId     String?
   source         String
@@ -792,9 +978,17 @@ model SocialLead {
   name           String?
   email          String?
   phone          String?
-  stage          String   @default("new")
+  stage          String    @default("new")
+  // Rule-based 0–100 score (stage + contact completeness).
+  score          Int?
+  // string[] reasons, e.g. ["Stage: qualified (+75)", "Has phone (+15)"].
+  scoreReasons   Json?     @map("score_reasons")
+  scoredAt       DateTime? @map("scored_at")
+  // Set when successfully pushed to PodoCRM via /sync/leads.
+  crmSyncedAt    DateTime? @map("crm_synced_at")
+  crmExternalId  String?   @map("crm_external_id") @db.VarChar(128)
   payload        Json
-  createdAt      DateTime @default(now())
+  createdAt      DateTime  @default(now())
 
   organization Organization    @relation(fields: [organizationId], references: [id])
   customer     SocialCustomer? @relation(fields: [customerId], references: [id])
@@ -803,6 +997,8 @@ model SocialLead {
   @@index([organizationId, createdAt])
   @@index([organizationId, customerId])
   @@index([organizationId, stage])
+  @@index([organizationId, score])
+  @@index([organizationId, crmSyncedAt])
   @@map("social_leads")
 }
 
@@ -936,4 +1132,39 @@ model SocialWhatsAppConnection {
 
   @@index([organizationId, customerId])
   @@map("social_whatsapp_connections")
+}
+
+// Keyword / regex auto-replies for inbound WhatsApp (F15).
+// matchType keyword = case-insensitive substring; regex = JS RegExp on the body.
+// replyType text | template. Optional business-hours window (timezone + days + HH:mm).
+model SocialWhatsAppAutoReply {
+  id             String    @id @default(uuid())
+  organizationId String
+  customerId     String?
+  name           String    @db.VarChar(120)
+  matchType      String    @db.VarChar(16) // 'keyword' | 'regex'
+  pattern        String    @db.VarChar(500)
+  caseSensitive  Boolean   @default(false)
+  replyType      String    @db.VarChar(16) // 'text' | 'template'
+  replyText      String?   @db.Text
+  templateName   String?   @db.VarChar(120)
+  templateLanguage String? @db.VarChar(16)
+  templateVariables Json? // string[]
+  businessHoursEnabled Boolean @default(false)
+  businessHoursStart   String? @db.VarChar(5) // HH:mm
+  businessHoursEnd     String? @db.VarChar(5)
+  businessHoursTimezone String? @db.VarChar(64) // IANA, default Asia/Kolkata at runtime
+  businessHoursDays    Json? // number[] 0=Sun … 6=Sat
+  priority       Int       @default(100) // lower runs first
+  active         Boolean   @default(true)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+
+  organization Organization    @relation(fields: [organizationId], references: [id])
+  customer     SocialCustomer? @relation(fields: [customerId], references: [id])
+
+  @@index([organizationId, customerId, active])
+  @@index([organizationId, priority])
+  @@map("social_whatsapp_auto_replies")
 }

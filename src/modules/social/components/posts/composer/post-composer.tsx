@@ -1,29 +1,60 @@
 'use client';
 
-import { Calendar, ChevronDown, Repeat, Tag } from 'lucide-react';
+import { Calendar, ChevronDown, Clock, Repeat, Sparkles, Tag } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/shared/components/ui/button';
 import { Input } from '@/shared/components/ui/input';
 import { Modal } from '@/shared/components/ui/modal';
 import { cn } from '@/shared/lib/cn';
-import { POST_MAX_THREAD_ITEMS, type PostSaveType } from '../../../config/posts';
+import { AI_PROMPT_MAX_LENGTH } from '../../../config/ai';
+import {
+  POST_CONTENT_MAX_LENGTH,
+  POST_MAX_THREAD_ITEMS,
+  RECURRENCE_RULE_LABELS,
+  type PostSaveType,
+} from '../../../config/posts';
 import { useAiStatus } from '../../../hooks/use-ai-status';
+import { useBestTimes } from '../../../hooks/use-best-times';
 import { useChannels } from '../../../hooks/use-channels';
 import { usePostGroup } from '../../../hooks/use-posts';
 import { useSignatures } from '../../../hooks/use-settings';
-import { splitIntoThread } from '../../../lib/ai.client';
+import { generatePosts, splitIntoThread } from '../../../lib/ai.client';
 import { fetchGoogleSheetsContent } from '../../../lib/google-sheets.client';
-import { nextPostSlot, savePost, toDateTimeLocal } from '../../../lib/posts.client';
+import {
+  nextPostSlot,
+  nextSlotDateTimeLocal,
+  savePost,
+  toDateTimeLocal,
+} from '../../../lib/posts.client';
+import type { CaptionTonePresetId } from '../../../server/ai/presets';
 import type { AvailableProvider, ChannelItem } from '../../../types/integration';
 import type { PostGroup, PostMedia } from '../../../types/post';
 import type { SignatureItem, TemplateItem } from '../../../types/settings';
+import { CaptionTonePicker } from '../../ai/caption-tone-picker';
 import { ProviderMark } from '../../channels/provider-mark';
 import { ChannelSelector, relatedChannels } from './channel-selector';
 import { PostPreview } from './post-preview';
+import {
+  RecurrencePicker,
+  recurrenceDraftToPayload,
+  toRecurrenceDraft,
+  type RecurrenceDraft,
+} from './recurrence-picker';
 import { SignatureSelect } from './signature-select';
 import { TagPicker } from './tag-picker';
 import { TemplateBar } from './template-bar';
 import { ThreadItemEditor, type ThreadItemDraft } from './thread-item-editor';
+import { UtmShortLink } from './utm-short-link';
+
+/** Providers that post an optional first comment after the main publish. */
+const FIRST_COMMENT_PROVIDERS = new Set(['facebook', 'instagram', 'linkedin']);
+
+function initialFirstComment(posts: PostGroup['posts'] | undefined): string {
+  if (!posts?.length) return '';
+  const ig = posts.find((post) => post.channel.providerIdentifier === 'instagram');
+  if (ig?.firstComment) return ig.firstComment;
+  return posts.find((post) => post.firstComment)?.firstComment ?? '';
+}
 
 export interface ComposerInitialItem {
   content: string;
@@ -82,7 +113,10 @@ export function PostComposer({
         <p className="text-muted-foreground text-sm">Loading…</p>
       ) : (
         <ComposerForm
-          key={group ?? 'new'}
+          key={
+            group ??
+            `new:${defaultDate ?? ''}:${initialItems?.[0]?.content?.slice(0, 64) ?? ''}`
+          }
           group={group}
           initial={groupData}
           defaultDate={defaultDate}
@@ -136,18 +170,30 @@ function ComposerForm({
     return [autoSignature ? withSignature(first, autoSignature.content) : first, ...rest];
   });
   const [tagIds, setTagIds] = useState<string[]>(() => initial?.tags.map((tag) => tag.id) ?? []);
+  const [firstComment, setFirstComment] = useState(() => initialFirstComment(initial?.posts));
+  const [recurrence, setRecurrence] = useState<RecurrenceDraft>(() =>
+    toRecurrenceDraft(initial?.recurrence)
+  );
   const [tagsOpen, setTagsOpen] = useState(false);
+  const [recurrenceOpen, setRecurrenceOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [date, setDate] = useState(() =>
     initial ? toDateTimeLocal(initial.publishDate) : (defaultDate ?? nextPostSlot())
   );
   const [saving, setSaving] = useState<PostSaveType | null>(null);
   const [splitting, setSplitting] = useState(false);
+  const [aiDraftOpen, setAiDraftOpen] = useState(false);
+  const [aiIdea, setAiIdea] = useState('');
+  const [tonePresetId, setTonePresetId] = useState<CaptionTonePresetId | null>(null);
+  const [generatingAi, setGeneratingAi] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { data: aiStatus } = useAiStatus();
-  const busy = saving !== null || splitting;
+  const busy = saving !== null || splitting || generatingAi;
   const lastSheetAutoContentRef = useRef<string | null>(null);
   const skipSheetAuto = Boolean(group || initialItems?.length);
+  const bestTimesChannelId = selectedIds[0] ?? null;
+  const { data: bestTimes } = useBestTimes(bestTimesChannelId);
+  const suggestedSlot = bestTimes?.suggested[0] ?? null;
 
   const maxLengthByProvider = new Map(
     providers.map((provider) => [provider.identifier, provider.maxLength])
@@ -173,6 +219,12 @@ function ComposerForm({
     ];
   });
   const settingsChannel = selectedChannels.length === 1 ? selectedChannels[0] : null;
+  const supportsFirstComment = selectedChannels.some((channel) =>
+    FIRST_COMMENT_PROVIDERS.has(channel.providerIdentifier)
+  );
+  const hasInstagram = selectedChannels.some(
+    (channel) => channel.providerIdentifier === 'instagram'
+  );
 
   function toggleChannel(id: string) {
     setSelectedIds((current) => {
@@ -249,6 +301,16 @@ function ComposerForm({
     setItems(([first, ...rest]) => [withSignature(first, signature), ...rest]);
   }
 
+  function insertShortLink(shortUrl: string) {
+    setItems(([first, ...rest]) => {
+      if (!first) return [{ ...emptyItem(), content: shortUrl }, ...rest];
+      const content = first.content.trim()
+        ? `${first.content.trimEnd()}\n${shortUrl}`
+        : shortUrl;
+      return [{ ...first, content }, ...rest];
+    });
+  }
+
   // Channels or media removed since the template was saved are simply left out.
   function applyTemplate(template: TemplateItem) {
     const { content } = template;
@@ -284,6 +346,35 @@ function ComposerForm({
     }
   }
 
+  async function writeWithAi() {
+    const idea = aiIdea.trim() || items[0]?.content.trim();
+    if (!idea) {
+      setError('Describe what the post should be about');
+      return;
+    }
+    setError(null);
+    setGeneratingAi(true);
+    try {
+      const result = await generatePosts({
+        content: idea,
+        format: 'post',
+        maxLength: maxLength ?? undefined,
+        tonePresetId: tonePresetId ?? undefined,
+      });
+      const posts = result.variations[0] ?? [];
+      const content = posts[0]?.trim();
+      if (!content) {
+        throw new Error('The AI did not return a usable post. Try again.');
+      }
+      setItems(([first, ...rest]) => [{ ...first, content }, ...rest]);
+      setAiDraftOpen(false);
+    } catch (writeError) {
+      setError(writeError instanceof Error ? writeError.message : 'Could not write the post');
+    } finally {
+      setGeneratingAi(false);
+    }
+  }
+
   async function submit(type: PostSaveType) {
     if (selectedIds.length === 0) {
       setError('Select at least one channel');
@@ -302,14 +393,21 @@ function ComposerForm({
           type,
           date: new Date(date || Date.now()).toISOString(),
           tagIds,
-          posts: selectedIds.map((integrationId) => ({
-            integrationId,
-            values: items.map((item) => ({
-              content: item.content,
-              mediaIds: item.media.map((media) => media.id),
-              delay: item.delay,
-            })),
-          })),
+          recurrence: recurrenceDraftToPayload(recurrence),
+          posts: selectedIds.map((integrationId) => {
+            const channel = channels.find((entry) => entry.id === integrationId);
+            const canComment =
+              channel && FIRST_COMMENT_PROVIDERS.has(channel.providerIdentifier);
+            return {
+              integrationId,
+              firstComment: canComment ? firstComment : '',
+              values: items.map((item) => ({
+                content: item.content,
+                mediaIds: item.media.map((media) => media.id),
+                delay: item.delay,
+              })),
+            };
+          }),
         },
         group ?? undefined
       );
@@ -403,6 +501,22 @@ function ComposerForm({
             </Button>
 
             <div className="flex flex-wrap gap-2">
+              {aiStatus?.configured && (
+                <Button
+                  variant="ai"
+                  size="sm"
+                  onClick={() => {
+                    setAiDraftOpen((open) => !open);
+                    if (!aiIdea.trim() && items[0]?.content.trim()) {
+                      setAiIdea(items[0].content);
+                    }
+                  }}
+                  disabled={busy}
+                >
+                  <Sparkles className="size-3.5" />
+                  {aiDraftOpen ? 'Hide AI draft' : 'Start from preset'}
+                </Button>
+              )}
               {aiStatus?.configured && items.length === 1 && (
                 <Button
                   variant="secondary"
@@ -414,7 +528,67 @@ function ComposerForm({
                 </Button>
               )}
               <SignatureSelect signatures={signatures} disabled={busy} onInsert={insertSignature} />
+              <UtmShortLink
+                channels={selectedChannels}
+                disabled={busy}
+                onInsert={insertShortLink}
+              />
             </div>
+
+            {aiDraftOpen && aiStatus?.configured && (
+              <div className="border-border bg-surface-muted/30 space-y-3 rounded-xl border p-3">
+                <CaptionTonePicker
+                  value={tonePresetId}
+                  onChange={setTonePresetId}
+                  disabled={generatingAi}
+                />
+                <textarea
+                  value={aiIdea}
+                  onChange={(event) => setAiIdea(event.target.value)}
+                  maxLength={AI_PROMPT_MAX_LENGTH}
+                  rows={3}
+                  placeholder="Idea or festival topic — AI will draft the first post…"
+                  aria-label="AI draft idea"
+                  disabled={generatingAi}
+                  className="border-border placeholder:text-muted-foreground block w-full resize-y rounded-lg border bg-transparent p-3 text-sm outline-none"
+                />
+                <Button
+                  variant="ai"
+                  size="sm"
+                  onClick={() => void writeWithAi()}
+                  disabled={
+                    generatingAi || (!aiIdea.trim() && !items[0]?.content.trim())
+                  }
+                >
+                  {generatingAi ? 'Writing…' : 'Generate into post'}
+                </Button>
+              </div>
+            )}
+
+            {supportsFirstComment && (
+              <label className="border-border bg-surface block space-y-1.5 rounded-lg border p-3">
+                <span className="text-sm font-medium">
+                  First comment{hasInstagram ? ' (Instagram hashtags)' : ''}
+                </span>
+                <textarea
+                  value={firstComment}
+                  onChange={(event) => setFirstComment(event.target.value)}
+                  disabled={busy}
+                  rows={3}
+                  maxLength={POST_CONTENT_MAX_LENGTH}
+                  placeholder={
+                    hasInstagram
+                      ? '#brand #campaign — posted as the first comment after publish'
+                      : 'Posted as the first comment after the main post goes live'
+                  }
+                  className="border-border bg-background placeholder:text-muted-foreground focus-visible:ring-ring w-full resize-y rounded-md border px-3 py-2 text-sm outline-none focus-visible:ring-2"
+                />
+                <span className="text-muted-foreground block text-xs">
+                  Facebook, Instagram, and LinkedIn only. Useful for keeping hashtags out of the
+                  caption.
+                </span>
+              </label>
+            )}
           </section>
 
           {settingsChannel && (
@@ -438,9 +612,29 @@ function ComposerForm({
                 />
               </button>
               {settingsOpen && (
-                <p className="border-border text-muted-foreground mt-2 rounded-lg border px-3 py-2 text-xs">
-                  Posts publish with this channel&apos;s connected account settings.
-                </p>
+                <div className="border-border mt-2 space-y-2 rounded-lg border px-3 py-2 text-xs">
+                  <p className="text-muted-foreground">
+                    Posts publish with this channel&apos;s connected account settings.
+                  </p>
+                  {FIRST_COMMENT_PROVIDERS.has(settingsChannel.providerIdentifier) && (
+                    <label className="block space-y-1.5">
+                      <span className="text-foreground font-medium">
+                        {settingsChannel.providerIdentifier === 'instagram'
+                          ? 'First comment (hashtags)'
+                          : 'First comment'}
+                      </span>
+                      <textarea
+                        value={firstComment}
+                        onChange={(event) => setFirstComment(event.target.value)}
+                        disabled={busy}
+                        rows={3}
+                        maxLength={POST_CONTENT_MAX_LENGTH}
+                        placeholder="Optional comment posted right after publish"
+                        className="border-border bg-background placeholder:text-muted-foreground focus-visible:ring-ring w-full resize-y rounded-md border px-3 py-2 text-sm outline-none focus-visible:ring-2"
+                      />
+                    </label>
+                  )}
+                </div>
               )}
             </div>
           )}
@@ -468,7 +662,10 @@ function ComposerForm({
           <Button
             variant="secondary"
             size="sm"
-            onClick={() => setTagsOpen((open) => !open)}
+            onClick={() => {
+              setTagsOpen((open) => !open);
+              setRecurrenceOpen(false);
+            }}
             aria-expanded={tagsOpen}
           >
             <Tag className="size-3.5" />
@@ -485,13 +682,47 @@ function ComposerForm({
           )}
         </div>
 
-        <Button variant="secondary" size="sm" disabled title="Coming soon">
-          <Repeat className="size-3.5" />
-          Repeat Post Every…
-          <ChevronDown className="size-3.5 opacity-70" />
-        </Button>
+        <div className="relative">
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => {
+              setRecurrenceOpen((open) => !open);
+              setTagsOpen(false);
+            }}
+            aria-expanded={recurrenceOpen}
+          >
+            <Repeat className="size-3.5" />
+            {recurrence ? RECURRENCE_RULE_LABELS[recurrence.rule] : 'Repeat Post Every…'}
+            <ChevronDown className="size-3.5 opacity-70" />
+          </Button>
+          {recurrenceOpen && (
+            <div className="border-border bg-surface absolute bottom-full left-0 z-20 mb-2 w-80 rounded-xl border p-3 shadow-lg">
+              <RecurrencePicker
+                value={recurrence}
+                onChange={(next) => {
+                  setRecurrence(next);
+                  if (next === null) setRecurrenceOpen(false);
+                }}
+              />
+            </div>
+          )}
+        </div>
 
         <div className="ml-auto flex flex-wrap items-center gap-2">
+          {suggestedSlot ? (
+            <Button
+              variant="secondary"
+              size="sm"
+              type="button"
+              title={`Based on ${bestTimes?.channelName ?? 'channel'} history`}
+              onClick={() => setDate(nextSlotDateTimeLocal(suggestedSlot.weekday, suggestedSlot.hour))}
+              disabled={busy}
+            >
+              <Clock className="size-3.5" />
+              Suggested: {suggestedSlot.label}
+            </Button>
+          ) : null}
           <label className="border-border bg-surface relative inline-flex h-10 items-center gap-2 rounded-lg border px-3 text-sm">
             <Calendar className="text-muted-foreground size-4 shrink-0" />
             <Input

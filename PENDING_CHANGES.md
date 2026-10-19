@@ -1,42 +1,59 @@
-# Podo Social — Pending Changes (17 Oct 2026)
+# Podo Social — Pending Changes (18 Oct 2026)
 
-All planned **code** from the client-scope / P1–P3 / ops waves is in the working tree.
+**Authoritative done/pending:** `SOCIAL_PENDING.md`.
+
+Verified: `tsc --noEmit` ✅ · `vitest` 7 files / 68 tests ✅ · `prisma validate` ✅ · **41** migrations.
 
 ---
 
-## 1. Status
+## Done (working tree — not committed yet)
 
-**Local:** `pnpm vitest run src/shared/server` · `tsc --noEmit` · Prisma migrations applied through `20261017250000_org_custom_domain`.
+### Prior waves
+Client scope, switcher, overview, templates, onboarding, approvals/portal, reports PDF+email, white-label, billing/GST, public API, health/backup/smoke.
 
-**Not committed / not deployed to staging-prod yet.**
+### This wave (Sprint 1 + features)
+| Area | IDs |
+|---|---|
+| AI | A1–A6, A5/F7, F1–F4, F13 |
+| Meta sync | M1–M8, F8, F14, F16 |
+| Inbox / leads | I1–I5, F5, F6 |
+| Composer | P1/F9, P2, P3, P4/F11, P5 Threads |
+| Billing / ops | B1, B2/F12, B3 |
+| Other | F10 short links, F15 WA auto-replies, F2 branded templates |
 
-### Delivered
-Client scope & security · Ads · Approvals · PDF reports + Resend · Templates/onboarding · Inbox SLA/leads · AI weekly plan · White-label + custom domain (Caddy ask) · Razorpay + GST invoice PDF · WA broadcast consent · Health/backup/smoke · Meta App Review checklist doc
+---
 
-### Key commands
+## Still pending
+
+### You (ops / Meta) — not code
+- [ ] **Commit** this wave
+- [ ] Staging/prod: `pnpm db:deploy` → `pnpm db:backfill-clients --apply` → deploy **app + worker**
+- [ ] Env: Resend, Razorpay plan IDs, AI keys, Pinterest, Threads
+- [ ] Meta App Review + Advanced Access + reconnect channels for new scopes
+- [ ] Page/IG webhooks on production
+- [ ] Decide fate of `deploy/standalone/` on `main`
+
+### Optional code (later)
+- [ ] Copilot SSE streaming
+- [ ] Canva OAuth
+- [ ] X / TikTok providers
+
+---
+
+## Commands
+
 | Command | Purpose |
 |---------|---------|
 | `pnpm db:deploy` | Apply migrations |
 | `pnpm db:backfill-clients --apply` | Client scope backfill |
-| `pnpm worker` | Queues (PDF, email, SLA, AI, webhooks) |
+| `pnpm worker` | Queues |
 | `pnpm smoke` | Public URL smoke (`APP_URL=…`) |
-| `pnpm db:backup` | MySQL dump → `./backups/` |
-| `pnpm db:audit-orgs` | List orgs/users (read-only) |
+| `pnpm db:backup` | MySQL dump |
 
-Docs: `docs/META_APP_REVIEW.md`, `docs/ops-runbook.md`, `deploy/Caddyfile.on-demand.example`
-
----
-
-## 2. You still need to do
-
-- [ ] **Commit** this branch
-- [ ] Staging/prod: migrate → backfill → deploy **app + worker**
-- [ ] Env: `RESEND_API_KEY`, Razorpay keys, Meta tokens as needed
-- [ ] Meta Business Manager: App Review, 2FA, domain, webhook URLs
-- [ ] Point DNS + Caddy if using custom domains
-- [ ] Product pricing / packaging decisions
+Docs: `SOCIAL_PENDING.md` · `docs/META_APP_REVIEW.md` · `docs/ops-runbook.md`
 
 ---
 
-## 3. Next
+## Next
+
 Reply **commit** to create the git commit, then deploy.

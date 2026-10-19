@@ -14,6 +14,7 @@ import { ChannelsPanel } from './channels-panel';
 import { ClientScopeProvider } from './client-scope-provider';
 import { ClientSwitcher } from './client-switcher';
 import { IconRail } from './icon-rail';
+import { NotificationsBell } from './notifications-bell';
 import { SectionBackendPanel } from './section-backend-panel';
 import { SuccessToast } from './success-toast';
 
@@ -97,6 +98,7 @@ function SocialShellBody({
             </h1>
             <div className="flex items-center gap-3">
               <ClientSwitcher />
+              <NotificationsBell />
               <div
                 role="group"
                 aria-label="Color mode"

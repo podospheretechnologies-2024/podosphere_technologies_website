@@ -1,7 +1,7 @@
 'use client';
 
 import dayjs, { type Dayjs } from 'dayjs';
-import { ChevronLeft, ChevronRight, Plus, Search } from 'lucide-react';
+import { ChevronLeft, ChevronRight, FileSpreadsheet, Plus, Search } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@/shared/components/ui/button';
 import { cn } from '@/shared/lib/cn';
@@ -17,9 +17,11 @@ import {
 } from '../../lib/calendar';
 import { reschedulePost, revalidatePosts, deletePostGroup, toDateTimeLocal } from '../../lib/posts.client';
 import type { PostListItem } from '../../types/post';
+import { UpcomingOccasions, type OccasionSeed } from '../ai/upcoming-occasions';
 import { ChannelAvatar } from '../channels/channel-avatar';
 import { ProviderMark } from '../channels/provider-mark';
-import { PostComposer } from '../posts/composer/post-composer';
+import { CsvImportDialog } from '../posts/csv-import-dialog';
+import { PostComposer, type ComposerInitialItem } from '../posts/composer/post-composer';
 import { PostsList } from '../posts/posts-list';
 import { SuccessToast } from '../shell/success-toast';
 import { MonthView } from './month-view';
@@ -32,12 +34,20 @@ const STATE_LEGEND = [
   { label: 'Draft', className: 'bg-muted-foreground' },
 ];
 
-type ComposerState = { open: false } | { open: true; group: string | null; defaultDate?: string };
+type ComposerState =
+  | { open: false }
+  | {
+      open: true;
+      group: string | null;
+      defaultDate?: string;
+      initialItems?: ComposerInitialItem[];
+    };
 
 export function SocialCalendar() {
   const [view, setView] = useState<CalendarView>('week');
   const [cursor, setCursor] = useState<Dayjs>(() => dayjs());
   const [composer, setComposer] = useState<ComposerState>({ open: false });
+  const [csvImportOpen, setCsvImportOpen] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [channelFilter, setChannelFilter] = useState<string>('all');
@@ -129,6 +139,17 @@ export function SocialCalendar() {
 
   function createAt(date: Dayjs) {
     setComposer({ open: true, group: null, defaultDate: toDateTimeLocal(date.toDate()) });
+  }
+
+  function seedFromOccasion(seed: OccasionSeed) {
+    // Schedule around mid-morning on the occasion day; topic becomes the draft body.
+    const defaultDate = toDateTimeLocal(dayjs(seed.occasionDate).hour(10).minute(0).toDate());
+    setComposer({
+      open: true,
+      group: null,
+      defaultDate,
+      initialItems: [{ content: seed.topic, media: [] }],
+    });
   }
 
   async function movePost(post: DraggedPost, date: Dayjs) {
@@ -391,6 +412,10 @@ export function SocialCalendar() {
               </span>
             ))}
           </div>
+          <Button variant="secondary" onClick={() => setCsvImportOpen(true)}>
+            <FileSpreadsheet className="size-4" />
+            Import CSV
+          </Button>
           <Button onClick={() => setComposer({ open: true, group: null })}>
             <Plus className="size-4" />
             Create post
@@ -407,22 +432,48 @@ export function SocialCalendar() {
         </div>
       )}
 
-      {view === 'list' ? (
-        <PostsList onEdit={(group) => setComposer({ open: true, group })} />
-      ) : view === 'month' ? (
-        <MonthView month={cursor} days={daysInRange(range)} onShowDay={showDay} {...gridProps} />
-      ) : (
-        <TimeGridView days={daysInRange(range)} {...gridProps} />
-      )}
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_17.5rem]">
+        <div className="min-w-0">
+          {view === 'list' ? (
+            <PostsList onEdit={(group) => setComposer({ open: true, group })} />
+          ) : view === 'month' ? (
+            <MonthView
+              month={cursor}
+              days={daysInRange(range)}
+              onShowDay={showDay}
+              {...gridProps}
+            />
+          ) : (
+            <TimeGridView days={daysInRange(range)} {...gridProps} />
+          )}
+        </div>
+        <UpcomingOccasions
+          className="h-fit lg:sticky lg:top-4"
+          compact
+          onSelect={seedFromOccasion}
+        />
+      </div>
 
       <PostComposer
         open={composer.open}
         group={composer.open ? composer.group : null}
         defaultDate={composer.open ? composer.defaultDate : undefined}
+        initialItems={composer.open ? composer.initialItems : undefined}
         onClose={() => setComposer({ open: false })}
         onSaved={() => {
           setComposer({ open: false });
           setToast('Added successfully');
+          void revalidatePosts();
+        }}
+      />
+
+      <CsvImportDialog
+        open={csvImportOpen}
+        onClose={() => setCsvImportOpen(false)}
+        onImported={(created) => {
+          setToast(
+            created === 1 ? 'Scheduled 1 post from CSV' : `Scheduled ${created} posts from CSV`
+          );
           void revalidatePosts();
         }}
       />

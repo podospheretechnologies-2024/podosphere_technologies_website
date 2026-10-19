@@ -64,3 +64,36 @@ export interface AnalyticsSummary {
   activity: AnalyticsActivity[];
   posts: AnalyticsPost[];
 }
+
+/** One weekday × hour cell for the best-times heatmap (0 = Sunday). */
+export interface BestTimesCell {
+  weekday: number;
+  hour: number;
+  postCount: number;
+  /** Mean of likes + comments + reach across posts in this slot. */
+  avgScore: number;
+  totalLikes: number;
+  totalComments: number;
+  totalReach: number;
+}
+
+export interface BestTimesSuggestion {
+  weekday: number;
+  hour: number;
+  avgScore: number;
+  postCount: number;
+  label: string;
+}
+
+export interface BestTimesResult {
+  integrationId: string;
+  channelName: string;
+  providerIdentifier: string;
+  timeZone: string;
+  lookbackDays: number;
+  postCount: number;
+  /** Dense 7×24 grid (Sun→Sat, hours 0–23). */
+  cells: BestTimesCell[];
+  /** Top slots by avgScore (min sample size applied server-side). */
+  suggested: BestTimesSuggestion[];
+}

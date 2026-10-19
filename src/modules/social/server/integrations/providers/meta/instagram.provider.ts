@@ -41,6 +41,8 @@ export class InstagramProvider extends MetaProviderBase {
     'instagram_basic',
     'instagram_content_publish',
     'instagram_manage_comments',
+    // Inbox IG DM replies (Send API via linked Page).
+    'instagram_manage_messages',
     // App Review: IG reach / impressions insights.
     'instagram_manage_insights',
     'pages_show_list',

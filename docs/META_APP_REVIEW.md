@@ -3,6 +3,9 @@
 Operator checklist before submitting App Review. Paths are relative to this repo.
 Do **not** change Meta console settings from this doc — use it to verify the app is ready, then configure the dashboard yourself.
 
+> **18 Oct 2026:** Product code for reply, insights metrics, Threads, etc. is in the working tree.
+> App Review + Advanced Access are still **open** — see `SOCIAL_PENDING.md` §3.
+
 Smoke public URLs after deploy:
 
 ```bash

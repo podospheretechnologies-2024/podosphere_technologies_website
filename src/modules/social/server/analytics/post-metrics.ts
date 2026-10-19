@@ -91,6 +91,7 @@ async function facebookMetrics(
     metrics.comments = num(post.comments?.summary?.total_count);
     metrics.shares = num(post.shares?.count);
   } catch (error) {
+    if (error instanceof GraphApiError && (error.isAuthError || error.isRateLimitError)) throw error;
     if (!(error instanceof GraphApiError)) throw error;
   }
 
@@ -114,7 +115,8 @@ async function facebookMetrics(
     metrics.engagement = insightValue(insights.data, 'post_engaged_users');
     metrics.clicks = insightValue(insights.data, 'post_clicks');
     metrics.views = firstInsight(insights.data, ['post_video_views', 'post_media_view']);
-  } catch {
+  } catch (error) {
+    if (error instanceof GraphApiError && (error.isAuthError || error.isRateLimitError)) throw error;
     // Insights need pages_read_engagement / read_insights; counts above may still work.
   }
 
@@ -136,6 +138,7 @@ async function instagramMetrics(
     metrics.likes = num(media.like_count);
     metrics.comments = num(media.comments_count);
   } catch (error) {
+    if (error instanceof GraphApiError && (error.isAuthError || error.isRateLimitError)) throw error;
     if (!(error instanceof GraphApiError)) throw error;
   }
 
@@ -169,7 +172,8 @@ async function instagramMetrics(
       if (metrics.reach !== null || metrics.impressions !== null || metrics.views !== null) {
         break;
       }
-    } catch {
+    } catch (error) {
+      if (error instanceof GraphApiError && (error.isAuthError || error.isRateLimitError)) throw error;
       // Try the next metric set.
     }
   }
@@ -210,7 +214,8 @@ export async function fetchPostMetrics(
         setTimeout(() => resolve(fallback), 6_000);
       }),
     ]);
-  } catch {
+  } catch (error) {
+    if (error instanceof GraphApiError && (error.isAuthError || error.isRateLimitError)) throw error;
     return fallback;
   }
 }

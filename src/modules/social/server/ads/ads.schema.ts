@@ -7,8 +7,28 @@ const dateString = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date');
 
 export const adAccountIdSchema = z.string().regex(/^act_\d+$/, 'Invalid ad account id');
 
+/** Admin/agency: set or rotate the Meta token for one ad account. */
+export const adAccountTokenBodySchema = z.object({
+  accessToken: z.string().min(20).max(4096),
+});
+
 export const adsEntityKindSchema = z.enum(['ad', 'campaign', 'adset']);
 export const adsEntityIdSchema = z.string().min(1).max(64);
+
+/** F14: generate draft ad creatives from brand kit (+ optional ad set context). Never publishes. */
+export const adsCreativeHelperBodySchema = z.object({
+  adAccountId: adAccountIdSchema,
+  adSetId: z.string().min(1).max(64).optional(),
+  adSetName: z.string().trim().max(512).optional(),
+  campaignName: z.string().trim().max(512).optional(),
+  objective: z.string().trim().max(120).optional(),
+  /** Extra brief (offer, CTA, landing angle). Wrapped in <input> for Claude. */
+  brief: z.string().trim().max(2000).optional(),
+  /** When true (default), also return an F1-style image prompt. */
+  includeImagePrompt: z.boolean().default(true),
+});
+
+export type AdsCreativeHelperBody = z.infer<typeof adsCreativeHelperBodySchema>;
 
 export type AdsOverviewDateQuery =
   | { mode: 'preset'; datePreset: AdsDatePreset }

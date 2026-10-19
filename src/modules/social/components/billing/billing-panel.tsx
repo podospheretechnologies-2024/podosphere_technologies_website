@@ -20,6 +20,13 @@ interface BillingInvoice {
   createdAt: string;
 }
 
+interface AiUsageClientRow {
+  customerId: string | null;
+  customerName: string | null;
+  costUsd: number;
+  budgetUsd: number | null;
+}
+
 interface BillingStatus {
   razorpayConfigured: boolean;
   keyId: string | null;
@@ -33,10 +40,20 @@ interface BillingStatus {
   };
   subscription: { status: string; plan: string } | null;
   invoices: BillingInvoice[];
+  aiUsage?: {
+    monthStart: string;
+    organizationCostUsd: number;
+    organizationBudgetUsd: number;
+    byClient: AiUsageClientRow[];
+  };
 }
 
 function formatInr(paise: number) {
   return `₹${(paise / 100).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function formatUsd(amount: number) {
+  return `$${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}`;
 }
 
 export function BillingPanel() {
@@ -183,6 +200,44 @@ export function BillingPanel() {
           </p>
         )}
       </div>
+
+      <section className="space-y-2">
+        <h2 className="text-sm font-semibold">AI usage (month to date)</h2>
+        {!status?.aiUsage ? (
+          <p className="text-muted-foreground text-xs">Loading AI spend…</p>
+        ) : (
+          <div className="border-border space-y-3 rounded-2xl border p-4 text-sm">
+            <p>
+              Workspace:{' '}
+              <span className="font-medium">
+                {formatUsd(status.aiUsage.organizationCostUsd)}
+              </span>{' '}
+              of {formatUsd(status.aiUsage.organizationBudgetUsd)}
+            </p>
+            {!status.aiUsage.byClient.length ? (
+              <p className="text-muted-foreground text-xs">No Claude calls recorded this month.</p>
+            ) : (
+              <ul className="divide-border divide-y text-xs">
+                {status.aiUsage.byClient.map((row) => (
+                  <li
+                    key={row.customerId ?? '__agency__'}
+                    className="flex flex-wrap items-center justify-between gap-2 py-2"
+                  >
+                    <span>{row.customerName ?? 'Agency / unscoped'}</span>
+                    <span className="text-muted-foreground">
+                      {formatUsd(row.costUsd)}
+                      {row.budgetUsd != null ? ` / ${formatUsd(row.budgetUsd)} cap` : ''}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <p className="text-muted-foreground text-[11px]">
+              Per-client caps are optional; when set, further AI calls for that client return a clear budget error.
+            </p>
+          </div>
+        )}
+      </section>
 
       <section className="space-y-2">
         <h2 className="text-sm font-semibold">GST invoices</h2>

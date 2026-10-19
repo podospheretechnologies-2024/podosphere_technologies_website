@@ -24,6 +24,8 @@ const postInclude = {
 
 export interface CreateThreadData {
   integrationId: string;
+  /** Stored on the root post only; published after the main post succeeds. */
+  firstComment: string | null;
   values: { content: string; media: PostMedia[]; delay: number }[];
 }
 
@@ -69,6 +71,7 @@ async function createThreads(tx: Prisma.TransactionClient, data: CreateGroupData
   for (const thread of data.threads) {
     let parentPostId: string | null = null;
     for (const value of thread.values) {
+      const isRoot = parentPostId === null;
       const created: { id: string } = await tx.socialPost.create({
         data: {
           organizationId: data.organizationId,
@@ -78,12 +81,13 @@ async function createThreads(tx: Prisma.TransactionClient, data: CreateGroupData
           state: data.state,
           publishDate: data.publishDate,
           content: value.content,
+          firstComment: isRoot ? thread.firstComment : null,
           media: value.media as unknown as Prisma.InputJsonValue,
           delay: value.delay,
           creationMethod: data.creationMethod,
           parentPostId,
           tags:
-            parentPostId === null && data.tagIds.length > 0
+            isRoot && data.tagIds.length > 0
               ? { create: data.tagIds.map((tagId) => ({ tagId })) }
               : undefined,
         },
@@ -201,6 +205,15 @@ export const postRepository = {
 
   createGroup(data: CreateGroupData): Promise<void> {
     return prisma.$transaction((tx) => createThreads(tx, data));
+  },
+
+  /** Creates many post groups in a single transaction (CSV bulk import). */
+  createGroups(data: CreateGroupData[]): Promise<void> {
+    return prisma.$transaction(async (tx) => {
+      for (const group of data) {
+        await createThreads(tx, group);
+      }
+    });
   },
 
   // Edits replace every row of the group in one transaction; the old rows are

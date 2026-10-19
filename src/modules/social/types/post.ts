@@ -1,6 +1,14 @@
-import type { PostSaveType } from '../config/posts';
+import type { PostSaveType, RecurrenceRule } from '../config/posts';
 import type { MediaFormat, MediaKind } from './media';
 import type { TagItem } from './settings';
+
+export interface PostRecurrence {
+  rule: RecurrenceRule;
+  until: string | null;
+  maxRuns: number | null;
+  evergreen: boolean;
+  runCount: number;
+}
 
 export type PostState = 'draft' | 'queue' | 'published' | 'error';
 
@@ -57,7 +65,8 @@ export interface PostGroup {
   state: PostState;
   publishDate: string;
   tags: TagItem[];
-  posts: { channel: PostChannel; values: PostThreadItem[] }[];
+  recurrence: PostRecurrence | null;
+  posts: { channel: PostChannel; firstComment: string | null; values: PostThreadItem[] }[];
 }
 
 /** Request body for creating or updating a post group. */
@@ -65,8 +74,16 @@ export interface SavePostInput {
   type: PostSaveType;
   date: string;
   tagIds: string[];
+  /** null clears an existing recurrence; omit is treated as null from the composer. */
+  recurrence?: {
+    rule: RecurrenceRule;
+    until?: string | null;
+    maxRuns?: number | null;
+    evergreen?: boolean;
+  } | null;
   posts: {
     integrationId: string;
+    firstComment?: string;
     values: { content: string; mediaIds: string[]; delay: number }[];
   }[];
 }

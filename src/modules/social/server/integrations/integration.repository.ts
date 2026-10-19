@@ -86,8 +86,23 @@ export const integrationRepository = {
     return prisma.socialIntegration.update({ where: { id }, data: { disabled } });
   },
 
-  markRefreshNeeded(id: string): Promise<SocialIntegration> {
-    return prisma.socialIntegration.update({ where: { id }, data: { refreshNeeded: true } });
+  /**
+   * Marks refreshNeeded. On false → true, fires a one-shot token_expired notification
+   * (deduped + soft-fail email inside notificationService).
+   */
+  async markRefreshNeeded(id: string): Promise<SocialIntegration> {
+    const result = await prisma.socialIntegration.updateMany({
+      where: { id, refreshNeeded: false },
+      data: { refreshNeeded: true },
+    });
+    const integration = await prisma.socialIntegration.findUniqueOrThrow({ where: { id } });
+    if (result.count > 0) {
+      const { notificationService } = await import('../notifications/notification.service');
+      void notificationService
+        .tokenExpired(integration.organizationId, integration.name)
+        .catch((err) => console.error('[integrations] token_expired notify failed', err));
+    }
+    return integration;
   },
 
   softDelete(id: string): Promise<SocialIntegration> {

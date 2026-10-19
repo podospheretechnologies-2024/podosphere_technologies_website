@@ -7,7 +7,13 @@ import { requireClient } from '@/shared/server/access';
 import { scopeWhere, type ClientScope } from '@/shared/server/client-scope';
 import { HttpError } from '@/shared/server/http-error';
 import { logAudit } from '@/shared/server/audit.service';
+import { notificationService } from '../notifications/notification.service';
 import { publishQueue } from '../publishing/publish.queue';
+import {
+  resolveAgencyApprovalTransition,
+  resolvePortalApprovalTransition,
+  type AgencyApprovalAction,
+} from './approval-transitions';
 
 /**
  * Two distinct, non-interchangeable token kinds, both signed with SESSION_SECRET but tagged
@@ -27,7 +33,7 @@ const ISSUER = 'podo-social';
 
 const SECRET = new TextEncoder().encode(getServerEnv().SESSION_SECRET);
 
-export type ApprovalAction = 'submit_internal' | 'submit_client' | 'approve' | 'reject';
+export type ApprovalAction = AgencyApprovalAction;
 
 export interface PortalSession {
   approverId: string;
@@ -222,80 +228,36 @@ export const approvalService = {
     await requireClient(customerId, 'approve');
 
     const step = rows[0].approvalStep;
+    const next = resolveAgencyApprovalTransition(step, action, reason);
 
-    if (action === 'submit_internal') {
-      if (step !== null && step !== 'REJECTED') {
-        throw new HttpError(400, 'Post is already in an approval step');
-      }
-      await setGroupStep(scope.organizationId, group, {
-        approvalStep: 'INTERNAL',
-        error: null,
-      });
-      await logAudit({
-        action: 'approval.submit_internal',
-        targetType: 'post_group',
-        targetId: group,
-        metadata: { customerId },
-      });
-      return { approvalStep: 'INTERNAL' };
+    await setGroupStep(scope.organizationId, group, {
+      approvalStep: next.approvalStep,
+      error: next.error ?? null,
+    });
+
+    const auditAction =
+      action === 'approve'
+        ? 'approval.internal_approve'
+        : action === 'reject'
+          ? 'approval.reject'
+          : `approval.${action}`;
+    await logAudit({
+      action: auditAction,
+      targetType: 'post_group',
+      targetId: group,
+      metadata: {
+        customerId,
+        ...(action === 'reject' ? { reason: next.error, fromStep: step } : {}),
+      },
+    });
+
+    if (next.approvalStep === 'INTERNAL' || next.approvalStep === 'CLIENT') {
+      void notificationService
+        .approvalNeeded(scope.organizationId, group, next.approvalStep)
+        .catch((err) => console.error('[approvals] approval_needed notify failed', err));
     }
 
-    if (action === 'submit_client') {
-      if (step === 'CLIENT' || step === 'APPROVED') {
-        throw new HttpError(400, 'Post is already waiting for the client or approved');
-      }
-      await setGroupStep(scope.organizationId, group, {
-        approvalStep: 'CLIENT',
-        error: null,
-      });
-      await logAudit({
-        action: 'approval.submit_client',
-        targetType: 'post_group',
-        targetId: group,
-        metadata: { customerId },
-      });
-      return { approvalStep: 'CLIENT' };
-    }
-
-    if (action === 'approve') {
-      if (step !== 'INTERNAL') {
-        throw new HttpError(400, 'Only posts in internal review can be approved by the agency');
-      }
-      await setGroupStep(scope.organizationId, group, {
-        approvalStep: 'CLIENT',
-        error: null,
-      });
-      await logAudit({
-        action: 'approval.internal_approve',
-        targetType: 'post_group',
-        targetId: group,
-        metadata: { customerId },
-      });
-      return { approvalStep: 'CLIENT' };
-    }
-
-    if (action === 'reject') {
-      if (step !== 'INTERNAL' && step !== 'CLIENT') {
-        throw new HttpError(400, 'Only posts in review can be rejected');
-      }
-      const trimmed = reason?.trim();
-      if (!trimmed) {
-        throw new HttpError(400, 'A rejection reason is required');
-      }
-      await setGroupStep(scope.organizationId, group, {
-        approvalStep: 'REJECTED',
-        error: trimmed,
-      });
-      await logAudit({
-        action: 'approval.reject',
-        targetType: 'post_group',
-        targetId: group,
-        metadata: { customerId, reason: trimmed, fromStep: step },
-      });
-      return { approvalStep: 'REJECTED' };
-    }
-
-    throw new HttpError(400, 'Unknown approval action');
+    return { approvalStep: next.approvalStep };
   },
 
   /**
@@ -322,41 +284,28 @@ export const approvalService = {
       throw new HttpError(404, 'Post not found or not waiting for client approval');
     }
 
-    if (action === 'approve') {
-      await setGroupStep(session.organizationId, group, {
-        approvalStep: 'APPROVED',
-        state: 'QUEUE',
-        error: null,
-      });
+    const next = resolvePortalApprovalTransition(action, reason);
+    await setGroupStep(session.organizationId, group, {
+      approvalStep: next.approvalStep,
+      ...(next.state ? { state: next.state } : {}),
+      error: next.error ?? null,
+    });
+
+    if (next.approvalStep === 'APPROVED') {
       await queueApprovedGroup(session.organizationId, group);
-      await logAudit({
-        action: 'approval.client_approve',
-        targetType: 'post_group',
-        targetId: group,
-        metadata: {
-          customerId: session.customerId,
-          approverId: session.approverId,
-        },
-      });
-      return { approvalStep: 'APPROVED' };
     }
 
-    const trimmed = reason?.trim() || 'Changes requested by client';
-    await setGroupStep(session.organizationId, group, {
-      approvalStep: 'REJECTED',
-      error: trimmed,
-    });
     await logAudit({
-      action: 'approval.client_reject',
+      action: next.approvalStep === 'APPROVED' ? 'approval.client_approve' : 'approval.client_reject',
       targetType: 'post_group',
       targetId: group,
       metadata: {
         customerId: session.customerId,
         approverId: session.approverId,
-        reason: trimmed,
+        ...(next.approvalStep === 'REJECTED' ? { reason: next.error } : {}),
       },
     });
-    return { approvalStep: 'REJECTED' };
+    return { approvalStep: next.approvalStep };
   },
 
   /** Posts waiting on the magic-link portal for this client (CLIENT step only). */

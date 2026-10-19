@@ -35,9 +35,12 @@ model Organization {
   socialCustomers     SocialCustomer[]
   socialClientTemplates SocialClientTemplate[]
   socialPosts         SocialPost[]
+  socialRecurrences   SocialRecurrence[]
   socialMedia         SocialMedia[]
   socialTags          SocialTag[]
   socialSignatures    SocialSignature[]
+  socialSavedReplies  SocialSavedReply[]
+  socialShortLinks    SocialShortLink[]
   socialSets          SocialSet[]
   socialAutoPosts     SocialAutoPost[]
   socialWebhooks      SocialWebhook[]
@@ -45,6 +48,8 @@ model Organization {
   socialPostErrors    SocialPostError[]
   socialBrandKits     SocialBrandKit[]
   socialAiUsages      SocialAiUsage[]
+  socialAiThreads     SocialAiThread[]
+  socialAiActions     SocialAiAction[]
   whatsappConversations WhatsAppConversation[]
   whatsappMessages      WhatsAppMessage[]
   googleSheetsConnection SocialGoogleSheetsConnection?
@@ -61,6 +66,7 @@ model Organization {
   billingInvoices       BillingInvoice[]
   whatsappBroadcasts    WhatsAppBroadcast[]
   whatsappConnections   SocialWhatsAppConnection[]
+  whatsappAutoReplies   SocialWhatsAppAutoReply[]
 
   @@map("organizations")
 }
@@ -87,6 +93,7 @@ model User {
 
   clientMemberships     SocialClientMember[]
   assignedInboxThreads  SocialInboxThread[]
+  aiThreads             SocialAiThread[]
 
   organization Organization @relation(fields: [organizationId], references: [id])
 

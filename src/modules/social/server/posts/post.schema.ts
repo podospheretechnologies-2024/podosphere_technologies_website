@@ -6,8 +6,26 @@ import {
   POST_MAX_MEDIA,
   POST_MAX_THREAD_ITEMS,
   POST_SAVE_TYPES,
+  RECURRENCE_MAX_RUNS_CAP,
+  RECURRENCE_RULES,
 } from '../../config/posts';
 import { POST_MAX_TAGS } from '../../config/settings';
+
+const recurrenceSchema = z
+  .object({
+    rule: z.enum(RECURRENCE_RULES),
+    until: z.iso.datetime({ offset: true }).nullable().optional(),
+    maxRuns: z
+      .number()
+      .int()
+      .min(1)
+      .max(RECURRENCE_MAX_RUNS_CAP, `At most ${RECURRENCE_MAX_RUNS_CAP} repeats`)
+      .nullable()
+      .optional(),
+    evergreen: z.boolean().optional().default(false),
+  })
+  .nullable()
+  .optional();
 
 const threadItemSchema = z.object({
   content: z.string().max(POST_CONTENT_MAX_LENGTH, 'Post is too long'),
@@ -17,6 +35,8 @@ const threadItemSchema = z.object({
 
 const channelPostSchema = z.object({
   integrationId: z.string().min(1),
+  /** Posted as the first comment after the main post (FB / IG / LinkedIn). */
+  firstComment: z.string().max(POST_CONTENT_MAX_LENGTH, 'First comment is too long').optional(),
   values: z
     .array(threadItemSchema)
     .min(1, 'A post needs content')
@@ -27,6 +47,7 @@ export const savePostSchema = z.object({
   type: z.enum(POST_SAVE_TYPES),
   date: z.iso.datetime({ offset: true }),
   tagIds: z.array(z.string().min(1)).max(POST_MAX_TAGS, 'Too many tags').default([]),
+  recurrence: recurrenceSchema,
   posts: z
     .array(channelPostSchema)
     .min(1, 'Select at least one channel')

@@ -20,6 +20,11 @@ interface Lead {
   email: string | null;
   phone: string | null;
   stage: string;
+  score: number | null;
+  scoreReasons: string[];
+  scoredAt: string | null;
+  crmSyncedAt: string | null;
+  crmExternalId: string | null;
   createdAt: string;
 }
 
@@ -28,6 +33,7 @@ export function LeadsPanel() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
 
   useEffect(() => {
     void fetch('/api/social/leads')
@@ -53,11 +59,51 @@ export function LeadsPanel() {
         throw new Error('error' in payload ? (payload.error ?? 'Could not update stage') : 'Could not update stage');
       }
       const updated = payload as Lead;
-      setLeads((prev) => prev.map((lead) => (lead.id === leadId ? { ...lead, stage: updated.stage } : lead)));
+      setLeads((prev) => prev.map((lead) => (lead.id === leadId ? { ...lead, ...updated } : lead)));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not update stage');
     } finally {
       setSavingId(null);
+    }
+  }
+
+  async function scoreLead(leadId: string) {
+    setBusyId(leadId);
+    setError(null);
+    try {
+      const response = await fetch(`/api/social/leads/${leadId}/score`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pushToCrm: false }),
+      });
+      const payload = (await response.json()) as Lead | { error?: string };
+      if (!response.ok) {
+        throw new Error('error' in payload ? (payload.error ?? 'Could not score lead') : 'Could not score lead');
+      }
+      const updated = payload as Lead;
+      setLeads((prev) => prev.map((lead) => (lead.id === leadId ? { ...lead, ...updated } : lead)));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not score lead');
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function pushLead(leadId: string) {
+    setBusyId(leadId);
+    setError(null);
+    try {
+      const response = await fetch(`/api/social/leads/${leadId}/push`, { method: 'POST' });
+      const payload = (await response.json()) as Lead | { error?: string };
+      if (!response.ok) {
+        throw new Error('error' in payload ? (payload.error ?? 'Could not push to CRM') : 'Could not push to CRM');
+      }
+      const updated = payload as Lead;
+      setLeads((prev) => prev.map((lead) => (lead.id === leadId ? { ...lead, ...updated } : lead)));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not push to CRM');
+    } finally {
+      setBusyId(null);
     }
   }
 
@@ -76,9 +122,21 @@ export function LeadsPanel() {
               <ul className="space-y-2">
                 {columnLeads.map((lead) => (
                   <li key={lead.id} className="border-border bg-background rounded-xl border p-3">
-                    <p className="text-sm font-medium">{lead.name || 'Untitled lead'}</p>
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="text-sm font-medium">{lead.name || 'Untitled lead'}</p>
+                      {lead.score != null && (
+                        <span className="border-border text-muted-foreground shrink-0 rounded-md border px-1.5 py-0.5 text-[10px] font-medium">
+                          {lead.score}
+                        </span>
+                      )}
+                    </div>
                     <p className="text-muted-foreground mt-0.5 text-xs">{lead.source}</p>
                     <p className="text-muted-foreground truncate text-xs">{lead.email || lead.phone || '—'}</p>
+                    {lead.crmSyncedAt && (
+                      <p className="text-muted-foreground mt-1 text-[10px]">
+                        CRM {new Date(lead.crmSyncedAt).toLocaleDateString()}
+                      </p>
+                    )}
                     <label className="mt-2 block">
                       <span className="sr-only">Stage</span>
                       <select
@@ -96,6 +154,28 @@ export function LeadsPanel() {
                         ))}
                       </select>
                     </label>
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      <button
+                        type="button"
+                        className="border-border text-muted-foreground hover:bg-surface-muted rounded-md border px-1.5 py-0.5 text-[10px]"
+                        disabled={busyId === lead.id}
+                        onClick={() => {
+                          void scoreLead(lead.id);
+                        }}
+                      >
+                        Score
+                      </button>
+                      <button
+                        type="button"
+                        className="border-border text-muted-foreground hover:bg-surface-muted rounded-md border px-1.5 py-0.5 text-[10px]"
+                        disabled={busyId === lead.id}
+                        onClick={() => {
+                          void pushLead(lead.id);
+                        }}
+                      >
+                        Push CRM
+                      </button>
+                    </div>
                   </li>
                 ))}
                 {columnLeads.length === 0 && (

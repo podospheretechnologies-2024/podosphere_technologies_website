@@ -281,7 +281,7 @@ export const weeklyPlanService = {
     let plan: z.infer<typeof WeeklyPlanFormat>;
     try {
       plan = await askClaude({
-        organizationId,
+        scope,
         feature: 'weekly-plan',
         schema: WeeklyPlanFormat,
         task: [

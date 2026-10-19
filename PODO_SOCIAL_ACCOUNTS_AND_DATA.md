@@ -1,8 +1,8 @@
 # Podo Social: Accounts, Roles, Meta Data Sync and New Features
 
-> Plan written 7 Oct 2026, from a read-only review of the code. Nothing in the code has changed yet.
-> Read [PODO_SOCIAL.md](PODO_SOCIAL.md) first for the stack and the Meta setup.
-> Never put tokens or secrets in this file.
+> Plan written 7 Oct 2026. Much of §1–§8 has since been implemented (client scope, durable Meta sync, ads tokens, etc.).
+> **Current done/pending:** [SOCIAL_PENDING.md](SOCIAL_PENDING.md) · [PENDING_CHANGES.md](PENDING_CHANGES.md).
+> Read [PODO_SOCIAL.md](PODO_SOCIAL.md) for stack/Meta setup. Never put tokens or secrets in this file.
 
 **Contents**
 1. [Problems in the code today](#1-problems-in-the-code-today)

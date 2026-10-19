@@ -121,4 +121,35 @@ export const analyticsRepository = {
       orderBy: { publishedAt: 'desc' },
     });
   },
+
+  findScopedIntegration(
+    organizationId: string,
+    integrationId: string,
+    clientIds: 'all' | string[] = 'all'
+  ) {
+    return prisma.socialIntegration.findFirst({
+      where: {
+        id: integrationId,
+        organizationId,
+        deletedAt: null,
+        customerId: clientIds === 'all' ? undefined : { in: clientIds },
+      },
+      select: { id: true, name: true, providerIdentifier: true },
+    });
+  },
+
+  listExternalPostsForBestTimes(integrationId: string, since: Date) {
+    return prisma.socialExternalPost.findMany({
+      where: {
+        integrationId,
+        publishedAt: { gte: since },
+      },
+      select: {
+        publishedAt: true,
+        likes: true,
+        comments: true,
+        reach: true,
+      },
+    });
+  },
 };

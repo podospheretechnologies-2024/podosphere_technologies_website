@@ -38,6 +38,10 @@ export const mediaRepository = {
     return prisma.socialMedia.create({ data });
   },
 
+  update(id: string, data: Prisma.SocialMediaUncheckedUpdateInput): Promise<SocialMedia> {
+    return prisma.socialMedia.update({ where: { id }, data });
+  },
+
   findById(scope: ClientScope, id: string): Promise<SocialMedia | null> {
     return prisma.socialMedia.findFirst({
       where: { id, ...scopeWhere(scope), deletedAt: null },

@@ -45,6 +45,8 @@ export interface PublishItem {
 export interface PublishTarget {
   internalId: string;
   accessToken: string;
+  /** Provider-specific settings from the integration row (e.g. Pinterest boardId). */
+  settings?: Record<string, unknown>;
 }
 
 export interface PublishThread {

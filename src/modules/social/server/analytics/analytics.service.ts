@@ -6,11 +6,28 @@ import type {
   AnalyticsPost,
   AnalyticsPostMetrics,
   AnalyticsSummary,
+  BestTimesCell,
+  BestTimesResult,
+  BestTimesSuggestion,
 } from '../../types/analytics';
 import type { PostMedia } from '../../types/post';
 import { integrationRegistry } from '../integrations/core/integration.registry';
 import { analyticsRepository } from './analytics.repository';
-import type { AnalyticsQuery } from './analytics.schema';
+import type { AnalyticsQuery, BestTimesQuery } from './analytics.schema';
+
+const BEST_TIMES_LOOKBACK_DAYS = 180;
+const BEST_TIMES_MIN_SAMPLE = 2;
+const BEST_TIMES_TOP_N = 3;
+const WEEKDAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const;
+const WEEKDAY_FROM_SHORT: Record<string, number> = {
+  Sun: 0,
+  Mon: 1,
+  Tue: 2,
+  Wed: 3,
+  Thu: 4,
+  Fri: 5,
+  Sat: 6,
+};
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 /** Keep under typical reverse-proxy 60s limits (504). */
@@ -107,6 +124,85 @@ function thumbnailFromMedia(media: unknown): string | null {
 
 function providerNameOf(identifier: string) {
   return integrationRegistry.get(identifier)?.name ?? identifier;
+}
+
+function weekdayAndHourInZone(date: Date, timeZone: string): { weekday: number; hour: number } {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    weekday: 'short',
+    hour: 'numeric',
+    hourCycle: 'h23',
+  }).formatToParts(date);
+  const weekdayLabel = parts.find((part) => part.type === 'weekday')?.value ?? 'Sun';
+  let hour = Number(parts.find((part) => part.type === 'hour')?.value ?? 0);
+  if (hour === 24) hour = 0;
+  return { weekday: WEEKDAY_FROM_SHORT[weekdayLabel] ?? 0, hour };
+}
+
+function engagementScore(likes: number | null, comments: number | null, reach: number | null): number {
+  return (likes ?? 0) + (comments ?? 0) + (reach ?? 0);
+}
+
+function emptyBestTimesCell(weekday: number, hour: number): BestTimesCell {
+  return {
+    weekday,
+    hour,
+    postCount: 0,
+    avgScore: 0,
+    totalLikes: 0,
+    totalComments: 0,
+    totalReach: 0,
+  };
+}
+
+function formatSlotLabel(weekday: number, hour: number): string {
+  const day = WEEKDAY_SHORT[weekday] ?? 'Sun';
+  const h12 = hour % 12 === 0 ? 12 : hour % 12;
+  const suffix = hour < 12 ? 'am' : 'pm';
+  return `${day} ${h12}:00 ${suffix}`;
+}
+
+function aggregateBestTimes(
+  posts: { publishedAt: Date; likes: number | null; comments: number | null; reach: number | null }[],
+  timeZone: string
+): { cells: BestTimesCell[]; suggested: BestTimesSuggestion[] } {
+  const buckets = new Map<string, BestTimesCell>();
+  for (let weekday = 0; weekday < 7; weekday += 1) {
+    for (let hour = 0; hour < 24; hour += 1) {
+      buckets.set(`${weekday}:${hour}`, emptyBestTimesCell(weekday, hour));
+    }
+  }
+
+  for (const post of posts) {
+    const { weekday, hour } = weekdayAndHourInZone(post.publishedAt, timeZone);
+    const key = `${weekday}:${hour}`;
+    const cell = buckets.get(key) ?? emptyBestTimesCell(weekday, hour);
+    cell.postCount += 1;
+    cell.totalLikes += post.likes ?? 0;
+    cell.totalComments += post.comments ?? 0;
+    cell.totalReach += post.reach ?? 0;
+    cell.avgScore += engagementScore(post.likes, post.comments, post.reach);
+    buckets.set(key, cell);
+  }
+
+  const cells = [...buckets.values()].map((cell) => ({
+    ...cell,
+    avgScore: cell.postCount > 0 ? Math.round((cell.avgScore / cell.postCount) * 10) / 10 : 0,
+  }));
+
+  const suggested = cells
+    .filter((cell) => cell.postCount >= BEST_TIMES_MIN_SAMPLE)
+    .sort((a, b) => b.avgScore - a.avgScore || b.postCount - a.postCount)
+    .slice(0, BEST_TIMES_TOP_N)
+    .map((cell) => ({
+      weekday: cell.weekday,
+      hour: cell.hour,
+      avgScore: cell.avgScore,
+      postCount: cell.postCount,
+      label: formatSlotLabel(cell.weekday, cell.hour),
+    }));
+
+  return { cells, suggested };
 }
 
 export const analyticsService = {
@@ -315,6 +411,40 @@ export const analyticsService = {
       ),
       activity,
       posts,
+    };
+  },
+
+  /**
+   * Weekday × hour heatmap from stored Meta history (`SocialExternalPost`).
+   * Score per post = likes + comments + reach; cell value = mean score.
+   */
+  async bestTimes(
+    organizationId: string,
+    query: BestTimesQuery,
+    clientIds: 'all' | string[] = 'all'
+  ): Promise<BestTimesResult> {
+    const integration = await analyticsRepository.findScopedIntegration(
+      organizationId,
+      query.integrationId,
+      clientIds
+    );
+    if (!integration) {
+      throw new HttpError(404, 'Channel not found');
+    }
+
+    const since = new Date(Date.now() - BEST_TIMES_LOOKBACK_DAYS * DAY_MS);
+    const posts = await analyticsRepository.listExternalPostsForBestTimes(integration.id, since);
+    const { cells, suggested } = aggregateBestTimes(posts, query.timeZone);
+
+    return {
+      integrationId: integration.id,
+      channelName: integration.name,
+      providerIdentifier: integration.providerIdentifier,
+      timeZone: query.timeZone,
+      lookbackDays: BEST_TIMES_LOOKBACK_DAYS,
+      postCount: posts.length,
+      cells,
+      suggested,
     };
   },
 };

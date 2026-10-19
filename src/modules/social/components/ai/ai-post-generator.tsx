@@ -13,19 +13,26 @@ import {
   type AiSource,
 } from '../../config/ai';
 import { generatePosts, generatePostsFromUrl } from '../../lib/ai.client';
+import type { CaptionTonePresetId } from '../../server/ai/presets';
 import type { AiPostVariations } from '../../types/ai';
 import { AiVariationCard } from './ai-variation-card';
+import { CaptionTonePicker } from './caption-tone-picker';
 
 interface AiPostGeneratorProps {
   disabled: boolean;
   onUse: (posts: string[]) => void;
+  /** Prefill idea + tone (e.g. from festival calendar) */
+  seed?: { topic: string; tonePresetId?: CaptionTonePresetId | null } | null;
 }
 
-export function AiPostGenerator({ disabled, onUse }: AiPostGeneratorProps) {
+export function AiPostGenerator({ disabled, onUse, seed }: AiPostGeneratorProps) {
   const [source, setSource] = useState<AiSource>('idea');
   const [format, setFormat] = useState<AiPostFormat>('post');
-  const [idea, setIdea] = useState('');
+  const [idea, setIdea] = useState(seed?.topic ?? '');
   const [url, setUrl] = useState('');
+  const [tonePresetId, setTonePresetId] = useState<CaptionTonePresetId | null>(
+    seed?.tonePresetId ?? null
+  );
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<AiPostVariations | null>(null);
@@ -36,10 +43,11 @@ export function AiPostGenerator({ disabled, onUse }: AiPostGeneratorProps) {
     setError(null);
     setGenerating(true);
     try {
+      const tone = tonePresetId ?? undefined;
       setResult(
         source === 'idea'
-          ? await generatePosts({ content: input, format })
-          : await generatePostsFromUrl({ url: input, format })
+          ? await generatePosts({ content: input, format, tonePresetId: tone })
+          : await generatePostsFromUrl({ url: input, format, tonePresetId: tone })
       );
     } catch (generateError) {
       setError(generateError instanceof Error ? generateError.message : 'Could not write posts');
@@ -73,6 +81,12 @@ export function AiPostGenerator({ disabled, onUse }: AiPostGeneratorProps) {
           disabled={generating}
         />
       </div>
+
+      <CaptionTonePicker
+        value={tonePresetId}
+        onChange={setTonePresetId}
+        disabled={generating}
+      />
 
       {source === 'idea' ? (
         <textarea

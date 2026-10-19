@@ -34,6 +34,8 @@ export class FacebookProvider extends MetaProviderBase {
     'read_insights',
     'pages_read_user_content',
     'pages_manage_engagement',
+    // Inbox DM replies (Messenger Send API).
+    'pages_messaging',
   ] as const;
   protected readonly noAccountsMessage =
     'No Facebook Page was shared. Reconnect and select at least one Page.';

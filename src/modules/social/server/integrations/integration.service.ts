@@ -22,6 +22,7 @@ import { getIntegrationQueue, INTEGRATION_JOB } from './integration.queue';
 import { trySubscribePageAfterConnect } from './providers/meta/meta-webhook-subscribe';
 import { planService } from '../billing/plan.service';
 import { clientTemplateService } from '../client-templates/client-template.service';
+import { getAnalyticsQueue, ANALYTICS_JOB } from '../analytics/analytics.queue';
 
 // Refresh tokens this long before they expire so a scheduled post never uses a stale one.
 const REFRESH_BUFFER_MS = 10 * 60 * 1000;
@@ -86,14 +87,6 @@ const EXTRA_CHANNEL_PROVIDERS: AvailableProvider[] = [
     configured: true,
     requiredEnv: [],
     maxLength: 4096,
-  },
-  {
-    identifier: 'pinterest',
-    name: 'Pinterest',
-    configured: false,
-    requiredEnv: [],
-    maxLength: 0,
-    comingSoon: true,
   },
 ];
 
@@ -218,6 +211,22 @@ export const integrationService = {
         const pageId =
           identifier === 'facebook' ? details.internalId : meta?.facebookPageId;
         void trySubscribePageAfterConnect(pageId, details.accessToken);
+
+        // ~90-day media/insights backfill (analytics worker skips if already done).
+        const connected = integrations[integrations.length - 1];
+        void getAnalyticsQueue()
+          .add(
+            ANALYTICS_JOB.backfill,
+            { integrationId: connected.id },
+            {
+              jobId: `meta.backfill:${connected.id}`,
+              removeOnComplete: true,
+              removeOnFail: true,
+            }
+          )
+          .catch((error) => {
+            console.error('[social] enqueue analytics backfill failed', error);
+          });
       }
     }
 

@@ -1,4 +1,5 @@
 import 'server-only';
+import { decrypt, encrypt } from '@/shared/lib/crypto';
 import { getServerEnv } from '@/shared/lib/env';
 import { HttpError } from '@/shared/server/http-error';
 import { prisma } from '@/shared/lib/prisma';
@@ -210,28 +211,52 @@ const LEADS_PER_AD = 100;
 const PAGE_SIZE = 100;
 const MAX_PAGES = 20;
 
-function credentials(): { graph: GraphConfig; token: string } {
+function graphConfig(): GraphConfig {
   const env = getServerEnv();
-  if (!env.META_SYSTEM_USER_TOKEN) {
-    throw new HttpError(503, 'Ads are not configured. Set META_SYSTEM_USER_TOKEN in .env (see PODO_SOCIAL.md).');
-  }
-  return {
-    graph: { version: env.META_GRAPH_VERSION, appSecret: env.META_APP_SECRET || undefined },
-    token: env.META_SYSTEM_USER_TOKEN,
-  };
+  return { version: env.META_GRAPH_VERSION, appSecret: env.META_APP_SECRET || undefined };
 }
 
-async function get<T>(path: string, params: Record<string, string | number | undefined> = {}): Promise<T> {
-  const { graph, token } = credentials();
+/**
+ * Bootstrap token for agency `me/adaccounts` sync only.
+ * Live reads and the ads worker use per-account `accessTokenEncrypted` — never this env value.
+ */
+function bootstrapSyncToken(): string {
+  const token = getServerEnv().META_SYSTEM_USER_TOKEN;
+  if (!token) {
+    throw new HttpError(
+      503,
+      'Ads sync is not configured. Set META_SYSTEM_USER_TOKEN for initial account discovery, or set a per-account token via the admin API.'
+    );
+  }
+  return token;
+}
+
+async function markAccountRefreshNeeded(externalId: string): Promise<void> {
+  await prisma.adAccount.updateMany({
+    where: { externalId },
+    data: { refreshNeeded: true },
+  });
+}
+
+async function get<T>(
+  token: string,
+  path: string,
+  params: Record<string, string | number | undefined> = {},
+  accountExternalId?: string
+): Promise<T> {
   try {
-    return await graphGet<T>(graph, path, token, params);
+    return await graphGet<T>(graphConfig(), path, token, params);
   } catch (error) {
     if (error instanceof GraphApiError) {
       if (error.isAuthError) {
-        throw new HttpError(503, 'The Meta system user token is expired or revoked. Generate a new one.');
+        if (accountExternalId) await markAccountRefreshNeeded(accountExternalId);
+        throw new HttpError(
+          503,
+          'The Meta ad account token is expired or revoked. Set a new token for this account.'
+        );
       }
       if (error.code === 10 || error.code === 200 || error.code === 294) {
-        throw new HttpError(403, 'The system user has no access to this ad account (needs ads_read).');
+        throw new HttpError(403, 'This token has no access to this ad account (needs ads_read).');
       }
       if (error.code === 17 || error.code === 80004) {
         throw new HttpError(429, 'Meta rate limit reached for this ad account. Try again in a few minutes.');
@@ -244,18 +269,25 @@ async function get<T>(path: string, params: Record<string, string | number | und
 
 /** Follow Meta cursor pages so live / hierarchy lists are complete. */
 async function getPaged<T>(
+  token: string,
   path: string,
   params: Record<string, string | number>,
-  maxPages = MAX_PAGES
+  maxPages = MAX_PAGES,
+  accountExternalId?: string
 ): Promise<T[]> {
   const items: T[] = [];
   let after: string | undefined;
   for (let page = 0; page < maxPages; page += 1) {
-    const result = await get<GraphPagedList<T>>(path, {
-      ...params,
-      limit: Number(params.limit) || PAGE_SIZE,
-      ...(after ? { after } : {}),
-    });
+    const result = await get<GraphPagedList<T>>(
+      token,
+      path,
+      {
+        ...params,
+        limit: Number(params.limit) || PAGE_SIZE,
+        ...(after ? { after } : {}),
+      },
+      accountExternalId
+    );
     items.push(...(result.data ?? []));
     after = result.paging?.cursors?.after;
     if (!after || !(result.data?.length)) break;
@@ -339,6 +371,8 @@ function toAccount(account: GraphAdAccount): AdAccountItem {
     currency: account.currency,
     status: account.account_status,
     amountSpent: num(account.amount_spent) / 100,
+    hasToken: false,
+    refreshNeeded: false,
   };
 }
 
@@ -476,6 +510,8 @@ async function mapPool<T, R>(items: T[], concurrency: number, mapper: (item: T) 
 }
 
 async function fetchLeadsForAds(
+  token: string,
+  accountExternalId: string,
   ads: { id: string; name: string; adsetId: string | null; adsetName: string | null }[],
   insightLeadsByAd: Map<string, number>
 ): Promise<AdsLeadItem[]> {
@@ -485,11 +521,16 @@ async function fetchLeadsForAds(
 
   const batches = await mapPool(candidates, LEAD_FETCH_CONCURRENCY, async (ad) => {
     try {
-      const result = await get<GraphList<GraphLead>>(`${ad.id}/leads`, {
-        fields:
-          'created_time,id,ad_id,ad_name,adset_id,adset_name,campaign_id,campaign_name,form_id,field_data',
-        limit: LEADS_PER_AD,
-      });
+      const result = await get<GraphList<GraphLead>>(
+        token,
+        `${ad.id}/leads`,
+        {
+          fields:
+            'created_time,id,ad_id,ad_name,adset_id,adset_name,campaign_id,campaign_name,form_id,field_data',
+          limit: LEADS_PER_AD,
+        },
+        accountExternalId
+      );
       return result.data.map((lead) => ({
         id: lead.id,
         createdTime: lead.created_time ?? '',
@@ -518,8 +559,20 @@ async function fetchLeadsForAds(
 import { scopeWhere, type ClientScope } from '@/shared/server/client-scope';
 
 export const adsService = {
+  /** True when bootstrap env token is set (agency discovery sync). */
   isConfigured(): boolean {
     return Boolean(getServerEnv().META_SYSTEM_USER_TOKEN);
+  },
+
+  /**
+   * Ads UI is usable when bootstrap sync is available or any scoped account already has a token.
+   */
+  async isConfiguredForOrg(organizationId: string): Promise<boolean> {
+    if (this.isConfigured()) return true;
+    const withToken = await prisma.adAccount.count({
+      where: { organizationId, accessTokenEncrypted: { not: null } },
+    });
+    return withToken > 0;
   },
 
   /**
@@ -537,6 +590,8 @@ export const adsService = {
       currency: acc.currency,
       status: acc.status,
       amountSpent: 0,
+      hasToken: Boolean(acc.accessTokenEncrypted),
+      refreshNeeded: acc.refreshNeeded,
     }));
   },
 
@@ -551,17 +606,63 @@ export const adsService = {
   },
 
   /**
+   * Decrypt the stored per-account Meta token. Refuses when missing (no global env fallback).
+   */
+  async requireAccountToken(scope: ClientScope, accountId: string): Promise<string> {
+    await this.requireAccount(scope, accountId);
+    const row = await prisma.adAccount.findFirst({
+      where: { externalId: accountId, ...scopeWhere(scope) },
+      select: { accessTokenEncrypted: true, refreshNeeded: true },
+    });
+    if (!row?.accessTokenEncrypted) {
+      throw new HttpError(
+        503,
+        'No Meta token stored for this ad account. An admin must set one (POST /api/social/ads/accounts/{id}/token) or re-run account sync with META_SYSTEM_USER_TOKEN.'
+      );
+    }
+    try {
+      return decrypt(row.accessTokenEncrypted);
+    } catch {
+      throw new HttpError(503, 'Stored ad account token could not be decrypted. Set a new token.');
+    }
+  },
+
+  /**
+   * Admin/agency: encrypt and store a Meta token for one ad account in this organization.
+   */
+  async setAccountToken(organizationId: string, accountId: string, accessToken: string): Promise<void> {
+    const row = await prisma.adAccount.findFirst({
+      where: { organizationId, externalId: accountId },
+      select: { id: true },
+    });
+    if (!row) {
+      throw new HttpError(404, 'Ad account not found in this organization');
+    }
+    await prisma.adAccount.update({
+      where: { id: row.id },
+      data: {
+        accessTokenEncrypted: encrypt(accessToken.trim()),
+        refreshNeeded: false,
+        tokenSource: 'per_account',
+      },
+    });
+  },
+
+  /**
    * Agency sync: pulls Meta `me/adaccounts` into `ad_accounts` for this organization.
+   * Uses META_SYSTEM_USER_TOKEN for discovery only and stores that token on each upserted account.
    * Does not change customerId assignment; UI lists still come from listAccounts(scope).
    */
   async syncAccounts(organizationId: string): Promise<void> {
+    const token = bootstrapSyncToken();
+    const encrypted = encrypt(token);
     const result = await getPaged<{
       id: string;
       name?: string;
       currency?: string;
       timezone_name?: string;
       account_status?: number;
-    }>('me/adaccounts', { fields: 'name,currency,timezone_name,account_status' });
+    }>(token, 'me/adaccounts', { fields: 'name,currency,timezone_name,account_status' });
     for (const acc of result) {
       await prisma.adAccount.upsert({
         where: { externalId: acc.id },
@@ -570,7 +671,7 @@ export const adsService = {
           // Meta always returns `currency` for a real ad account; INR (not USD) is the
           // correct last-resort default for this agency's accounts if it's ever missing.
           currency: acc.currency ?? 'INR',
-          timezone: acc.timezone_name ?? 'UTC',
+          timezoneName: acc.timezone_name ?? 'UTC',
           status: acc.account_status ?? 1,
         },
         create: {
@@ -578,15 +679,33 @@ export const adsService = {
           externalId: acc.id,
           name: acc.name ?? acc.id,
           currency: acc.currency ?? 'INR',
-          timezone: acc.timezone_name ?? 'UTC',
+          timezoneName: acc.timezone_name ?? 'UTC',
           status: acc.account_status ?? 1,
+          accessTokenEncrypted: encrypted,
+          refreshNeeded: false,
+          tokenSource: 'system_user',
         },
       });
     }
+
+    // Stamp bootstrap token onto new/empty rows and any still on system_user source.
+    // Never overwrite tokenSource=per_account (set via admin API).
+    await prisma.adAccount.updateMany({
+      where: {
+        organizationId,
+        OR: [{ accessTokenEncrypted: null }, { tokenSource: 'system_user' }],
+      },
+      data: {
+        accessTokenEncrypted: encrypted,
+        refreshNeeded: false,
+        tokenSource: 'system_user',
+      },
+    });
   },
 
   async overview(scope: ClientScope, accountId: string, date: AdsOverviewDateQuery): Promise<AdsOverview> {
     const account = await this.requireAccount(scope, accountId);
+    const token = await this.requireAccountToken(scope, accountId);
 
     const dateParams = insightDateParams(date);
 
@@ -600,51 +719,98 @@ export const adsService = {
       adSets,
       adsRaw,
     ] = await Promise.all([
-      get<GraphList<GraphInsight>>(`${accountId}/insights`, {
-        fields: 'spend,impressions,reach,clicks,ctr,cpc,actions',
-        ...dateParams,
-      }),
-      getPaged<GraphInsight>(`${accountId}/insights`, {
-        fields: 'spend,clicks',
-        ...dateParams,
-        time_increment: 1,
-        limit: PAGE_SIZE,
-      }).then((data) => ({ data })),
-      getPaged<GraphInsight>(`${accountId}/insights`, {
-        fields: 'campaign_id,campaign_name,spend,impressions,clicks,ctr,cpc,actions',
-        level: 'campaign',
-        ...dateParams,
-        limit: PAGE_SIZE,
-      }).then((data) => ({ data })),
-      getPaged<GraphInsight>(`${accountId}/insights`, {
-        fields: 'adset_id,adset_name,spend,actions',
-        level: 'adset',
-        ...dateParams,
-        limit: PAGE_SIZE,
-      })
+      get<GraphList<GraphInsight>>(
+        token,
+        `${accountId}/insights`,
+        {
+          fields: 'spend,impressions,reach,clicks,ctr,cpc,actions',
+          ...dateParams,
+        },
+        accountId
+      ),
+      getPaged<GraphInsight>(
+        token,
+        `${accountId}/insights`,
+        {
+          fields: 'spend,clicks',
+          ...dateParams,
+          time_increment: 1,
+          limit: PAGE_SIZE,
+        },
+        MAX_PAGES,
+        accountId
+      ).then((data) => ({ data })),
+      getPaged<GraphInsight>(
+        token,
+        `${accountId}/insights`,
+        {
+          fields: 'campaign_id,campaign_name,spend,impressions,clicks,ctr,cpc,actions',
+          level: 'campaign',
+          ...dateParams,
+          limit: PAGE_SIZE,
+        },
+        MAX_PAGES,
+        accountId
+      ).then((data) => ({ data })),
+      getPaged<GraphInsight>(
+        token,
+        `${accountId}/insights`,
+        {
+          fields: 'adset_id,adset_name,spend,actions',
+          level: 'adset',
+          ...dateParams,
+          limit: PAGE_SIZE,
+        },
+        MAX_PAGES,
+        accountId
+      )
         .then((data) => ({ data }))
         .catch(() => ({ data: [] as GraphInsight[] })),
-      getPaged<GraphInsight>(`${accountId}/insights`, {
-        fields: 'ad_id,ad_name,spend,impressions,clicks,ctr,cpc,actions',
-        level: 'ad',
-        ...dateParams,
-        limit: PAGE_SIZE,
-      })
+      getPaged<GraphInsight>(
+        token,
+        `${accountId}/insights`,
+        {
+          fields: 'ad_id,ad_name,spend,impressions,clicks,ctr,cpc,actions',
+          level: 'ad',
+          ...dateParams,
+          limit: PAGE_SIZE,
+        },
+        MAX_PAGES,
+        accountId
+      )
         .then((data) => ({ data }))
         .catch(() => ({ data: [] as GraphInsight[] })),
-      getPaged<GraphCampaign>(`${accountId}/campaigns`, {
-        fields: 'name,effective_status,objective,daily_budget,lifetime_budget',
-        limit: PAGE_SIZE,
-      }),
-      getPaged<GraphAdSet>(`${accountId}/adsets`, {
-        fields: 'name,effective_status,campaign_id,campaign{name},targeting',
-        limit: PAGE_SIZE,
-      }),
-      getPaged<GraphAd>(`${accountId}/ads`, {
-        fields:
-          'name,effective_status,campaign_id,adset_id,campaign{name},adset{name},creative{id,name,title,body,thumbnail_url,image_url,object_story_spec,asset_feed_spec}',
-        limit: PAGE_SIZE,
-      }),
+      getPaged<GraphCampaign>(
+        token,
+        `${accountId}/campaigns`,
+        {
+          fields: 'name,effective_status,objective,daily_budget,lifetime_budget',
+          limit: PAGE_SIZE,
+        },
+        MAX_PAGES,
+        accountId
+      ),
+      getPaged<GraphAdSet>(
+        token,
+        `${accountId}/adsets`,
+        {
+          fields: 'name,effective_status,campaign_id,campaign{name},targeting',
+          limit: PAGE_SIZE,
+        },
+        MAX_PAGES,
+        accountId
+      ),
+      getPaged<GraphAd>(
+        token,
+        `${accountId}/ads`,
+        {
+          fields:
+            'name,effective_status,campaign_id,adset_id,campaign{name},adset{name},creative{id,name,title,body,thumbnail_url,image_url,object_story_spec,asset_feed_spec}',
+          limit: PAGE_SIZE,
+        },
+        MAX_PAGES,
+        accountId
+      ),
     ]);
 
     const insightByCampaign = new Map(campaignInsights.data.map((row) => [row.campaign_id, row]));
@@ -735,6 +901,8 @@ export const adsService = {
       [...insightByAd.entries()].map(([id, row]) => [id, leadsOf(row.actions)])
     );
     const leads = await fetchLeadsForAds(
+      token,
+      accountId,
       adItems.map((ad) => ({
         id: ad.id,
         name: ad.name,
@@ -768,12 +936,19 @@ export const adsService = {
   /** Custom audiences on this ad account (read-only; size shown as Meta's approximate range). */
   async audiences(scope: ClientScope, accountId: string): Promise<AdsAudienceItem[]> {
     await this.requireAccount(scope, accountId);
+    const token = await this.requireAccountToken(scope, accountId);
 
-    const raw = await getPaged<GraphCustomAudience>(`${accountId}/customaudiences`, {
-      fields:
-        'name,subtype,approximate_count_lower_bound,approximate_count_upper_bound,operation_status,delivery_status,time_created,time_updated',
-      limit: PAGE_SIZE,
-    }).catch(() => [] as GraphCustomAudience[]);
+    const raw = await getPaged<GraphCustomAudience>(
+      token,
+      `${accountId}/customaudiences`,
+      {
+        fields:
+          'name,subtype,approximate_count_lower_bound,approximate_count_upper_bound,operation_status,delivery_status,time_created,time_updated',
+        limit: PAGE_SIZE,
+      },
+      MAX_PAGES,
+      accountId
+    ).catch(() => [] as GraphCustomAudience[]);
 
     const items: AdsAudienceItem[] = raw.map((audience) => ({
       id: audience.id,
@@ -797,29 +972,47 @@ export const adsService = {
   /** Catalogs owned by this ad account's business, with product sets and basic health. */
   async catalogs(scope: ClientScope, accountId: string): Promise<AdsCatalogsResult> {
     await this.requireAccount(scope, accountId);
+    const token = await this.requireAccountToken(scope, accountId);
 
-    const accountBusiness = await get<{ business?: GraphBusiness }>(accountId, {
-      fields: 'business{id,name}',
-    }).catch(() => ({ business: undefined }));
+    const accountBusiness = await get<{ business?: GraphBusiness }>(
+      token,
+      accountId,
+      {
+        fields: 'business{id,name}',
+      },
+      accountId
+    ).catch(() => ({ business: undefined }));
 
     const business = accountBusiness.business;
     if (!business?.id) {
       return { businessId: null, businessName: null, catalogs: [] };
     }
 
-    const rawCatalogs = await getPaged<GraphCatalog>(`${business.id}/owned_product_catalogs`, {
-      fields: 'name,vertical,product_count,feed_count',
-      limit: PAGE_SIZE,
-    }).catch(() => [] as GraphCatalog[]);
+    const rawCatalogs = await getPaged<GraphCatalog>(
+      token,
+      `${business.id}/owned_product_catalogs`,
+      {
+        fields: 'name,vertical,product_count,feed_count',
+        limit: PAGE_SIZE,
+      },
+      MAX_PAGES,
+      accountId
+    ).catch(() => [] as GraphCatalog[]);
 
     const catalogs: AdsCatalogItem[] = await mapPool(
       rawCatalogs,
       LEAD_FETCH_CONCURRENCY,
       async (catalog) => {
-        const productSets = await getPaged<GraphProductSet>(`${catalog.id}/product_sets`, {
-          fields: 'name,product_count',
-          limit: PAGE_SIZE,
-        }).catch(() => [] as GraphProductSet[]);
+        const productSets = await getPaged<GraphProductSet>(
+          token,
+          `${catalog.id}/product_sets`,
+          {
+            fields: 'name,product_count',
+            limit: PAGE_SIZE,
+          },
+          MAX_PAGES,
+          accountId
+        ).catch(() => [] as GraphProductSet[]);
         return {
           id: catalog.id,
           name: catalog.name ?? catalog.id,
@@ -847,21 +1040,33 @@ export const adsService = {
     date: AdsOverviewDateQuery
   ): Promise<AdsEntityHistory> {
     await this.requireAccount(scope, accountId);
+    const token = await this.requireAccountToken(scope, accountId);
 
     const dateParams = insightDateParams(date);
     const fields = 'spend,impressions,reach,clicks,ctr,cpc,actions';
 
     const [totalsRaw, historyRaw] = await Promise.all([
-      get<GraphList<GraphInsight>>(`${entityId}/insights`, {
-        fields,
-        ...dateParams,
-      }),
-      getPaged<GraphInsight>(`${entityId}/insights`, {
-        fields,
-        ...dateParams,
-        time_increment: 1,
-        limit: PAGE_SIZE,
-      }),
+      get<GraphList<GraphInsight>>(
+        token,
+        `${entityId}/insights`,
+        {
+          fields,
+          ...dateParams,
+        },
+        accountId
+      ),
+      getPaged<GraphInsight>(
+        token,
+        `${entityId}/insights`,
+        {
+          fields,
+          ...dateParams,
+          time_increment: 1,
+          limit: PAGE_SIZE,
+        },
+        MAX_PAGES,
+        accountId
+      ),
     ]);
 
     const history = historyRaw

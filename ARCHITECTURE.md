@@ -1,5 +1,7 @@
 # Podo Social: how the code is organised
 
+> Feature done/pending: **`SOCIAL_PENDING.md`**. Ops checklist: **`PENDING_CHANGES.md`**.
+
 Podo Social is **one Next.js 16 app** that contains both the frontend and the backend,
 plus a separate **worker** process for background jobs. There is no separate API server:
 the backend is the `src/app/api/**` route handlers and the `server/` folders they call.

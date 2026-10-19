@@ -19,12 +19,16 @@ const serverEnvSchema = z.object({
   // Image generation only (Claude doesn't generate images). Optional.
   OPENAI_API_KEY: z.string().optional(),
   OPENAI_IMAGE_MODEL: z.string().min(1).default('gpt-image-1'),
+  // F13: vision alt + caption ideas on media upload. Soft-fails when off or when keys fail.
+  // unset = on when ANTHROPIC_API_KEY or OPENAI_API_KEY is set.
+  MEDIA_VISION_ENABLED: z.enum(['true', 'false']).optional(),
   // Meta (Facebook / Instagram). See PODO_SOCIAL.md sections 8–10.
   META_GRAPH_VERSION: z.string().default('v26.0'),
   META_APP_SECRET: z.string().optional(),
   META_PAGE_ID: z.string().optional(),
   META_AD_ACCOUNT_ID: z.string().optional(),
-  // Business Manager system user token with ads_read: reads ad accounts, campaigns and insights.
+  // Bootstrap only: agency `me/adaccounts` sync. Per-account tokens live on AdAccount.accessTokenEncrypted;
+  // the ads worker and live Graph reads never fall back to this env value.
   META_SYSTEM_USER_TOKEN: z.string().optional(),
   // Dev only: Graph API Explorer user token for quick testing. Ignored in production.
   META_TEST_USER_TOKEN: z.string().optional(),
@@ -44,14 +48,18 @@ const serverEnvSchema = z.object({
   // Google Sheets plug (OAuth). Optional — Connect stays disabled until both are set.
   GOOGLE_CLIENT_ID: z.string().optional(),
   GOOGLE_CLIENT_SECRET: z.string().optional(),
+  // Pinterest (OAuth + /v5/pins). Optional — Connect stays disabled until both are set.
+  PINTEREST_CLIENT_ID: z.string().optional(),
+  PINTEREST_CLIENT_SECRET: z.string().optional(),
   // Meta app id for WhatsApp Embedded Signup (client-side FB.login).
   META_APP_ID: z.string().optional(),
   WHATSAPP_EMBEDDED_SIGNUP_CONFIG_ID: z.string().optional(),
   // Razorpay subscriptions / orders. Optional — checkout soft-fails until keys are set.
+  // Webhook: /api/webhooks/razorpay (charged → active; halted → past_due; cancelled → cancelled). See ops-runbook.
   RAZORPAY_KEY_ID: z.string().optional(),
   RAZORPAY_KEY_SECRET: z.string().optional(),
   RAZORPAY_WEBHOOK_SECRET: z.string().optional(),
-  // Optional Razorpay Plan IDs (dashboard → Subscriptions → Plans). Without these, order checkout is used.
+  // Razorpay Plan IDs (dashboard → Subscriptions → Plans). Set → real subscription; unset → one-time order.
   RAZORPAY_PLAN_SOLO: z.string().optional(),
   RAZORPAY_PLAN_AGENCY_STARTER: z.string().optional(),
   RAZORPAY_PLAN_AGENCY_GROWTH: z.string().optional(),

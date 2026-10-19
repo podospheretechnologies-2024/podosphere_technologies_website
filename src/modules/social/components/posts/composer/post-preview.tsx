@@ -336,8 +336,13 @@ function toFrameMedia(media: PostMedia, format: MediaFormat): MediaItem {
     format,
     mimeType: null,
     fileSize: 0,
+    width: null,
+    height: null,
     thumbnail: null,
     alt: media.alt,
+    captionIdeas: null,
+    variantUrl: null,
+    variantKey: null,
     createdAt: new Date().toISOString(),
   };
 }

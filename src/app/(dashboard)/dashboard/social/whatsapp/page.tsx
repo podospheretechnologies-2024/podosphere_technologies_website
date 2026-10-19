@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { AutoRepliesCard } from '@/modules/social/components/whatsapp/auto-replies-card';
 import { WhatsAppGrowthTools } from '@/modules/social/components/whatsapp/whatsapp-growth-tools';
 import { WhatsAppPanel } from '@/modules/social/components/whatsapp/whatsapp-panel';
 import { socialSections } from '@/modules/social/config/navigation';
@@ -15,6 +16,7 @@ export default function WhatsAppPage() {
     <div className="space-y-5">
       <PageHeader title={label} description={description} />
       <WhatsAppGrowthTools />
+      <AutoRepliesCard />
       <WhatsAppPanel />
     </div>
   );

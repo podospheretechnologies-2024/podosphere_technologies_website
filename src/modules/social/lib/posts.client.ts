@@ -59,6 +59,18 @@ export function nextPostSlot(): string {
   return toDateTimeLocal(dayjs().add(1, 'hour').startOf('hour').toDate());
 }
 
+/** Next wall-clock occurrence of weekday (0=Sun) + hour for datetime-local. */
+export function nextSlotDateTimeLocal(weekday: number, hour: number): string {
+  const now = dayjs();
+  let candidate = now.hour(hour).minute(0).second(0).millisecond(0);
+  const delta = (weekday - candidate.day() + 7) % 7;
+  candidate = candidate.add(delta, 'day');
+  if (!candidate.isAfter(now)) {
+    candidate = candidate.add(7, 'day');
+  }
+  return toDateTimeLocal(candidate.toDate());
+}
+
 export function formatPostDate(date: string): string {
   return dayjs(date).format('ddd, D MMM YYYY · HH:mm');
 }

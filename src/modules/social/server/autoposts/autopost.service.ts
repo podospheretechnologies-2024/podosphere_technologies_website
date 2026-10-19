@@ -111,6 +111,10 @@ function fillTemplate(template: string, item: FeedItem, maxLength: number): stri
   ).slice(0, maxLength);
 }
 
+function autopostScope(autopost: SocialAutoPost): ClientScope {
+  return organizationScope(autopost.organizationId, autopost.customerId);
+}
+
 async function writeContent(autopost: SocialAutoPost, item: FeedItem, maxLength: number) {
   const template = autopost.content ?? AUTOPOST_DEFAULT_TEMPLATE;
   const aiLength = maxLength - item.url.length - 2;
@@ -123,7 +127,7 @@ async function writeContent(autopost: SocialAutoPost, item: FeedItem, maxLength:
   }
 
   try {
-    const { variations } = await aiService.generatePosts(autopost.organizationId, {
+    const { variations } = await aiService.generatePosts(autopostScope(autopost), {
       content: [`Title: ${item.title}`, item.description].filter(Boolean).join('\n\n'),
       format: 'post',
       maxLength: aiLength,
@@ -143,11 +147,14 @@ async function createPicture(autopost: SocialAutoPost, item: FeedItem): Promise<
     return [];
   }
   try {
-    const image = await aiService.generateImage(autopost.organizationId, {
+    const images = await aiService.generateImage(autopostScope(autopost), {
       prompt: [item.title, item.description].filter(Boolean).join('\n\n').slice(0, 1000),
       orientation: 'landscape',
+      platformSize: 'fb-landscape',
+      style: 'photo',
+      count: 1,
     });
-    return [image.id];
+    return images[0] ? [images[0].id] : [];
   } catch (error) {
     console.error(`[social] AI picture for feed ${autopost.id} failed, posting without it`, error);
     return [];

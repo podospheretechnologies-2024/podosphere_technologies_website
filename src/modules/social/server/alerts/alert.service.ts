@@ -1,57 +1,72 @@
 import 'server-only';
 import { prisma } from '@/shared/lib/prisma';
 import { socialSections } from '../../config/navigation';
+import { notificationService } from '../notifications/notification.service';
 
 const SLA_SWEEP_BATCH = 100;
 
 export const alertService = {
+  /** @deprecated Prefer notificationService.create with a typed SocialNotificationType. */
   async createNotification(organizationId: string, content: string, link?: string) {
-    await prisma.socialNotification.create({
-      data: {
-        organizationId,
-        content,
-        link,
-      }
+    await notificationService.create({
+      organizationId,
+      type: 'alert',
+      content,
+      link,
     });
-    // In the future, emit webhooks or send a WhatsApp template to the account manager
   },
 
   async evaluateOverspend() {
     const activeCampaigns = await prisma.adEntity.findMany({
-      where: { level: 'campaign', status: 'ACTIVE', dailyBudget: { not: null } }
+      where: { level: 'campaign', status: 'ACTIVE', dailyBudget: { not: null } },
+      select: {
+        id: true,
+        name: true,
+        adAccountId: true,
+        dailyBudget: true,
+        externalId: true,
+      },
     });
 
+    if (activeCampaigns.length === 0) return;
+
+    const accountIds = [...new Set(activeCampaigns.map((c) => c.adAccountId))];
+    const accounts = await prisma.adAccount.findMany({
+      where: { id: { in: accountIds } },
+      select: { id: true, organizationId: true },
+    });
+    const orgByAccount = new Map(accounts.map((a) => [a.id, a.organizationId]));
+
+    const today = new Date();
+    today.setUTCHours(0, 0, 0, 0);
+
     for (const campaign of activeCampaigns) {
-      // Find today's insight
-      const today = new Date();
-      today.setUTCHours(0,0,0,0);
+      const organizationId = orgByAccount.get(campaign.adAccountId);
+      if (!organizationId || !campaign.dailyBudget) continue;
 
       const insight = await prisma.adInsightDaily.findFirst({
-        where: { entityId: campaign.externalId, date: today }
+        where: { entityId: campaign.externalId, date: today },
       });
+      if (!insight) continue;
 
-      if (insight && campaign.dailyBudget) {
-        const spend = Number(insight.spend);
-        const budget = Number(campaign.dailyBudget);
-        
-        // Alert if today's spend > 120% of the daily budget
-        if (spend > budget * 1.2) {
-          await this.createNotification(
-            campaign.adAccountId, // Note: Need organization mapping, using AdAccount
-            `High Spend Alert: Campaign "${campaign.name}" has spent ${spend} today, which is over 120% of its daily budget.`
-          );
-        }
+      const spend = Number(insight.spend);
+      const budget = Number(campaign.dailyBudget);
+      if (budget <= 0) continue;
+
+      // budget_80: today's spend has reached 80% of daily budget
+      if (spend >= budget * 0.8) {
+        const pct = Math.round((spend / budget) * 100);
+        await notificationService.budget80(
+          organizationId,
+          `Campaign "${campaign.name}" has spent ${spend} today (${pct}% of daily budget ${budget}).`,
+          socialSections.ads.href
+        );
       }
     }
   },
 
   async evaluateAdFatigue() {
-    const recentInsights = await prisma.adInsightDaily.findMany({
-      where: { level: 'ad', date: { gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) } },
-      orderBy: { date: 'desc' }
-    });
-    // Pseudo logic for calculating fatigue across 7 days
-    // When frequency > 3 and CTR drops > 30%...
+    // Placeholder — frequency / CTR drop rules land with F14.
   },
 
   /**
@@ -86,7 +101,7 @@ export const alertService = {
       const who = thread.contactName?.trim() || 'Unknown contact';
       const due = thread.slaDueAt?.toISOString() ?? 'unknown';
       try {
-        await this.createNotification(
+        await notificationService.slaBreached(
           thread.organizationId,
           `SLA breached: ${thread.platform} thread with ${who} (due ${due}).`,
           `${socialSections.inbox.href}?thread=${thread.id}`
@@ -112,8 +127,6 @@ export const alertService = {
     try {
       await this.evaluateOverspend();
       await this.evaluateAdFatigue();
-      // evaluateSpendWithNoLeads()
-      // evaluateChannelBroken()
     } catch (err) {
       console.error('[alerts] Evaluation failed', err);
     }
@@ -121,6 +134,8 @@ export const alertService = {
 
   /** @deprecated Use reportService.generateMonthlyPdf via social-reports-queue. */
   async generateMonthlyReport(customerId: string) {
-    console.log(`[reports] Delegating monthly PDF for customer ${customerId} — use REPORT_JOB.generateMonthly`);
-  }
+    console.log(
+      `[reports] Delegating monthly PDF for customer ${customerId} — use REPORT_JOB.generateMonthly`
+    );
+  },
 };

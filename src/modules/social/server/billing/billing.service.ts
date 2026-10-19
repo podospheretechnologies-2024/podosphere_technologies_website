@@ -1,5 +1,4 @@
 import 'server-only';
-import { createHmac, timingSafeEqual } from 'node:crypto';
 import { Readable } from 'node:stream';
 import Razorpay from 'razorpay';
 import { prisma } from '@/shared/lib/prisma';
@@ -13,8 +12,13 @@ import {
   razorpayPlanId,
 } from '../../config/billing';
 import { isPlanKey, PLANS, type PlanKey } from '../../config/plans';
+import { getAiUsageMonthSummary } from '../ai/claude.client';
 import { getStorage } from '../storage/storage.factory';
 import { planService } from './plan.service';
+import {
+  subscriptionStatusForRazorpayEvent,
+  verifyRazorpayWebhookSignature,
+} from './razorpay-webhook';
 
 type RazorpayClient = InstanceType<typeof Razorpay>;
 
@@ -237,10 +241,138 @@ function mapInvoice(row: {
   };
 }
 
+/** Free-tier fallback when a subscription is halted or cancelled. */
+const DOWNGRADE_PLAN: PlanKey = 'solo';
+
+type RazorpayWebhookNotes = {
+  organizationId?: string;
+  plan?: string;
+};
+
+type RazorpayWebhookPayload = {
+  event?: string;
+  payload?: {
+    payment?: {
+      entity?: {
+        id?: string;
+        amount?: number;
+        order_id?: string;
+        notes?: RazorpayWebhookNotes;
+      };
+    };
+    order?: {
+      entity?: {
+        id?: string;
+        amount?: number;
+        notes?: RazorpayWebhookNotes;
+      };
+    };
+    subscription?: {
+      entity?: {
+        id?: string;
+        status?: string;
+        current_end?: number | null;
+        notes?: RazorpayWebhookNotes;
+      };
+    };
+  };
+};
+
+function periodEndFromUnix(
+  seconds: number | null | undefined,
+  fallbackDays = 30
+): Date | null {
+  if (typeof seconds === 'number' && seconds > 0) {
+    return new Date(seconds * 1000);
+  }
+  if (fallbackDays <= 0) return null;
+  return new Date(Date.now() + fallbackDays * 24 * 60 * 60 * 1000);
+}
+
+function mergeWebhookNotes(
+  ...candidates: Array<RazorpayWebhookNotes | undefined>
+): RazorpayWebhookNotes {
+  const merged: RazorpayWebhookNotes = {};
+  for (const candidate of candidates) {
+    if (!candidate) continue;
+    if (!merged.organizationId && candidate.organizationId) {
+      merged.organizationId = candidate.organizationId;
+    }
+    if (!merged.plan && candidate.plan) {
+      merged.plan = candidate.plan;
+    }
+  }
+  return merged;
+}
+
+async function resolveWebhookContext(payload: RazorpayWebhookPayload): Promise<{
+  organizationId: string;
+  plan: PlanKey;
+  subscriptionId: string | null;
+} | null> {
+  const subscriptionId = payload.payload?.subscription?.entity?.id ?? null;
+  const notes = mergeWebhookNotes(
+    payload.payload?.subscription?.entity?.notes,
+    payload.payload?.payment?.entity?.notes,
+    payload.payload?.order?.entity?.notes
+  );
+
+  let organizationId = notes.organizationId?.trim() || null;
+  let planRaw = notes.plan?.trim() || null;
+
+  if (subscriptionId && (!organizationId || !planRaw)) {
+    const existing = await prisma.socialSubscription.findFirst({
+      where: { razorpaySubscriptionId: subscriptionId },
+      select: { organizationId: true, plan: true },
+    });
+    if (existing) {
+      organizationId = organizationId ?? existing.organizationId;
+      planRaw = planRaw ?? existing.plan;
+    }
+  }
+
+  if (!organizationId || !planRaw || !isPlanKey(planRaw)) {
+    return null;
+  }
+  return { organizationId, plan: planRaw, subscriptionId };
+}
+
+async function markSubscription(
+  organizationId: string,
+  data: {
+    plan: PlanKey;
+    status: string;
+    razorpayOrderId?: string | null;
+    razorpaySubscriptionId?: string | null;
+    currentPeriodEnd?: Date | null;
+  }
+) {
+  await prisma.socialSubscription.upsert({
+    where: { organizationId },
+    create: {
+      organizationId,
+      plan: data.plan,
+      status: data.status,
+      razorpayOrderId: data.razorpayOrderId ?? null,
+      razorpaySubscriptionId: data.razorpaySubscriptionId ?? null,
+      currentPeriodEnd: data.currentPeriodEnd ?? null,
+    },
+    update: {
+      plan: data.plan,
+      status: data.status,
+      ...(data.razorpayOrderId != null ? { razorpayOrderId: data.razorpayOrderId } : {}),
+      ...(data.razorpaySubscriptionId != null
+        ? { razorpaySubscriptionId: data.razorpaySubscriptionId }
+        : {}),
+      ...(data.currentPeriodEnd !== undefined ? { currentPeriodEnd: data.currentPeriodEnd } : {}),
+    },
+  });
+}
+
 export const billingService = {
   async status(organizationId: string) {
     const plan = await planService.get(organizationId);
-    const [subscription, invoices, organization] = await Promise.all([
+    const [subscription, invoices, organization, aiUsage] = await Promise.all([
       prisma.socialSubscription.findUnique({ where: { organizationId } }),
       prisma.billingInvoice.findMany({
         where: { organizationId },
@@ -251,6 +383,7 @@ export const billingService = {
         where: { id: organizationId },
         select: { buyerGstin: true, placeOfSupply: true },
       }),
+      getAiUsageMonthSummary(organizationId),
     ]);
     const creds = credentials();
     return {
@@ -261,6 +394,7 @@ export const billingService = {
       invoices: invoices.map(mapInvoice),
       razorpayConfigured: Boolean(creds),
       keyId: creds?.keyId ?? null,
+      aiUsage,
     };
   },
 
@@ -296,8 +430,10 @@ export const billingService = {
   },
 
   /**
-   * Subscription stub: creates a Razorpay subscription when RAZORPAY_PLAN_* is set,
-   * otherwise falls back to createOrder.
+   * Create a Razorpay subscription when `RAZORPAY_PLAN_*` is set for the plan;
+   * otherwise fall back to a one-time order (see createOrder).
+   *
+   * Requires dashboard Plans + webhook events (see docs/ops-runbook.md § Razorpay).
    */
   async createSubscription(organizationId: string, plan: PlanKey, buyer: BillingBuyerFields = {}) {
     const planId = razorpayPlanId(plan);
@@ -314,7 +450,12 @@ export const billingService = {
       total_count: 12,
       customer_notify: 1,
       notes: { organizationId, plan },
-    })) as { id: string };
+    })) as { id: string; status?: string; current_end?: number | null };
+
+    const periodEnd =
+      typeof subscription.current_end === 'number' && subscription.current_end > 0
+        ? new Date(subscription.current_end * 1000)
+        : null;
 
     await prisma.socialSubscription.upsert({
       where: { organizationId },
@@ -322,12 +463,14 @@ export const billingService = {
         organizationId,
         plan,
         razorpaySubscriptionId: subscription.id,
-        status: 'created',
+        status: subscription.status === 'active' ? 'active' : 'created',
+        currentPeriodEnd: periodEnd,
       },
       update: {
         plan,
         razorpaySubscriptionId: subscription.id,
-        status: 'created',
+        status: subscription.status === 'active' ? 'active' : 'created',
+        currentPeriodEnd: periodEnd,
       },
     });
 
@@ -362,61 +505,57 @@ export const billingService = {
     if (!secret) {
       throw new HttpError(503, 'RAZORPAY_WEBHOOK_SECRET is not set');
     }
-    if (!signature) {
-      throw new HttpError(401, 'Missing Razorpay signature');
-    }
-    const expected = createHmac('sha256', secret).update(rawBody).digest('hex');
-    const a = Buffer.from(expected);
-    const b = Buffer.from(signature);
-    if (a.length !== b.length || !timingSafeEqual(a, b)) {
-      throw new HttpError(401, 'Invalid Razorpay signature');
-    }
+    verifyRazorpayWebhookSignature(rawBody, signature, secret);
   },
 
-  async applyWebhook(payload: {
-    event?: string;
-    payload?: {
-      payment?: {
-        entity?: {
-          id?: string;
-          amount?: number;
-          order_id?: string;
-          notes?: { organizationId?: string; plan?: string };
-        };
-      };
-      order?: {
-        entity?: {
-          id?: string;
-          amount?: number;
-          notes?: { organizationId?: string; plan?: string };
-        };
-      };
-      subscription?: {
-        entity?: {
-          id?: string;
-          notes?: { organizationId?: string; plan?: string };
-        };
-      };
-    };
-  }) {
-    const notes =
-      payload.payload?.payment?.entity?.notes ??
-      payload.payload?.order?.entity?.notes ??
-      payload.payload?.subscription?.entity?.notes ??
-      {};
-    const organizationId = notes.organizationId;
-    const plan = notes.plan;
-    if (!organizationId || !plan || !isPlanKey(plan)) {
+  /**
+   * Razorpay webhook handler.
+   *
+   * Status transitions on SocialSubscription:
+   * - payment.captured | order.paid | subscription.activated | subscription.charged → active (+ plan entitlements + invoice)
+   * - subscription.halted → past_due (+ downgrade org to solo)
+   * - subscription.cancelled → cancelled (+ downgrade org to solo)
+   */
+  async applyWebhook(payload: RazorpayWebhookPayload) {
+    const event = payload.event;
+    if (!event) {
       return { applied: false };
     }
 
-    const paidEvents = new Set([
-      'payment.captured',
-      'order.paid',
-      'subscription.activated',
-      'subscription.charged',
-    ]);
-    if (!payload.event || !paidEvents.has(payload.event)) {
+    const ctx = await resolveWebhookContext(payload);
+    if (!ctx) {
+      return { applied: false };
+    }
+    const { organizationId, plan, subscriptionId } = ctx;
+    const status = subscriptionStatusForRazorpayEvent(event);
+
+    if (status === 'past_due') {
+      await markSubscription(organizationId, {
+        plan,
+        status: 'past_due',
+        razorpaySubscriptionId: subscriptionId,
+        currentPeriodEnd: periodEndFromUnix(
+          payload.payload?.subscription?.entity?.current_end,
+          0
+        ),
+      });
+      // Clear paid entitlements until the customer restores the subscription.
+      await planService.apply(organizationId, DOWNGRADE_PLAN);
+      return { applied: true, status: 'past_due' as const };
+    }
+
+    if (status === 'cancelled') {
+      await markSubscription(organizationId, {
+        plan,
+        status: 'cancelled',
+        razorpaySubscriptionId: subscriptionId,
+        currentPeriodEnd: null,
+      });
+      await planService.apply(organizationId, DOWNGRADE_PLAN);
+      return { applied: true, status: 'cancelled' as const };
+    }
+
+    if (status !== 'active') {
       return { applied: false };
     }
 
@@ -424,25 +563,13 @@ export const billingService = {
     const orderId =
       payload.payload?.order?.entity?.id ?? payload.payload?.payment?.entity?.order_id ?? null;
     const paymentId = payload.payload?.payment?.entity?.id ?? null;
-    const subscriptionId = payload.payload?.subscription?.entity?.id ?? null;
 
-    await prisma.socialSubscription.upsert({
-      where: { organizationId },
-      create: {
-        organizationId,
-        plan,
-        status: 'active',
-        razorpayOrderId: orderId,
-        razorpaySubscriptionId: subscriptionId,
-        currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-      },
-      update: {
-        plan,
-        status: 'active',
-        razorpayOrderId: orderId ?? undefined,
-        razorpaySubscriptionId: subscriptionId ?? undefined,
-        currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-      },
+    await markSubscription(organizationId, {
+      plan,
+      status: 'active',
+      razorpayOrderId: orderId,
+      razorpaySubscriptionId: subscriptionId,
+      currentPeriodEnd: periodEndFromUnix(payload.payload?.subscription?.entity?.current_end),
     });
 
     const totalPaise =
@@ -470,7 +597,7 @@ export const billingService = {
       });
     }
 
-    return { applied: true };
+    return { applied: true, status: 'active' as const };
   },
 
   async regenerateInvoicePdf(organizationId: string, invoiceId: string) {

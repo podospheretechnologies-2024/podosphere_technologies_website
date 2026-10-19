@@ -10,7 +10,7 @@ export async function GET() {
     const scope = await getClientScope('ads_view');
     const org = await getCurrentOrganization();
 
-    if (!canUseAds(org) || !adsService.isConfigured()) {
+    if (!canUseAds(org) || !(await adsService.isConfiguredForOrg(org.id))) {
       return Response.json({ configured: false, accounts: [] });
     }
     return Response.json({ configured: true, accounts: await adsService.listAccounts(scope) });

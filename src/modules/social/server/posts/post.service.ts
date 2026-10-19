@@ -30,6 +30,7 @@ import type {
   ReschedulePostBody,
   SavePostBody,
 } from './post.schema';
+import { recurrenceService } from './recurrence.service';
 
 // Small tolerance so a post scheduled for "right now" is not rejected by clock drift.
 const PAST_DATE_TOLERANCE_MS = 60 * 1000;
@@ -78,7 +79,11 @@ function toThreadItem(row: PostRow): PostThreadItem {
 }
 
 // Rebuilds each channel's thread by walking the parent -> child chain.
-function toPostGroup(group: string, rows: PostRow[]): PostGroup {
+function toPostGroup(
+  group: string,
+  rows: PostRow[],
+  recurrence: Awaited<ReturnType<typeof recurrenceService.getForGroup>>
+): PostGroup {
   const childByParent = new Map(
     rows.filter((row) => row.parentPostId).map((row) => [row.parentPostId, row])
   );
@@ -89,12 +94,17 @@ function toPostGroup(group: string, rows: PostRow[]): PostGroup {
     state: toPostState(roots[0].state),
     publishDate: roots[0].publishDate.toISOString(),
     tags: toTags(roots[0]),
+    recurrence,
     posts: roots.map((root) => {
       const values: PostThreadItem[] = [];
       for (let row: PostRow | undefined = root; row; row = childByParent.get(row.id)) {
         values.push(toThreadItem(row));
       }
-      return { channel: toChannel(root.integration), values };
+      return {
+        channel: toChannel(root.integration),
+        firstComment: root.firstComment,
+        values,
+      };
     }),
   };
 }
@@ -168,6 +178,14 @@ async function buildGroupData(
       integrationRegistry.get(integration.providerIdentifier)?.maxLength() ??
       POST_CONTENT_MAX_LENGTH;
 
+    const firstComment = post.firstComment?.trim() || null;
+    if (firstComment && !isDraft && firstComment.length > maxLength) {
+      throw new HttpError(
+        400,
+        `${integration.name}: first comment can be at most ${maxLength} characters (${firstComment.length} used)`
+      );
+    }
+
     const values = post.values.map((value, index) => {
       const content = value.content.trim();
       if (!content && value.mediaIds.length === 0) {
@@ -189,7 +207,7 @@ async function buildGroupData(
       };
     });
 
-    return { integrationId: integration.id, values };
+    return { integrationId: integration.id, firstComment, values };
   });
 
   return {
@@ -344,7 +362,8 @@ export const postService = {
   },
 
   async getGroup(scope: ClientScope, group: string): Promise<PostGroup> {
-    return toPostGroup(group, await findGroupOrThrow(scope, group));
+    const rows = await findGroupOrThrow(scope, group);
+    return toPostGroup(group, rows, await recurrenceService.getForGroup(group));
   },
 
   // All channels picked in one composer submission share a group id, so they
@@ -358,15 +377,16 @@ export const postService = {
     await postRepository.createGroup(
       await buildGroupData(scope, group, body, creationMethod)
     );
+    await recurrenceService.saveForGroup(scope.organizationId, group, body.recurrence);
     await queueForPublishing(scope.organizationId, group);
-    
+
     await logAudit({
       action: 'post.create',
       targetType: 'post_group',
       targetId: group,
-      metadata: { state: body.type, creationMethod }
+      metadata: { state: body.type, creationMethod, recurrence: body.recurrence?.rule ?? null },
     });
-    
+
     return { group };
   },
 
@@ -382,15 +402,16 @@ export const postService = {
     await postRepository.replaceGroup(
       await buildGroupData(scope, group, body, rows[0].creationMethod)
     );
+    await recurrenceService.saveForGroup(scope.organizationId, group, body.recurrence);
     await queueForPublishing(scope.organizationId, group);
-    
+
     await logAudit({
       action: 'post.update',
       targetType: 'post_group',
       targetId: group,
-      metadata: { state: body.type }
+      metadata: { state: body.type, recurrence: body.recurrence?.rule ?? null },
     });
-    
+
     return { group };
   },
 
@@ -399,12 +420,12 @@ export const postService = {
     if (deleted === 0) {
       throw new HttpError(404, 'Post not found');
     }
-    
+    await recurrenceService.deactivateForGroup(group);
+
     await logAudit({
       action: 'post.remove',
       targetType: 'post_group',
       targetId: group,
     });
   },
-
 };

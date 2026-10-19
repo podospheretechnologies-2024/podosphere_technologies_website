@@ -155,22 +155,23 @@ the provider interface.
 
 ## 5. API routes
 
-Status: ✅ built · 🟡 partial/risky · ❌ missing
+Status: ✅ built · 🟡 partial/risky · ❌ missing  
+**Ship status (18 Oct 2026):** see `SOCIAL_PENDING.md` — most gaps below are historical; inbox/leads/v1/AI agent/ads tokens are built.
 
 | Area | Current routes | Status / important note |
 |---|---|---|
-| Auth | `/api/auth/login`, `/logout`, `/register`, `/me` | 🟡 Works, but registration is public and roles are not enforced |
-| Channels | `/api/social/integrations/*` | 🟡 OAuth/connect/disconnect works; Owner/Admin checks are missing |
-| Content | `/api/social/posts/*`, `/media/*`, `/sets/*`, `/signatures/*`, `/tags/*` | ✅ Core CRUD, calendar and publishing are built |
-| Automation | `/api/social/autoposts/*`, `/webhooks/*`, `/google-sheets/*` | ✅ RSS/webhook/Sheets automation is built |
-| AI | `/api/social/ai`, `/ai/posts`, `/ai/thread`, `/ai/url-posts`, `/ai/image` | 🟡 Generation works; no copilot agent, approval API or brand-kit editor API |
-| Analytics | `/api/social/analytics` | 🟡 Live Meta-backed; durable sync/storage is missing |
-| Ads | `/api/social/ads/accounts/*` | 🔴 Global token and no tenant-owned account assignment; block external access |
-| WhatsApp | `/api/social/whatsapp/*`, `/api/webhooks/whatsapp` | ✅ Own-number inbox/send/templates/webhook flow is built |
-| PodoCRM sync | `/api/social/podocrm-whatsapp-sync`, `/api/sync/whatsapp/echo` | ✅ Link/ping/echo and outbound-reply sync are built |
-| Meta deletion | `/api/meta/data-deletion` | 🔴 Signature/response built; actual deletion and status persistence missing |
-| Page/IG inbox + leads | — | ❌ Not built |
-| Client/public API | `/api/v1/*` | ❌ Not built |
+| Auth | `/api/auth/login`, `/logout`, `/register`, `/me` | 🟡 Invite-only register API; role enforcement improved via `getClientScope` |
+| Channels | `/api/social/integrations/*` | ✅ OAuth connect/disconnect; FB/IG/LI/YT/GBP + **Threads** + **Pinterest** |
+| Content | `/api/social/posts/*`, `/media/*`, `/sets/*`, `/signatures/*`, `/tags/*` | ✅ + recurrence, first comment, CSV import, short links |
+| Automation | `/api/social/autoposts/*`, `/webhooks/*`, `/google-sheets/*` | ✅ |
+| AI | `/api/social/ai/*`, `/ai/threads/*`, branded-template, presets | ✅ Copilot agent + brand kit + image presets (no SSE yet) |
+| Analytics | `/api/social/analytics/*` | ✅ Durable sync + best-times + competitor media (App Review for insights) |
+| Ads | `/api/social/ads/*` | ✅ Per-account tokens; structure/insights sync; creative helper is draft-only |
+| WhatsApp | `/api/social/whatsapp/*`, auto-replies, `/api/webhooks/whatsapp` | ✅ + keyword auto-replies |
+| PodoCRM sync | `/api/social/podocrm-whatsapp-sync`, leads push, `/api/sync/whatsapp/echo` | ✅ |
+| Meta deletion | `/api/meta/data-deletion`, `/api/data-deletion` | 🟡 Callback + request flow; confirm full purge path in ops |
+| Page/IG inbox + leads | `/api/social/inbox/*`, `/leads/*` | ✅ Reply/hide/triage/saved replies; lead score + CRM |
+| Client/public API | `/api/v1/*` | ✅ Client-scoped API keys |
 
 ---
 
@@ -685,13 +686,13 @@ pnpm worker                        # BullMQ publishing, token-refresh and automa
 
 **Not safe or complete for outside organizations yet:**
 - Public registration is open, but there is no platform-admin onboarding gate
-- `OWNER` / `ADMIN` / `MEMBER` roles are stored but not enforced by the API
-- Ads uses one global Meta system-user token and is not scoped to assigned organization/client ad accounts
-- No per-client member access, audit log, client approval queue or client portal
-- Analytics/Ads data is not yet fully synced to MySQL; dashboard requests still depend on live Meta calls
+- `OWNER` / `ADMIN` / `MEMBER` roles exist; API enforcement and MEMBER vs client-permission edge cases still need hardening before external pilots
+- Ads: per-account encrypted tokens are in code (Sprint 1 / M1); accounts without a token are skipped — still verify tenant isolation end to end before pilots
+- Per-client scope, client switcher, approval queue + client portal, audit/impersonation log, and PDF/email client reports are **built** (see `SOCIAL_PENDING.md` §1)
+- Analytics/Ads durable sync is partial (pagination/rate-limit helpers landing); some dashboard paths may still hit live Meta
 - The Meta data-deletion callback returns a confirmation code but does not yet delete data or persist status
-- Brand-kit storage exists, but the editor/API described earlier in this document is not exposed in the current app
-- Client reports, billing, white-label, public API, YouTube and GBP are not built
+- Brand-kit editor/API exists; generation now resolves per-client kits with agency fallback (Sprint 1 / A1–A3)
+- Billing, white-label (branding + custom domain), public API `/api/v1`, YouTube and GBP are **built**; Meta App Review and live Razorpay/plan IDs remain external gates
 
 The detailed schema and build order for access control and stored Meta data are in
 `PODO_SOCIAL_ACCOUNTS_AND_DATA.md`. Security and tenant isolation take priority over new feature work.
@@ -713,11 +714,14 @@ The detailed schema and build order for access control and stored Meta data are 
 > Update this section after each work session. **Never put tokens, secrets or passwords here**; they live in `.env` only.
 > Re-run the Meta checks any time with `pnpm meta:check` and compare with the results below.
 
-### Pending Meta items (8 Oct 2026)
-- [ ] Add 5 missing permissions to the test token: `read_insights`, `instagram_manage_insights`, `instagram_manage_comments`, `pages_read_user_content`, `pages_manage_engagement`
+### Pending Meta items (still open as of 18 Oct 2026)
+> Code for inbox reply, insights metrics, etc. is ready; these are **Meta dashboard / App Review** tasks.
+
+- [ ] Add permissions to the token: `read_insights`, `instagram_manage_insights`, `instagram_manage_comments`, `pages_read_user_content`, `pages_manage_engagement`, plus messaging scopes used by reply
 - [ ] Set data-deletion URL, support URL and verify the contact email
 - [ ] Subscribe Page and Instagram webhooks (`/api/webhooks/meta`)
-- [ ] Submit App Review (after the items above and the phase 1 gate)
+- [ ] Submit App Review (after the items above)
+- [ ] Commit + `pnpm db:deploy` + deploy app/worker for the 18 Oct code wave (`SOCIAL_PENDING.md`)
 
 ### End-to-end check (8 Oct 2026)
 - `pnpm typecheck` ✅ · `pnpm build` ✅ (fixed `src/app/api/auth/register/route.ts`, now a plain 403 invite-only response)
@@ -1007,9 +1011,9 @@ switch it to **MySQL**, and use **Claude** for AI.
 **Sell Podo Social to Indian marketing agencies as one AI dashboard for posts, Meta ads, WhatsApp and leads, priced in
 rupees.** The combination and India-first pricing are the product hypothesis; validate the differentiation with the
 first five agency interviews instead of claiming that no competitor offers it.
-- **Product:** the internal/demo core is substantial, but the sellable multi-tenant product is not launch-ready.
-  Tenant-safe Ads, enforced roles, per-client access, deletion/compliance, approvals, reports, billing and App Review
-  are still gates. Do not use a single completion percentage for both the demo and the sellable product.
+- **Product:** the internal/demo core is substantial; client scope, approvals, reports, billing and white-label are now in
+  code (`SOCIAL_PENDING.md` §1). Remaining gates for sale: tenant-safe Ads verification, role hardening, deletion/compliance
+  completeness, Meta App Review, and staging/prod ops. Do not use a single completion percentage for both the demo and the sellable product.
 - **WhatsApp sales service:** PodoSphere can begin the **Meta Tech Provider** onboarding work because business
   verification is complete, but it is not approved or production-ready for client onboarding. Embedded Signup,
   Tech Provider configuration, App Review and real templates are still required. App Review timing is an external
@@ -1019,29 +1023,27 @@ first five agency interviews instead of claiming that no competitor offers it.
 - **Start this week:** close the tenant/security gaps, complete legal/deletion requirements, then prepare App Review.
 
 ### 18.2 What exists vs what's missing for sale
+> **18 Oct 2026:** Code wave (A1–I5, M1–M8, F1–F16, Threads/Pinterest) is in the working tree. Full checklist: `SOCIAL_PENDING.md`.
+
 | Area | Status | What exists |
 |---|---|---|
-| Publish and schedule | 🟡 Core built | Composer, calendar drag-to-reschedule, BullMQ worker, FB Page + IG (post, reel, story), LinkedIn provider; controlled production validation still required |
-| AI Studio | 🟡 Partial | Claude posts, copilot chat, approval drafts, brand-kit editor |
-| Automation | ✅ Built | Signatures, tags, templates, webhooks, RSS autopost, Google Sheets to post |
-| Analytics | 🟡 Live API | Page/IG metrics and post metrics work, but requests still depend on live Meta calls; durable MySQL sync/backfill is missing |
-| Ads | 🔴 Security blocker | Ads Manager-style UI works, but one global system-user token exposes every shared ad account to every logged-in organization |
-| WhatsApp | 🟡 Own number + signup | Inbox, texts, template submit, Embedded Signup, broadcasts. Meta App Review and approved templates still required |
-| Page and Instagram inbox, leads | 🟡 Built | Webhook `/api/webhooks/meta` stores messages, comments and leadgen events |
-| Multi-client | 🔴 Unsafe for pilots | Organizations + customer grouping exist; roles are not enforced and there is no per-client member access |
-| Approval queue | ❌ Missing | Planned Phase 2, nothing in schema |
-| Audit log | ❌ Missing | No durable record of connects, disconnects, publishes, deletes, approvals or impersonation |
-| Data deletion | 🔴 Incomplete | Callback verifies Meta's signed request and returns a code, but does not delete data or persist request status |
-| Client reports | 🟡 Built | Monthly report from posts, leads and inbox; AI writes it when Claude is configured |
-| White-label | ❌ Missing | No custom domain / logo / email branding |
-| Billing and plans | 🟡 Built | Razorpay orders, plan limits, webhook. Needs live Razorpay keys |
-| Public API | 🟡 Built | `/api/v1` posts, analytics, leads, WhatsApp send. Agency Pro. Docs at `/docs/api` |
-| YouTube, Google Business Profile | 🟡 Built | OAuth connect and publish when GOOGLE_CLIENT_ID is set |
+| Publish and schedule | ✅ / 🟡 ops | Composer, calendar, recurrence, first comment, CSV import, FB/IG/LI/Threads/Pinterest; prod validation still required |
+| AI Studio | ✅ | Posts, image presets, branded templates, per-client brand kit, weekly plan, **copilot agent** (no SSE yet) |
+| Automation | ✅ | Signatures, tags, templates, webhooks, RSS, Sheets |
+| Analytics | ✅ / 🟡 Meta | Durable sync, pagination, stories/backfill, best-times, competitor media — needs App Review insights scopes |
+| Ads | ✅ / 🟡 ops | Per-account tokens, adsets/ads sync, draft creative helper; live keys + isolation check before pilots |
+| WhatsApp | ✅ / 🟡 Meta | Inbox, templates, Embedded Signup, broadcasts, keyword auto-replies — App Review + real templates |
+| Page/IG inbox + leads | ✅ / 🟡 Meta | Reply, hide, triage, saved replies; lead score + PodoCRM push — messaging/comment scopes need review |
+| Multi-client | ✅ / harden | `getClientScope`, switcher, memberships; pilot-harden MEMBER edges |
+| Approval queue | ✅ | Multi-step + portal + revocable magic links |
+| Notifications | ✅ | In-app bell + Resend hooks (approval, fail, SLA, token, budget, lead) |
+| Client reports | ✅ | PDF + Resend + AI narrative |
+| White-label | ✅ | Branding + custom domain Caddy ask |
+| Billing | ✅ / 🟡 env | Razorpay + halt/cancel + GST PDF — needs live keys / plan IDs |
+| Public API | ✅ | `/api/v1` + docs |
+| YT / GBP | ✅ | When Google OAuth env set |
 
-The Meta app is **Live** (6 Oct 2026), but only `openid` has Advanced Access: App Review has not been done (section 17,
-6 Oct). Until the required permissions pass review, only people with a role on the app can use those permissions.
-Public registration must be disabled before any outside person receives a login because the current Ads API is not
-tenant-isolated.
+**Still blocking external pilots:** Meta App Review (Advanced Access), prod migrate/deploy, env secrets. The Meta app is Live but only `openid` has Advanced Access until review completes.
 
 ### 18.3 Who we sell to
 | Segment | Size | Why they buy | Priority |

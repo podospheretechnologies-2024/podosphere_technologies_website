@@ -22,9 +22,12 @@ import { useAiStatus } from '../../hooks/use-ai-status';
 import { generateImage, generatePosts } from '../../lib/ai.client';
 import { revalidateMediaLibrary } from '../../lib/media.client';
 import { revalidatePosts } from '../../lib/posts.client';
+import type { CaptionTonePresetId } from '../../server/ai/presets';
 import type { PostMedia } from '../../types/post';
 import { MediaPicker } from '../posts/composer/media-picker';
 import { PostComposer, type ComposerInitialItem } from '../posts/composer/post-composer';
+import { CaptionTonePicker } from './caption-tone-picker';
+import { UpcomingOccasions, type OccasionSeed } from './upcoming-occasions';
 
 type ComposerState = { open: false } | { open: true; items: ComposerInitialItem[] };
 
@@ -110,6 +113,7 @@ export function AiStudio() {
   const { data: status, error: statusError } = useAiStatus();
   const configured = status?.configured ?? false;
   const [input, setInput] = useState('');
+  const [tonePresetId, setTonePresetId] = useState<CaptionTonePresetId | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [attached, setAttached] = useState<PostMedia[]>([]);
@@ -118,6 +122,7 @@ export function AiStudio() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const listRef = useRef<HTMLDivElement>(null);
   const [lastPrompt, setLastPrompt] = useState('');
+  const [lastTone, setLastTone] = useState<CaptionTonePresetId | null>(null);
 
   function scrollToBottom() {
     requestAnimationFrame(() => {
@@ -129,8 +134,19 @@ export function AiStudio() {
     setComposer({ open: true, items });
   }
 
-  async function runGenerate(prompt: string, media: PostMedia[]) {
+  function seedFromOccasion(seed: OccasionSeed) {
+    setInput(seed.topic);
+    setTonePresetId(seed.tonePresetId);
+    setError(null);
+  }
+
+  async function runGenerate(
+    prompt: string,
+    media: PostMedia[],
+    tone: CaptionTonePresetId | null = tonePresetId
+  ) {
     setLastPrompt(prompt);
+    setLastTone(tone);
     setBusy(true);
     setError(null);
     try {
@@ -139,7 +155,13 @@ export function AiStudio() {
         !/\bschedule|post about|write\b/i.test(prompt);
 
       if (wantsImage) {
-        const image = await generateImage({ prompt, orientation: 'square' });
+        const [image] = await generateImage({
+          prompt,
+          orientation: 'square',
+          platformSize: 'ig-square',
+          style: 'flat-illustration',
+        });
+        if (!image) throw new Error('Could not create the image');
         void revalidateMediaLibrary();
         const asPostMedia: PostMedia = {
           id: image.id,
@@ -160,7 +182,11 @@ export function AiStudio() {
         return;
       }
 
-      const result = await generatePosts({ content: prompt, format: 'post' });
+      const result = await generatePosts({
+        content: prompt,
+        format: 'post',
+        tonePresetId: tone ?? undefined,
+      });
       const posts = result.variations[0] ?? [];
       const primary = posts[0] ?? prompt;
       setMessages((current) => [
@@ -234,7 +260,13 @@ export function AiStudio() {
     setBusy(true);
     setError(null);
     try {
-      const image = await generateImage({ prompt, orientation: 'square' });
+      const [image] = await generateImage({
+        prompt,
+        orientation: 'square',
+        platformSize: 'ig-square',
+        style: 'flat-illustration',
+      });
+      if (!image) throw new Error('Could not create the image');
       void revalidateMediaLibrary();
       const asPostMedia: PostMedia = {
         id: image.id,
@@ -263,7 +295,8 @@ export function AiStudio() {
   }
 
   return (
-    <div className="flex h-[calc(100vh-8.5rem)] min-h-[28rem] flex-col">
+    <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_17.5rem]">
+      <div className="flex h-[calc(100vh-8.5rem)] min-h-[28rem] flex-col">
       {(statusError || error) && (
         <div
           role="alert"
@@ -388,7 +421,7 @@ export function AiStudio() {
                 }}
                 onRetry={
                   lastPrompt
-                    ? () => void runGenerate(lastPrompt, message.media ?? [])
+                    ? () => void runGenerate(lastPrompt, message.media ?? [], lastTone)
                     : undefined
                 }
               />
@@ -451,6 +484,12 @@ export function AiStudio() {
           </div>
         )}
 
+        <CaptionTonePicker
+          value={tonePresetId}
+          onChange={setTonePresetId}
+          disabled={busy}
+        />
+
         <div className="border-border bg-surface-muted/40 relative flex items-end gap-2 rounded-xl border px-3 py-2">
           <textarea
             value={input}
@@ -507,6 +546,12 @@ export function AiStudio() {
           setComposer({ open: false });
           void revalidatePosts();
         }}
+      />
+      </div>
+
+      <UpcomingOccasions
+        className="h-fit lg:sticky lg:top-4"
+        onSelect={seedFromOccasion}
       />
     </div>
   );

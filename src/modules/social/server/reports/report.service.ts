@@ -2,7 +2,7 @@ import 'server-only';
 import { Readable } from 'node:stream';
 import { z } from 'zod';
 import { prisma } from '@/shared/lib/prisma';
-import { scopeWhere, type ClientScope } from '@/shared/server/client-scope';
+import { organizationScope, scopeWhere, type ClientScope } from '@/shared/server/client-scope';
 import { HttpError } from '@/shared/server/http-error';
 import { sendEmail } from '@/shared/server/mailer';
 import { legal } from '@/modules/marketing/config/legal';
@@ -32,11 +32,11 @@ function formatNarrative(parts: z.infer<typeof NarrativeFormat>): string {
 }
 
 /** Soft-fail: returns null when Claude is off or the call fails. */
-async function writeNarrative(organizationId: string, facts: string): Promise<string | null> {
+async function writeNarrative(scope: ClientScope, facts: string): Promise<string | null> {
   if (!isClaudeConfigured()) return null;
   try {
     const written = await askClaude({
-      organizationId,
+      scope,
       feature: 'client-report-narrative',
       schema: NarrativeFormat,
       task: [
@@ -273,13 +273,14 @@ export const reportService = {
       prisma.socialInboxThread.count({ where: { organizationId, lastMessageAt: { gte: periodStart } } }),
     ]);
     const facts = `Published posts: ${posts}\nLeads: ${leads}\nInbox threads touched: ${threads}\nPeriod: ${periodStart.toISOString()} to ${periodEnd.toISOString()}`;
+    const scope = organizationScope(organizationId);
 
     let title = 'Monthly client report';
     let body = `# Monthly client report\n\n${facts}\n\nUse this as the agency summary until AI is configured.`;
     if (isClaudeConfigured()) {
       try {
         const written = await askClaude({
-          organizationId,
+          scope,
           feature: 'client-report',
           schema: ReportFormat,
           task: 'Write a short monthly client report in plain markdown. Use only the numbers in the input. Do not invent metrics.',
@@ -292,7 +293,7 @@ export const reportService = {
         console.error('[reports] body generation failed', error);
       }
     }
-    const narrative = await writeNarrative(organizationId, facts);
+    const narrative = await writeNarrative(scope, facts);
 
     const row = await prisma.socialClientReport.create({
       data: { organizationId, title, periodStart, periodEnd, body, narrative },
@@ -426,7 +427,7 @@ export const reportService = {
     if (isClaudeConfigured()) {
       try {
         const written = await askClaude({
-          organizationId,
+          scope,
           feature: 'client-report',
           schema: ReportFormat,
           task: 'Write a short monthly client report in plain prose (no markdown headings). Use only the numbers in the input. Do not invent metrics.',
@@ -439,7 +440,7 @@ export const reportService = {
         console.error('[reports] body generation failed', error);
       }
     }
-    const narrative = await writeNarrative(organizationId, facts);
+    const narrative = await writeNarrative(scope, facts);
 
     const { renderMonthlyClientReport } = await import('./report-pdf');
     const pdfBuffer = await renderMonthlyClientReport({
