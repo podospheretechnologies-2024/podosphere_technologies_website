@@ -1,12 +1,24 @@
 import { redirect } from 'next/navigation';
 import { adminService } from '@/modules/admin/server/admin.service';
 import { ImpersonateOwnerButton } from '@/modules/admin/components/impersonate-owner-button';
-import { HttpError } from '@/shared/server/http-error';
+import { getCurrentUser } from '@/modules/auth/server/session';
 
 export const metadata = { title: 'Platform Health | PodoSphere' };
 
-/** Platform admin UI. Layout gates auth; page also catches 401 so a stale build cannot 500. */
+function httpStatus(error: unknown): number | null {
+  if (typeof error === 'object' && error !== null && 'status' in error) {
+    const status = (error as { status: unknown }).status;
+    return typeof status === 'number' ? status : null;
+  }
+  return null;
+}
+
+/** Platform admin UI. Layout + page both soft-redirect (no thrown 401 → 500). */
 export default async function SuperAdminPage() {
+  const user = await getCurrentUser();
+  if (!user) redirect('/login');
+  if (!user.isPlatformAdmin) redirect('/dashboard');
+
   let organizations;
   let syncFails;
   let aiUsage;
@@ -17,12 +29,9 @@ export default async function SuperAdminPage() {
       adminService.getAiUsage(),
     ]);
   } catch (error) {
-    if (error instanceof HttpError && error.status === 401) {
-      redirect('/login');
-    }
-    if (error instanceof HttpError && error.status === 404) {
-      redirect('/dashboard');
-    }
+    const status = httpStatus(error);
+    if (status === 401) redirect('/login');
+    if (status === 403 || status === 404) redirect('/dashboard');
     throw error;
   }
 

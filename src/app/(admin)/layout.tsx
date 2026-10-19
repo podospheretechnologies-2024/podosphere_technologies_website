@@ -1,20 +1,18 @@
 import { redirect } from 'next/navigation';
 import type { ReactNode } from 'react';
-import { getAccess } from '@/shared/server/access';
-import { HttpError } from '@/shared/server/http-error';
+import { getCurrentUser } from '@/modules/auth/server/session';
 
-/** Auth gate for platform admin. Mirrors dashboard: 401 → login, not a 500 page. */
+/**
+ * Platform-admin gate. Uses getCurrentUser (null) instead of getAccess (throws)
+ * so unauthenticated visits redirect to /login instead of a 500 page.
+ */
 export default async function AdminLayout({ children }: { children: ReactNode }) {
-  try {
-    const ctx = await getAccess();
-    if (!ctx.isPlatformAdmin) {
-      redirect('/dashboard');
-    }
-  } catch (error) {
-    if (error instanceof HttpError && error.status === 401) {
-      redirect('/login');
-    }
-    throw error;
+  const user = await getCurrentUser();
+  if (!user) {
+    redirect('/login');
+  }
+  if (!user.isPlatformAdmin) {
+    redirect('/dashboard');
   }
 
   return children;
