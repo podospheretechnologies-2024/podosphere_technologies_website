@@ -26,6 +26,9 @@ mkdir -p .next
 cp -a deploy/standalone/.next/. .next/
 echo "BUILD_ID=$(cat .next/BUILD_ID)"
 
+echo "==> shim Turbopack hashed Prisma package → @prisma/client"
+node scripts/link-turbopack-prisma-shim.mjs
+
 echo "==> restart pm2"
 pm2 delete podo-social-web 2>/dev/null || true
 pm2 delete podo-social-worker 2>/dev/null || true
