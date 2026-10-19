@@ -1009,7 +1009,8 @@ export async function startAnalyticsWorker(): Promise<{ close(): Promise<void> }
     .add(
       ANALYTICS_JOB.backfill,
       {} satisfies BackfillJobData,
-      { jobId: 'meta.backfill:scan', removeOnComplete: true, removeOnFail: true }
+      // BullMQ rejects custom ids that contain `:`.
+      { jobId: 'meta.backfill-scan', removeOnComplete: true, removeOnFail: true }
     )
     .catch((error) => {
       // Duplicate jobId while a prior scan is still queued/active is expected on restart.

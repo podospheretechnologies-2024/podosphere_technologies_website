@@ -9,7 +9,7 @@ R.c("server/chunks/ssr/1q8-_next_dist_client_components_builtin_forbidden_1j_kig
 R.c("server/chunks/ssr/1q8-_next_dist_client_components_builtin_unauthorized_015stkh.js")
 R.c("server/chunks/ssr/1q8-_next_dist_client_components_builtin_global-error_10pzi_3.js")
 R.c("server/chunks/ssr/[root-of-the-server]__0-bl-1y._.js")
-R.c("server/chunks/ssr/[root-of-the-server]__0_2cb34._.js")
+R.c("server/chunks/ssr/[root-of-the-server]__1_5kxs1._.js")
 R.c("server/chunks/ssr/_0-whjbm._.js")
 R.c("server/chunks/ssr/1q8-_next_dist_0k_-qud._.js")
 R.c("server/chunks/ssr/_07xd0te._.js")

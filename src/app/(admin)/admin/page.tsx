@@ -1,20 +1,35 @@
+import { redirect } from 'next/navigation';
 import { adminService } from '@/modules/admin/server/admin.service';
 import { ImpersonateOwnerButton } from '@/modules/admin/components/impersonate-owner-button';
+import { HttpError } from '@/shared/server/http-error';
 
 export const metadata = { title: 'Platform Health | PodoSphere' };
 
-/** Platform admin UI. Auth + isPlatformAdmin gate live in `(admin)/layout.tsx`. */
+/** Platform admin UI. Layout gates auth; page also catches 401 so a stale build cannot 500. */
 export default async function SuperAdminPage() {
-  const [organizations, syncFails, aiUsage] = await Promise.all([
-    adminService.listOrganizations(),
-    adminService.getSyncHealth(),
-    adminService.getAiUsage(),
-  ]);
+  let organizations;
+  let syncFails;
+  let aiUsage;
+  try {
+    [organizations, syncFails, aiUsage] = await Promise.all([
+      adminService.listOrganizations(),
+      adminService.getSyncHealth(),
+      adminService.getAiUsage(),
+    ]);
+  } catch (error) {
+    if (error instanceof HttpError && error.status === 401) {
+      redirect('/login');
+    }
+    if (error instanceof HttpError && error.status === 404) {
+      redirect('/dashboard');
+    }
+    throw error;
+  }
 
   return (
     <div className="max-w-7xl mx-auto py-8 px-6">
       <h1 className="text-3xl font-bold mb-8 text-gray-900 tracking-tight">Super Admin Platform</h1>
-      
+
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
           <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-2">Total Agencies</h2>
