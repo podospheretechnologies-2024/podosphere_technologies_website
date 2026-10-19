@@ -1161,10 +1161,10 @@ model SocialWhatsAppAutoReply {
   updatedAt      DateTime  @updatedAt
   deletedAt      DateTime?
 
-  organization Organization    @relation(fields: [organizationId], references: [id])
-  customer     SocialCustomer? @relation(fields: [customerId], references: [id])
+  organization Organization    @relation(fields: [organizationId], references: [id], map: "swa_auto_replies_organizationId_fkey")
+  customer     SocialCustomer? @relation(fields: [customerId], references: [id], map: "swa_auto_replies_customerId_fkey")
 
-  @@index([organizationId, customerId, active])
-  @@index([organizationId, priority])
+  @@index([organizationId, customerId, active], map: "swa_auto_replies_org_cust_active_idx")
+  @@index([organizationId, priority], map: "swa_auto_replies_org_priority_idx")
   @@map("social_whatsapp_auto_replies")
 }

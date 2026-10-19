@@ -27,18 +27,19 @@ CREATE TABLE `social_whatsapp_auto_replies` (
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
-CREATE INDEX `social_whatsapp_auto_replies_organizationId_customerId_active_idx`
+-- MySQL identifier limit is 64 chars; Prisma's default composite name is 65.
+CREATE INDEX `swa_auto_replies_org_cust_active_idx`
   ON `social_whatsapp_auto_replies`(`organizationId`, `customerId`, `active`);
 
-CREATE INDEX `social_whatsapp_auto_replies_organizationId_priority_idx`
+CREATE INDEX `swa_auto_replies_org_priority_idx`
   ON `social_whatsapp_auto_replies`(`organizationId`, `priority`);
 
 ALTER TABLE `social_whatsapp_auto_replies`
-  ADD CONSTRAINT `social_whatsapp_auto_replies_organizationId_fkey`
+  ADD CONSTRAINT `swa_auto_replies_organizationId_fkey`
   FOREIGN KEY (`organizationId`) REFERENCES `organizations`(`id`)
   ON DELETE RESTRICT ON UPDATE CASCADE;
 
 ALTER TABLE `social_whatsapp_auto_replies`
-  ADD CONSTRAINT `social_whatsapp_auto_replies_customerId_fkey`
+  ADD CONSTRAINT `swa_auto_replies_customerId_fkey`
   FOREIGN KEY (`customerId`) REFERENCES `social_customers`(`id`)
   ON DELETE SET NULL ON UPDATE CASCADE;
