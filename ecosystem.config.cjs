@@ -1,23 +1,24 @@
 // pm2 process file for production. Start everything with:
 //   pm2 start ecosystem.config.cjs && pm2 save
-// Secrets: web loads repo-root `.env` via scripts/run-standalone-web.cjs;
-// the worker inherits cwd + dotenv from the app (same folder).
+// Secrets live in repo-root `.env` (cwd below).
+//
+// Web uses `next start` against the server's local `.next` OR a Linux-built
+// standalone (see scripts/build-standalone-linux.sh). Do NOT run a Windows-packed
+// standalone on Ubuntu — native deps (sharp) will crash and nginx returns 502.
 
 module.exports = {
   apps: [
     {
-      // Packed Next standalone server (avoids `next start` + output:standalone warning).
       name: 'podo-social-web',
       namespace: 'podo-social',
       cwd: __dirname,
-      script: 'scripts/run-standalone-web.cjs',
+      // Emergency-stable entry used historically on the 2GB host.
+      // Warning about standalone is harmless; site stays up on :3100.
+      script: 'node_modules/next/dist/bin/next',
+      args: 'start -p 3100',
       exec_mode: 'fork',
       instances: 1,
-      env: {
-        NODE_ENV: 'production',
-        PORT: '3100',
-        HOSTNAME: '0.0.0.0',
-      },
+      env: { NODE_ENV: 'production' },
       max_memory_restart: '700M',
       time: true,
       merge_logs: true,
@@ -25,7 +26,6 @@ module.exports = {
       error_file: `${process.env.HOME}/.pm2/logs/podo-social-web.error.log`,
     },
     {
-      // Background jobs (BullMQ): publishing scheduled posts, token refresh, RSS autoposts.
       name: 'podo-social-worker',
       namespace: 'podo-social',
       cwd: __dirname,
@@ -35,7 +35,6 @@ module.exports = {
       instances: 1,
       env: { NODE_ENV: 'production' },
       max_memory_restart: '400M',
-      // Lets the worker finish its current job on restart (it closes queues on SIGINT).
       kill_timeout: 15000,
       time: true,
       merge_logs: true,

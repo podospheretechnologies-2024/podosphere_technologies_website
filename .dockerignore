@@ -1,0 +1,13 @@
+node_modules
+.next
+deploy/standalone
+.git
+backups
+uploads
+*.md
+.env
+.env.*
+!.env.example
+coverage
+.cursor
+agent-transcripts

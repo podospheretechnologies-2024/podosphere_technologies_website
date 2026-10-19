@@ -16,9 +16,13 @@
 
 ## Still pending (ops — not code)
 
-- [ ] **Pull `main` on the server** (standalone already packed locally — no build on 2GB host)
-- [ ] **`pm2 delete podo-social-web && pm2 start ecosystem.config.cjs && pm2 save`** once to leave `next start`
-- [ ] `pnpm install` + `pnpm db:deploy` if needed (no `pnpm build`)
+- [ ] **502 recovery on server** (do this now):
+  ```bash
+  cd /var/www/podo-social && bash scripts/server-recover-502.sh
+  ```
+  Or: `git pull` → copy `deploy/standalone/.next` → `.next` → `pm2 start ecosystem.config.cjs`
+- [ ] Do **not** run Windows `deploy/standalone/server.js` on Ubuntu (sharp crash → 502)
+- [ ] After up: open `/login` then `/admin`
 - [ ] Reconnect channels marked `refreshNeeded` (dashboard → Channels)
 - [ ] Siyara Beauty ad account in Meta BM (`Invalid parameter`)
 - [ ] Meta App Review + webhooks + env (Resend / Razorpay plans / AI)
