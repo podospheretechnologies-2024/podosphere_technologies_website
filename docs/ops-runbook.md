@@ -27,6 +27,28 @@ pnpm worker
 
 If `/api/health/ready` shows growing `waiting` / `delayed` counts, check that the worker process is alive and Redis is reachable.
 
+## Production web entry (standalone)
+
+`next.config` uses `output: "standalone"`. PM2 must **not** run `next start`.
+
+```bash
+pnpm build:deploy                          # packs deploy/standalone
+pnpm start:standalone                      # or: pm2 start ecosystem.config.cjs
+# ecosystem → scripts/run-standalone-web.cjs (loads repo-root .env, PORT=3100)
+```
+
+After pull, if `podo-social-web` was still on `next start`, once run:
+
+```bash
+pm2 delete podo-social-web
+pm2 start ecosystem.config.cjs
+pm2 save
+```
+
+## `/admin` access
+
+Unauthenticated visits redirect to `/login`. After login, the user needs `users.isPlatformAdmin = true` or they are sent to `/dashboard`.
+
 ## Backup
 
 ```bash

@@ -72,6 +72,14 @@
       "namedRegex": "^/api/social/ads/accounts/(?<nxtPid>[^/]+?)/token(?:/)?$"
     },
     {
+      "page": "/api/social/ads/google/accounts/[id]",
+      "regex": "^/api/social/ads/google/accounts/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/social/ads/google/accounts/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
       "page": "/api/social/ai/actions/[id]/approve",
       "regex": "^/api/social/ai/actions/([^/]+?)/approve(?:/)?$",
       "routeKeys": {
@@ -498,6 +506,30 @@
       "regex": "^/api/social/ads/creative\\-helper(?:/)?$",
       "routeKeys": {},
       "namedRegex": "^/api/social/ads/creative\\-helper(?:/)?$"
+    },
+    {
+      "page": "/api/social/ads/google",
+      "regex": "^/api/social/ads/google(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/social/ads/google(?:/)?$"
+    },
+    {
+      "page": "/api/social/ads/google/callback",
+      "regex": "^/api/social/ads/google/callback(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/social/ads/google/callback(?:/)?$"
+    },
+    {
+      "page": "/api/social/ads/google/connect",
+      "regex": "^/api/social/ads/google/connect(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/social/ads/google/connect(?:/)?$"
+    },
+    {
+      "page": "/api/social/ads/google/sync",
+      "regex": "^/api/social/ads/google/sync(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/social/ads/google/sync(?:/)?$"
     },
     {
       "page": "/api/social/ai",

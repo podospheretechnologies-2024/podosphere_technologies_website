@@ -1,16 +1,10 @@
-import { getAccess } from '@/shared/server/access';
 import { adminService } from '@/modules/admin/server/admin.service';
 import { ImpersonateOwnerButton } from '@/modules/admin/components/impersonate-owner-button';
-import { redirect } from 'next/navigation';
 
 export const metadata = { title: 'Platform Health | PodoSphere' };
 
+/** Platform admin UI. Auth + isPlatformAdmin gate live in `(admin)/layout.tsx`. */
 export default async function SuperAdminPage() {
-  const ctx = await getAccess();
-  if (!ctx.isPlatformAdmin) {
-    redirect('/dashboard');
-  }
-
   const [organizations, syncFails, aiUsage] = await Promise.all([
     adminService.listOrganizations(),
     adminService.getSyncHealth(),

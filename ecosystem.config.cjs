@@ -1,19 +1,23 @@
 // pm2 process file for production. Start everything with:
 //   pm2 start ecosystem.config.cjs && pm2 save
-// Secrets are not set here: Next.js and the worker both read `.env` from this folder.
+// Secrets: web loads repo-root `.env` via scripts/run-standalone-web.cjs;
+// the worker inherits cwd + dotenv from the app (same folder).
 
 module.exports = {
   apps: [
     {
-      // Next.js server: frontend pages + backend API routes (/api/*).
+      // Packed Next standalone server (avoids `next start` + output:standalone warning).
       name: 'podo-social-web',
       namespace: 'podo-social',
       cwd: __dirname,
-      script: 'node_modules/next/dist/bin/next',
-      args: 'start -p 3100',
+      script: 'scripts/run-standalone-web.cjs',
       exec_mode: 'fork',
       instances: 1,
-      env: { NODE_ENV: 'production' },
+      env: {
+        NODE_ENV: 'production',
+        PORT: '3100',
+        HOSTNAME: '0.0.0.0',
+      },
       max_memory_restart: '700M',
       time: true,
       merge_logs: true,

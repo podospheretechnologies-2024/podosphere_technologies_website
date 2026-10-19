@@ -31,5 +31,12 @@ if (existsSync(publicSrc)) {
   cpSync(publicSrc, join(outDir, 'public'), { recursive: true });
 }
 
-console.log('Packed deploy/standalone — start with: node deploy/standalone/server.js');
-console.log('Set PORT / HOSTNAME / APP_URL in the process environment as needed.');
+// Never ship secrets inside the pack (Next may leave a local .env beside server.js).
+const packedEnv = join(outDir, '.env');
+if (existsSync(packedEnv)) {
+  rmSync(packedEnv, { force: true });
+}
+
+console.log('Packed deploy/standalone — start with: pnpm start:standalone');
+console.log('(or: node scripts/run-standalone-web.cjs — loads repo-root .env, PORT default 3100)');
+console.log('PM2: pm2 start ecosystem.config.cjs');

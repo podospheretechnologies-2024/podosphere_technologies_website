@@ -1,6 +1,6 @@
 # Podo Social — Status (done vs pending)
 
-> **Updated 18 Oct 2026 (evening).** Source of truth for ship status after the multi-agent wave.
+> **Updated 19 Oct 2026.** Source of truth for ship status after the multi-agent wave + prod hardening.
 > Older narrative plans (`PODO_SOCIAL.md`, `PODO_SOCIAL_CLIENT_PLAN.md`) may still describe historical gaps — prefer **this file** + `PENDING_CHANGES.md`.
 > Read `AGENTS.md` before writing code (Next.js 16).
 
@@ -12,12 +12,12 @@ Legend: ✅ done in working tree · 🟡 partial / needs ops · ❌ not started 
 
 | Check | Result |
 |---|---|
-| `tsc --noEmit` | ✅ |
-| `vitest run` | ✅ 7 files / **68** tests |
-| `prisma validate` | ✅ |
+| Feature wave on `main` | ✅ committed (`cc64eae` + follow-ups) |
+| `/admin` unauthenticated | ✅ layout redirects to `/login` (was 500) |
+| PM2 web entry | ✅ `scripts/run-standalone-web.cjs` (no `next start` warning) |
 | Migrations | **41** (latest `20261018194000_ai_copilot_agent`) |
-| Git | Working tree **dirty** — wave not committed |
-| `deploy/standalone/` | 🟡 still in history on `main` (see §4) |
+| `deploy/standalone/` | 🟡 rebuild/pack after this pass before prod sees admin layout |
+| Live tokens / Meta | 🟡 reconnect `refreshNeeded` channels; fix Siyara BM account |
 
 ---
 
@@ -130,12 +130,13 @@ Legend: ✅ done in working tree · 🟡 partial / needs ops · ❌ not started 
 | 🔴 | Token scopes: `read_insights`, `instagram_manage_*`, `pages_manage_engagement`, messaging scopes | Dev |
 | 🔴 | App settings: data-deletion URL, support URL, verify contact email; BM 2FA + domain | Founder |
 | 🟠 | Subscribe Page + IG webhooks → `/api/webhooks/meta` on prod | Dev |
-| 🟠 | Staging/prod: `pnpm db:deploy` → `pnpm db:backfill-clients --apply` → deploy **app + worker** | Dev |
+| 🟠 | Staging/prod: `pnpm db:deploy` → `pnpm db:backfill-clients --apply` → `pnpm build:deploy` → **pm2 reload** (standalone entry) | Dev |
 | 🟠 | Env: `RESEND_API_KEY`, Razorpay + `RAZORPAY_PLAN_*`, AI keys, Pinterest, Threads | Dev |
+| 🟠 | Reconnect integrations marked `refreshNeeded`; fix Siyara Beauty Meta ad account | Founder / Dev |
 | 🟠 | Real WhatsApp templates (beyond `hello_world`); Tech Provider | Founder |
 | 🟠 | Monitoring + **tested** restore | Dev |
 | 🟡 | Pricing / packaging; pilots | Founder |
-| 🟡 | **Commit** this wave | Dev |
+| 🟡 | Commit + ship this hardening pass (`/admin` layout + ecosystem standalone) | Dev |
 
 See also: `docs/META_APP_REVIEW.md`, `docs/ops-runbook.md`.
 

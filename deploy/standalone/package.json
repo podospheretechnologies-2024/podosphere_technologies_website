@@ -7,7 +7,7 @@
     "build": "next build",
     "build:deploy": "pnpm build && node scripts/pack-standalone.mjs",
     "start": "next start",
-    "start:standalone": "node deploy/standalone/server.js",
+    "start:standalone": "node scripts/run-standalone-web.cjs",
     "worker": "tsx --conditions=react-server src/worker/index.ts",
     "lint": "eslint",
     "typecheck": "next typegen && tsc --noEmit",

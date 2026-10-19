@@ -107,8 +107,10 @@ Both processes are defined in `ecosystem.config.cjs` under the pm2 namespace `po
 
 | pm2 name | What it is | Logs |
 |---|---|---|
-| `podo-social-web` | Next.js: frontend pages + backend API (`/api/*`) on port 3100 | `~/.pm2/logs/podo-social-web.{out,error}.log` |
+| `podo-social-web` | Packed standalone server (`scripts/run-standalone-web.cjs` → `deploy/standalone/server.js`) on port 3100 | `~/.pm2/logs/podo-social-web.{out,error}.log` |
 | `podo-social-worker` | Background jobs: scheduled publishing, token refresh, RSS autoposts | `~/.pm2/logs/podo-social-worker.{out,error}.log` |
+
+Do **not** use `next start` in production when `output: "standalone"` is set — that only prints a warning and is not the intended entrypoint.
 
 ```bash
 pm2 start ecosystem.config.cjs && pm2 save   # first time
@@ -126,11 +128,15 @@ cd /var/www/podo-social
 git pull
 pnpm install
 pnpm db:deploy                                   # apply new migrations (safe to run every time)
-NODE_OPTIONS="--max-old-space-size=1536" pnpm build
-pm2 reload ecosystem.config.cjs                  # restarts web + worker with the new code
+# Prefer a CI/laptop `pnpm build:deploy` commit, or build on a machine with enough RAM:
+NODE_OPTIONS="--max-old-space-size=1536" pnpm build:deploy
+pm2 delete podo-social-web 2>/dev/null || true   # once: drop old `next start` process
+pm2 start ecosystem.config.cjs                   # or: pm2 reload ecosystem.config.cjs
+pm2 save
 ```
 
 After changing `.env`, restart with `pm2 restart podo-social --update-env`.
 
 Production runs behind nginx at `https://social.podospheretechnologies.com` → `127.0.0.1:3100`.
 Secrets live only in `/var/www/podo-social/.env` on the server and are never committed.
+`run-standalone-web.cjs` loads that `.env` before starting the packed server.
