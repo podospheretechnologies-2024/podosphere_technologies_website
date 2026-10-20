@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { MarketplaceOverviewPanel, MarketplaceSamplePanel } from '@/modules/admin/components/marketplace-ads-dashboard';
 import { padMarketplaceClients, type MarketplaceId } from '@/modules/admin/data/marketplace-ads.sample';
 import { EmptyState } from '@/shared/components/ui/empty-state';
@@ -191,10 +191,22 @@ const ADMIN_SAMPLE_PLATFORMS: { value: AdsPlatform; label: string }[] = [
   { value: 'amazon', label: 'Amazon' },
 ];
 
-const SAMPLE_CLIENTS = padMarketplaceClients([]);
-
 export function AdsDashboard({ isPlatformAdmin = false }: { isPlatformAdmin?: boolean }) {
   const [platform, setPlatform] = useState<AdsPlatform>('meta');
+  const accountsQuery = useAdAccounts();
+  // Client names come from the connected Meta ad accounts (Kabira, Siyara, Himshakti, …).
+  const marketplaceClients = useMemo(
+    () =>
+      padMarketplaceClients(
+        (accountsQuery.data?.accounts ?? []).map((account) => ({
+          id: account.id,
+          name: account.name,
+          organizationName: 'Meta ad account',
+          isDemo: false,
+        })),
+      ),
+    [accountsQuery.data],
+  );
   const platforms = isPlatformAdmin
     ? [ADMIN_DASHBOARD_TAB, ...BASE_PLATFORMS, ...ADMIN_SAMPLE_PLATFORMS]
     : BASE_PLATFORMS;
@@ -232,17 +244,17 @@ export function AdsDashboard({ isPlatformAdmin = false }: { isPlatformAdmin?: bo
       </div>
       <div className="p-5">
         {platform === 'dashboard' ? (
-          <MarketplaceOverviewPanel clients={SAMPLE_CLIENTS} onSelectPlatform={setPlatform} />
+          <MarketplaceOverviewPanel clients={marketplaceClients} onSelectPlatform={setPlatform} />
         ) : platform === 'meta' ? (
           <MetaAdsDashboard />
         ) : platform === 'google' ? (
           isPlatformAdmin ? (
-            <MarketplaceSamplePanel marketplace="google" clients={SAMPLE_CLIENTS} />
+            <MarketplaceSamplePanel marketplace="google" clients={marketplaceClients} />
           ) : (
             <GoogleAdsPanel />
           )
         ) : (
-          <MarketplaceSamplePanel marketplace={platform} clients={SAMPLE_CLIENTS} />
+          <MarketplaceSamplePanel marketplace={platform} clients={marketplaceClients} />
         )}
       </div>
     </div>

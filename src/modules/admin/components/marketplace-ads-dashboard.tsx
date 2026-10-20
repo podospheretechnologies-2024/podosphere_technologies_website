@@ -39,6 +39,8 @@ function formatMoney(value: number) {
 function statusClass(status: MarketplaceCampaign['status']) {
   if (status === 'LIVE') return 'bg-emerald-50 text-emerald-700 border-emerald-200';
   if (status === 'LEARNING') return 'bg-sky-50 text-sky-700 border-sky-200';
+  if (status === 'DRAFT') return 'bg-amber-50 text-amber-700 border-amber-200';
+  if (status === 'ENDED') return 'bg-slate-100 text-slate-500 border-slate-200';
   return 'bg-gray-100 text-gray-600 border-gray-200';
 }
 
@@ -93,9 +95,15 @@ function Kpi({ label, value }: { label: string; value: string }) {
   );
 }
 
+function statusLabel(status: MarketplaceCampaign['status']) {
+  return status.charAt(0) + status.slice(1).toLowerCase();
+}
+
 function meeshoStatusLabel(status: MarketplaceCampaign['status']) {
   if (status === 'LIVE') return 'Live';
   if (status === 'LEARNING') return 'Learning';
+  if (status === 'DRAFT') return 'Draft';
+  if (status === 'ENDED') return 'Ended';
   return 'Paused';
 }
 
@@ -275,7 +283,7 @@ function CampaignTable({
                 <span
                   className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-semibold ${statusClass(row.status)}`}
                 >
-                  {row.status}
+                  {statusLabel(row.status)}
                 </span>
               </td>
               <td className="whitespace-nowrap px-4 py-3 text-gray-600">{row.budgetLabel}</td>
@@ -451,13 +459,24 @@ export function MarketplaceSamplePanel({
   marketplace: Exclude<MarketplaceId, 'meta'>;
   clients: MarketplaceClientOption[];
 }) {
-  const [clientId, setClientId] = useState(clients[0]?.id ?? '');
+  const [pickedId, setClientId] = useState(clients[0]?.id ?? '');
+  const clientId = clients.some((item) => item.id === pickedId) ? pickedId : (clients[0]?.id ?? '');
+  const [statusFilter, setStatusFilter] = useState<'ALL' | MarketplaceCampaign['status']>('ALL');
   const slot = Math.max(
     clients.findIndex((client) => client.id === clientId),
     0,
   );
   const client = clients[slot];
-  const snapshot = snapshotFor(slot, marketplace);
+  const full = snapshotFor(slot, marketplace);
+  const statusCounts = full.campaigns.reduce<Partial<Record<MarketplaceCampaign['status'], number>>>(
+    (counts, row) => ({ ...counts, [row.status]: (counts[row.status] ?? 0) + 1 }),
+    {},
+  );
+  const activeFilter = statusFilter !== 'ALL' && statusCounts[statusFilter] ? statusFilter : 'ALL';
+  const snapshot = {
+    ...full,
+    campaigns: activeFilter === 'ALL' ? full.campaigns : full.campaigns.filter((row) => row.status === activeFilter),
+  };
   const rows = snapshot.campaigns.map((campaign) => ({ ...campaign, marketplace }));
 
   return (
@@ -477,6 +496,26 @@ export function MarketplaceSamplePanel({
             {item.name}
           </button>
         ))}
+      </div>
+
+      <div className="mb-4 flex flex-wrap gap-2">
+        {(['ALL', 'LIVE', 'LEARNING', 'PAUSED', 'DRAFT', 'ENDED'] as const)
+          .filter((status) => status === 'ALL' || statusCounts[status])
+          .map((status) => (
+            <button
+              key={status}
+              type="button"
+              onClick={() => setStatusFilter(status)}
+              className={`rounded-full border px-3 py-1 text-xs font-semibold ${
+                activeFilter === status
+                  ? 'border-gray-900 bg-gray-900 text-white'
+                  : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              {status === 'ALL' ? 'All' : statusLabel(status)} (
+              {status === 'ALL' ? full.campaigns.length : statusCounts[status]})
+            </button>
+          ))}
       </div>
 
       {marketplace === 'meesho' ? (
@@ -531,7 +570,8 @@ export function MarketplaceOverviewPanel({
   clients: MarketplaceClientOption[];
   onSelectPlatform: (marketplace: MarketplaceId) => void;
 }) {
-  const [clientId, setClientId] = useState(clients[0]?.id ?? '');
+  const [pickedId, setClientId] = useState(clients[0]?.id ?? '');
+  const clientId = clients.some((item) => item.id === pickedId) ? pickedId : (clients[0]?.id ?? '');
   const slot = Math.max(
     clients.findIndex((client) => client.id === clientId),
     0,
