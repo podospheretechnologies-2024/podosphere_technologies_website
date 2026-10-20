@@ -26,6 +26,7 @@ import type { CaptionTonePresetId } from '../../server/ai/presets';
 import type { PostMedia } from '../../types/post';
 import { MediaPicker } from '../posts/composer/media-picker';
 import { PostComposer, type ComposerInitialItem } from '../posts/composer/post-composer';
+import { useWorkspaceRole } from '../shell/workspace-role-context';
 import { CaptionTonePicker } from './caption-tone-picker';
 import { UpcomingOccasions, type OccasionSeed } from './upcoming-occasions';
 
@@ -110,6 +111,7 @@ function MessageActions({ onCopy, onRetry }: { onCopy: () => void; onRetry?: () 
 }
 
 export function AiStudio() {
+  const { canManageCampaigns } = useWorkspaceRole();
   const { data: status, error: statusError } = useAiStatus();
   const configured = status?.configured ?? false;
   const [input, setInput] = useState('');
@@ -131,6 +133,9 @@ export function AiStudio() {
   }
 
   function openComposer(items: ComposerInitialItem[]) {
+    if (!canManageCampaigns) {
+      return;
+    }
     setComposer({ open: true, items });
   }
 
@@ -395,20 +400,26 @@ export function AiStudio() {
                       {post}
                     </div>
                   ))}
-                  <Button
-                    size="sm"
-                    className="mt-1"
-                    onClick={() =>
-                      openComposer(
-                        message.posts!.map((content, index) => ({
-                          content,
-                          media: index === 0 ? (message.media ?? []) : [],
-                        }))
-                      )
-                    }
-                  >
-                    Open in Create Post
-                  </Button>
+                  {canManageCampaigns ? (
+                    <Button
+                      size="sm"
+                      className="mt-1"
+                      onClick={() =>
+                        openComposer(
+                          message.posts!.map((content, index) => ({
+                            content,
+                            media: index === 0 ? (message.media ?? []) : [],
+                          }))
+                        )
+                      }
+                    >
+                      Open in Create Post
+                    </Button>
+                  ) : (
+                    <p className="text-muted-foreground mt-1 text-xs">
+                      Only workspace admins can open this in Create Post.
+                    </p>
+                  )}
                 </div>
               )}
             </div>
@@ -537,16 +548,18 @@ export function AiStudio() {
         }
       />
 
-      <PostComposer
-        open={composer.open}
-        group={null}
-        initialItems={composer.open ? composer.items : undefined}
-        onClose={() => setComposer({ open: false })}
-        onSaved={() => {
-          setComposer({ open: false });
-          void revalidatePosts();
-        }}
-      />
+      {canManageCampaigns ? (
+        <PostComposer
+          open={composer.open}
+          group={null}
+          initialItems={composer.open ? composer.items : undefined}
+          onClose={() => setComposer({ open: false })}
+          onSaved={() => {
+            setComposer({ open: false });
+            void revalidatePosts();
+          }}
+        />
+      ) : null}
       </div>
 
       <UpcomingOccasions

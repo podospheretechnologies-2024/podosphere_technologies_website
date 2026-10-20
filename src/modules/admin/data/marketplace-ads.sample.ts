@@ -1,0 +1,686 @@
+export const MARKETPLACES = ['blinkit', 'meesho', 'flipkart', 'amazon'] as const;
+export type MarketplaceId = (typeof MARKETPLACES)[number];
+
+export const MARKETPLACE_CLIENT_SLOTS = 3;
+
+export type CampaignStatus = 'LIVE' | 'PAUSED' | 'LEARNING';
+
+export type MarketplaceCampaign = {
+  id: string;
+  name: string;
+  type: string;
+  status: CampaignStatus;
+  duration: string;
+  budgetLabel: string;
+  spend: number;
+  impressions: number;
+  clicks: number;
+  orders: number;
+  revenue: number;
+  roas: number;
+  action?: string;
+};
+
+export type MarketplaceSnapshot = {
+  wallet: number;
+  kpis: {
+    spend: number;
+    revenue: number;
+    roas: number;
+    impressions: number;
+    clicks: number;
+    orders: number;
+  };
+  extras: { label: string; value: string }[];
+  trend: number[];
+  campaigns: MarketplaceCampaign[];
+};
+
+export type MarketplaceClientOption = {
+  id: string;
+  name: string;
+  organizationName: string;
+  isDemo: boolean;
+};
+
+export const MARKETPLACE_META: Record<MarketplaceId, { label: string; pill: string }> = {
+  blinkit: {
+    label: 'Blinkit',
+    pill: 'bg-yellow-100 text-yellow-800 border-yellow-200',
+  },
+  meesho: {
+    label: 'Meesho',
+    pill: 'bg-pink-100 text-pink-800 border-pink-200',
+  },
+  flipkart: {
+    label: 'Flipkart',
+    pill: 'bg-blue-100 text-blue-800 border-blue-200',
+  },
+  amazon: {
+    label: 'Amazon',
+    pill: 'bg-orange-100 text-orange-800 border-orange-200',
+  },
+};
+
+/** Three client slots × four marketplaces. Mapped onto real SocialCustomer names at render. */
+export const MARKETPLACE_SAMPLE: Array<Record<MarketplaceId, MarketplaceSnapshot>> = [
+  {
+    blinkit: {
+      wallet: 779.98,
+      kpis: { spend: 121523, revenue: 0, roas: 0, impressions: 156295, clicks: 561, orders: 0 },
+      extras: [
+        { label: 'ATC', value: '0' },
+        { label: 'Active', value: '16 / 45' },
+        { label: 'QC actions', value: '0' },
+      ],
+      trend: [8, 12, 18, 22, 28, 35, 48, 80, 52, 41, 38],
+      campaigns: [
+        {
+          id: 'b1-1',
+          name: 'Atta & staples · Delhi booster',
+          type: 'Product Booster',
+          status: 'LIVE',
+          duration: '23 Sep \'26 – 30 Oct \'26',
+          budgetLabel: '₹5,000 total',
+          spend: 741,
+          impressions: 561,
+          clicks: 18,
+          orders: 0,
+          revenue: 0,
+          roas: 0,
+        },
+        {
+          id: 'b1-2',
+          name: 'Oil & ghee · NCR booster',
+          type: 'Product Booster',
+          status: 'LIVE',
+          duration: '23 Sep \'26 – 30 Oct \'26',
+          budgetLabel: '₹8,000 total',
+          spend: 2336,
+          impressions: 1931,
+          clicks: 64,
+          orders: 8,
+          revenue: 6100,
+          roas: 2.61,
+        },
+        {
+          id: 'b1-3',
+          name: 'Ready meals · Recommendation ads',
+          type: 'Recommendation Ads',
+          status: 'LIVE',
+          duration: '07 Oct \'26 – No end date',
+          budgetLabel: '₹12,000 total',
+          spend: 3486,
+          impressions: 9496,
+          clicks: 112,
+          orders: 6,
+          revenue: 1394,
+          roas: 0.4,
+        },
+      ],
+    },
+    meesho: {
+      wallet: 0,
+      kpis: { spend: 596.49, revenue: 267, roas: 0.45, impressions: 151417, clicks: 1496, orders: 1 },
+      extras: [
+        { label: 'Live', value: '4' },
+        { label: 'Avg ROI', value: '0.45' },
+        { label: 'Sale opted-in', value: '2' },
+      ],
+      trend: [4, 6, 9, 11, 14, 18, 16, 22, 19, 21, 24],
+      campaigns: [
+        {
+          id: 'm1-1',
+          name: '4987165-10/5/2026',
+          type: '1 Catalog',
+          status: 'LIVE',
+          duration: '05 Oct 2026 – No end date',
+          budgetLabel: '₹330 daily',
+          spend: 578.92,
+          impressions: 126212,
+          clicks: 1405,
+          orders: 1,
+          revenue: 267,
+          roas: 0.46,
+          action: 'Low orders — reduce ROI target',
+        },
+        {
+          id: 'm1-2',
+          name: '4987165-10/5/2026 Auto',
+          type: 'Auto Catalogs',
+          status: 'LEARNING',
+          duration: '05 Oct 2026 – Till budget lasts',
+          budgetLabel: '₹600 total',
+          spend: 0,
+          impressions: 0,
+          clicks: 0,
+          orders: 0,
+          revenue: 0,
+          roas: 0,
+        },
+        {
+          id: 'm1-3',
+          name: 'New_Catalog_Tester_28 Sep 2026',
+          type: '1 Catalog',
+          status: 'LIVE',
+          duration: '28 Sep 2026 – No end date',
+          budgetLabel: '₹100 daily',
+          spend: 13.97,
+          impressions: 21474,
+          clicks: 79,
+          orders: 0,
+          revenue: 0,
+          roas: 0,
+        },
+      ],
+    },
+    flipkart: {
+      wallet: 1302.87,
+      kpis: { spend: 3400, revenue: 4730, roas: 1.39, impressions: 45000, clicks: 406, orders: 4 },
+      extras: [
+        { label: 'CTR', value: '0.90%' },
+        { label: 'CVR', value: '0.99%' },
+        { label: 'Units sold', value: '4' },
+      ],
+      trend: [12, 14, 13, 18, 22, 20, 24, 28, 26, 30, 27],
+      campaigns: [
+        {
+          id: 'f1-1',
+          name: 'Staples PLA · keywords',
+          type: 'PLA',
+          status: 'LIVE',
+          duration: '13 Oct \'26 – Till budget ends',
+          budgetLabel: '₹300 daily',
+          spend: 1991,
+          impressions: 13807,
+          clicks: 140,
+          orders: 2,
+          revenue: 2480,
+          roas: 1.25,
+        },
+        {
+          id: 'f1-2',
+          name: 'HMB Advertisement Campaign',
+          type: 'PLA',
+          status: 'LIVE',
+          duration: '17 Sep \'25 – Till budget ends',
+          budgetLabel: '₹300 daily',
+          spend: 114,
+          impressions: 1678,
+          clicks: 19,
+          orders: 0,
+          revenue: 0,
+          roas: 0,
+        },
+        {
+          id: 'f1-3',
+          name: 'PLA_Campaign-2026-01-31',
+          type: 'PLA',
+          status: 'PAUSED',
+          duration: '31 Jan \'26 – Till budget ends',
+          budgetLabel: '₹1,000 total',
+          spend: 10,
+          impressions: 3834,
+          clicks: 14,
+          orders: 0,
+          revenue: 0,
+          roas: 0,
+        },
+      ],
+    },
+    amazon: {
+      wallet: 4200,
+      kpis: { spend: 32485.19, revenue: 38342.91, roas: 1.18, impressions: 431241, clicks: 2143, orders: 110 },
+      extras: [
+        { label: 'DPV', value: '611' },
+        { label: 'NTB purchases', value: '0' },
+        { label: 'Branded searches', value: '3' },
+      ],
+      trend: [20, 24, 22, 30, 28, 35, 40, 38, 44, 42, 48],
+      campaigns: [
+        {
+          id: 'a1-1',
+          name: 'Thise x Auto - NVeg',
+          type: 'Sponsored Products · Automatic',
+          status: 'PAUSED',
+          duration: '29 May 2026 – No end date',
+          budgetLabel: '₹40 / day',
+          spend: 8120,
+          impressions: 94000,
+          clicks: 410,
+          orders: 22,
+          revenue: 9100,
+          roas: 1.12,
+        },
+        {
+          id: 'a1-2',
+          name: 'Thise x Auto - Veg',
+          type: 'Sponsored Products · Automatic',
+          status: 'PAUSED',
+          duration: '29 May 2026 – No end date',
+          budgetLabel: '₹50 / day',
+          spend: 6400,
+          impressions: 71000,
+          clicks: 280,
+          orders: 18,
+          revenue: 7200,
+          roas: 1.13,
+        },
+        {
+          id: 'a1-3',
+          name: 'ANA_SPN_SG_Adaptive Campaign',
+          type: 'Sponsored Products · Manual',
+          status: 'LIVE',
+          duration: '8 Jul 2026 – No end date',
+          budgetLabel: '₹15 / day',
+          spend: 17965,
+          impressions: 266241,
+          clicks: 1453,
+          orders: 70,
+          revenue: 22042,
+          roas: 1.23,
+        },
+      ],
+    },
+  },
+  {
+    blinkit: {
+      wallet: 2140,
+      kpis: { spend: 18640, revenue: 41220, roas: 2.21, impressions: 88210, clicks: 1940, orders: 126 },
+      extras: [
+        { label: 'ATC', value: '214' },
+        { label: 'Active', value: '8 / 12' },
+        { label: 'Rank drop', value: '0' },
+      ],
+      trend: [10, 16, 18, 24, 30, 28, 36, 44, 40, 48, 52],
+      campaigns: [
+        {
+          id: 'b2-1',
+          name: 'Starogaze Fitblend Blender 500W · Delhi',
+          type: 'Product Booster',
+          status: 'LIVE',
+          duration: '23 Sep \'26 – 30 Oct \'26',
+          budgetLabel: '₹4,000 total',
+          spend: 2336,
+          impressions: 1931,
+          clicks: 88,
+          orders: 8,
+          revenue: 6100,
+          roas: 2.61,
+        },
+        {
+          id: 'b2-2',
+          name: 'Starogaze Fitblend · Recommendation',
+          type: 'Recommendation Ads',
+          status: 'LIVE',
+          duration: '07 Oct \'26 – No end date',
+          budgetLabel: '₹9,000 total',
+          spend: 3486,
+          impressions: 9496,
+          clicks: 210,
+          orders: 6,
+          revenue: 1394,
+          roas: 0.4,
+        },
+        {
+          id: 'b2-3',
+          name: 'Magnet Electric Chopper · Keywords',
+          type: 'Product Booster',
+          status: 'LIVE',
+          duration: '07 Oct \'26 – No end date',
+          budgetLabel: '₹15,000 total',
+          spend: 9534,
+          impressions: 6054,
+          clicks: 340,
+          orders: 10,
+          revenue: 2574,
+          roas: 0.27,
+        },
+      ],
+    },
+    meesho: {
+      wallet: 0,
+      kpis: { spend: 1820, revenue: 3940, roas: 2.16, impressions: 62400, clicks: 880, orders: 14 },
+      extras: [
+        { label: 'Live', value: '3' },
+        { label: 'Avg ROI', value: '2.16' },
+        { label: 'Paused', value: '1' },
+      ],
+      trend: [6, 8, 7, 12, 14, 18, 16, 20, 24, 22, 26],
+      campaigns: [
+        {
+          id: 'm2-1',
+          name: 'Kitchen catalog · festive',
+          type: '1 Catalog',
+          status: 'LIVE',
+          duration: '01 Oct 2026 – No end date',
+          budgetLabel: '₹250 daily',
+          spend: 1420,
+          impressions: 48100,
+          clicks: 640,
+          orders: 11,
+          revenue: 3180,
+          roas: 2.24,
+        },
+        {
+          id: 'm2-2',
+          name: 'Chopper auto catalogs',
+          type: 'Auto Catalogs',
+          status: 'LEARNING',
+          duration: '12 Oct 2026 – Till budget lasts',
+          budgetLabel: '₹400 total',
+          spend: 90,
+          impressions: 2100,
+          clicks: 28,
+          orders: 0,
+          revenue: 0,
+          roas: 0,
+        },
+        {
+          id: 'm2-3',
+          name: 'Blender listing ads',
+          type: '1 Catalog',
+          status: 'PAUSED',
+          duration: '20 Sep 2026 – No end date',
+          budgetLabel: '₹150 daily',
+          spend: 310,
+          impressions: 12200,
+          clicks: 212,
+          orders: 3,
+          revenue: 760,
+          roas: 2.45,
+        },
+      ],
+    },
+    flipkart: {
+      wallet: 860,
+      kpis: { spend: 5120, revenue: 9800, roas: 1.91, impressions: 61000, clicks: 720, orders: 18 },
+      extras: [
+        { label: 'CTR', value: '1.18%' },
+        { label: 'CVR', value: '2.50%' },
+        { label: 'Units sold', value: '18' },
+      ],
+      trend: [9, 11, 14, 13, 18, 21, 19, 24, 26, 23, 28],
+      campaigns: [
+        {
+          id: 'f2-1',
+          name: 'Fitblend PLA · bestsellers',
+          type: 'PLA',
+          status: 'LIVE',
+          duration: '04 Sep \'26 – Till budget ends',
+          budgetLabel: '₹1,000 daily',
+          spend: 3120,
+          impressions: 28000,
+          clicks: 410,
+          orders: 12,
+          revenue: 6400,
+          roas: 2.05,
+        },
+        {
+          id: 'f2-2',
+          name: 'Chopper PLA · keywords',
+          type: 'PLA',
+          status: 'LIVE',
+          duration: '12 Dec \'25 – Till budget ends',
+          budgetLabel: '₹300 daily',
+          spend: 2000,
+          impressions: 33000,
+          clicks: 310,
+          orders: 6,
+          revenue: 3400,
+          roas: 1.7,
+        },
+      ],
+    },
+    amazon: {
+      wallet: 1850,
+      kpis: { spend: 9400, revenue: 15820, roas: 1.68, impressions: 122400, clicks: 980, orders: 44 },
+      extras: [
+        { label: 'DPV', value: '1,240' },
+        { label: 'NTB purchases', value: '9' },
+        { label: 'Branded searches', value: '18' },
+      ],
+      trend: [14, 16, 18, 22, 20, 26, 30, 28, 34, 36, 32],
+      campaigns: [
+        {
+          id: 'a2-1',
+          name: 'Blender SP · exact keywords',
+          type: 'Sponsored Products · Manual',
+          status: 'LIVE',
+          duration: '01 Sep 2026 – No end date',
+          budgetLabel: '₹120 / day',
+          spend: 6400,
+          impressions: 88000,
+          clicks: 640,
+          orders: 30,
+          revenue: 11200,
+          roas: 1.75,
+        },
+        {
+          id: 'a2-2',
+          name: 'Chopper SP · auto',
+          type: 'Sponsored Products · Automatic',
+          status: 'LIVE',
+          duration: '15 Sep 2026 – No end date',
+          budgetLabel: '₹80 / day',
+          spend: 3000,
+          impressions: 34400,
+          clicks: 340,
+          orders: 14,
+          revenue: 4620,
+          roas: 1.54,
+        },
+      ],
+    },
+  },
+  {
+    blinkit: {
+      wallet: 540,
+      kpis: { spend: 4280, revenue: 9120, roas: 2.13, impressions: 33400, clicks: 510, orders: 36 },
+      extras: [
+        { label: 'ATC', value: '72' },
+        { label: 'Active', value: '4 / 6' },
+        { label: 'Under serving', value: '1' },
+      ],
+      trend: [5, 8, 7, 12, 16, 14, 18, 22, 20, 24, 26],
+      campaigns: [
+        {
+          id: 'b3-1',
+          name: 'Whey isolate · 10-min delivery',
+          type: 'Product Booster',
+          status: 'LIVE',
+          duration: '01 Oct \'26 – 31 Oct \'26',
+          budgetLabel: '₹3,000 total',
+          spend: 2680,
+          impressions: 21000,
+          clicks: 320,
+          orders: 24,
+          revenue: 6400,
+          roas: 2.39,
+        },
+        {
+          id: 'b3-2',
+          name: 'Creatine · Recommendation ads',
+          type: 'Recommendation Ads',
+          status: 'LEARNING',
+          duration: '14 Oct \'26 – No end date',
+          budgetLabel: '₹2,000 total',
+          spend: 1600,
+          impressions: 12400,
+          clicks: 190,
+          orders: 12,
+          revenue: 2720,
+          roas: 1.7,
+        },
+      ],
+    },
+    meesho: {
+      wallet: 0,
+      kpis: { spend: 980, revenue: 2140, roas: 2.18, impressions: 41000, clicks: 520, orders: 9 },
+      extras: [
+        { label: 'Live', value: '2' },
+        { label: 'Avg ROI', value: '2.18' },
+        { label: 'Recommendations', value: '1' },
+      ],
+      trend: [3, 5, 6, 8, 7, 10, 12, 11, 14, 13, 16],
+      campaigns: [
+        {
+          id: 'm3-1',
+          name: 'Gym accessories catalog',
+          type: '1 Catalog',
+          status: 'LIVE',
+          duration: '08 Oct 2026 – No end date',
+          budgetLabel: '₹180 daily',
+          spend: 720,
+          impressions: 30200,
+          clicks: 390,
+          orders: 7,
+          revenue: 1680,
+          roas: 2.33,
+        },
+        {
+          id: 'm3-2',
+          name: 'Shaker bottles · auto',
+          type: 'Auto Catalogs',
+          status: 'LIVE',
+          duration: '16 Oct 2026 – Till budget lasts',
+          budgetLabel: '₹400 total',
+          spend: 260,
+          impressions: 10800,
+          clicks: 130,
+          orders: 2,
+          revenue: 460,
+          roas: 1.77,
+        },
+      ],
+    },
+    flipkart: {
+      wallet: 1302.87,
+      kpis: { spend: 3400, revenue: 4730, roas: 1.39, impressions: 45000, clicks: 406, orders: 4 },
+      extras: [
+        { label: 'CTR', value: '0.90%' },
+        { label: 'CVR', value: '0.99%' },
+        { label: 'Units sold', value: '4' },
+      ],
+      trend: [8, 10, 12, 11, 14, 16, 18, 15, 20, 22, 19],
+      campaigns: [
+        {
+          id: 'f3-1',
+          name: 'tmg keywords ads',
+          type: 'PLA',
+          status: 'LIVE',
+          duration: '13 Oct \'26 – Till budget ends',
+          budgetLabel: '₹300 daily',
+          spend: 1991,
+          impressions: 13807,
+          clicks: 140,
+          orders: 2,
+          revenue: 2480,
+          roas: 1.25,
+        },
+        {
+          id: 'f3-2',
+          name: 'HMB Advertisement Campaign',
+          type: 'PLA',
+          status: 'LIVE',
+          duration: '17 Sep \'25 – Till budget ends',
+          budgetLabel: '₹300 daily',
+          spend: 114,
+          impressions: 1678,
+          clicks: 19,
+          orders: 0,
+          revenue: 0,
+          roas: 0,
+        },
+        {
+          id: 'f3-3',
+          name: '4september',
+          type: 'PLA',
+          status: 'PAUSED',
+          duration: '04 Sep \'25 – Till budget ends',
+          budgetLabel: '₹1,000 daily',
+          spend: 455,
+          impressions: 3987,
+          clicks: 29,
+          orders: 1,
+          revenue: 890,
+          roas: 1.96,
+        },
+        {
+          id: 'f3-4',
+          name: 'PLA_Campaign-2025-12-12',
+          type: 'PLA',
+          status: 'LIVE',
+          duration: '12 Dec \'25 – Till budget ends',
+          budgetLabel: '₹300 daily',
+          spend: 828,
+          impressions: 21663,
+          clicks: 204,
+          orders: 1,
+          revenue: 1360,
+          roas: 1.64,
+        },
+      ],
+    },
+    amazon: {
+      wallet: 980,
+      kpis: { spend: 6120, revenue: 8440, roas: 1.38, impressions: 76400, clicks: 610, orders: 22 },
+      extras: [
+        { label: 'DPV', value: '410' },
+        { label: 'NTB purchases', value: '4' },
+        { label: 'Branded searches', value: '7' },
+      ],
+      trend: [11, 13, 12, 16, 18, 17, 21, 24, 22, 26, 25],
+      campaigns: [
+        {
+          id: 'a3-1',
+          name: 'Whey SP · exact',
+          type: 'Sponsored Products · Manual',
+          status: 'LIVE',
+          duration: '01 Aug 2026 – No end date',
+          budgetLabel: '₹90 / day',
+          spend: 4480,
+          impressions: 52000,
+          clicks: 430,
+          orders: 16,
+          revenue: 6200,
+          roas: 1.38,
+        },
+        {
+          id: 'a3-2',
+          name: 'Accessories SP · auto',
+          type: 'Sponsored Products · Automatic',
+          status: 'PAUSED',
+          duration: '20 Jul 2026 – No end date',
+          budgetLabel: '₹40 / day',
+          spend: 1640,
+          impressions: 24400,
+          clicks: 180,
+          orders: 6,
+          revenue: 2240,
+          roas: 1.37,
+        },
+      ],
+    },
+  },
+];
+
+export function padMarketplaceClients(rows: MarketplaceClientOption[]): MarketplaceClientOption[] {
+  const clients = rows.slice(0, MARKETPLACE_CLIENT_SLOTS);
+  let demo = 1;
+  while (clients.length < MARKETPLACE_CLIENT_SLOTS) {
+    clients.push({
+      id: `demo-${demo}`,
+      name: `Demo Client ${clients.length + 1}`,
+      organizationName: 'Sample',
+      isDemo: true,
+    });
+    demo += 1;
+  }
+  return clients;
+}
+
+export function snapshotFor(slot: number, marketplace: MarketplaceId): MarketplaceSnapshot {
+  const index = Math.min(Math.max(slot, 0), MARKETPLACE_SAMPLE.length - 1);
+  return MARKETPLACE_SAMPLE[index][marketplace];
+}

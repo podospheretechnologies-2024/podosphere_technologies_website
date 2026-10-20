@@ -14,6 +14,8 @@ import {
   startChannelConnect,
 } from '../../lib/integrations.client';
 import type { AvailableProvider, ChannelItem } from '../../types/integration';
+import { AdminsOnlyNotice } from '../shell/admins-only-notice';
+import { useWorkspaceRole } from '../shell/workspace-role-context';
 import { AddChannelDialog } from './add-channel-dialog';
 import { ChannelCard, type ChannelAction } from './channel-card';
 import { PodoCrmWhatsAppLinkCard } from './podocrm-whatsapp-link-card';
@@ -30,6 +32,7 @@ function errorMessage(error: unknown, fallback: string): string {
 
 export function ChannelsManager({ connected, connectError }: ChannelsManagerProps) {
   const router = useRouter();
+  const { canManageCampaigns } = useWorkspaceRole();
   const { data, error, isLoading, mutate } = useChannels();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [connecting, setConnecting] = useState<string | null>(null);
@@ -106,16 +109,22 @@ export function ChannelsManager({ connected, connectError }: ChannelsManagerProp
       className: 'text-danger',
     },
   ];
-  const addButton = (
+  const addButton = canManageCampaigns ? (
     <Button onClick={() => setDialogOpen(true)} disabled={!data}>
       <Plus className="size-4" />
       Add channel
     </Button>
-  );
+  ) : null;
 
   return (
     <div className="space-y-6">
-      <PodoCrmWhatsAppLinkCard />
+      {canManageCampaigns ? <PodoCrmWhatsAppLinkCard /> : null}
+      {!canManageCampaigns ? (
+        <AdminsOnlyNotice
+          title="Channel connections are admin-only"
+          description="You can view connected channels. Only workspace owners and admins can connect, reconnect, or remove accounts."
+        />
+      ) : null}
 
       <div className="border-border bg-surface flex flex-wrap items-center gap-x-8 gap-y-3 rounded-xl border px-5 py-4 shadow-sm">
         {stats.map((stat) => (
@@ -128,7 +137,7 @@ export function ChannelsManager({ connected, connectError }: ChannelsManagerProp
             </p>
           </div>
         ))}
-        <div className="ml-auto">{addButton}</div>
+        {addButton ? <div className="ml-auto">{addButton}</div> : null}
       </div>
 
       {notice && (
@@ -178,7 +187,7 @@ export function ChannelsManager({ connected, connectError }: ChannelsManagerProp
               ))}
             </div>
           )}
-          <div className="mt-6">{addButton}</div>
+          {addButton ? <div className="mt-6">{addButton}</div> : null}
         </div>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
@@ -187,19 +196,21 @@ export function ChannelsManager({ connected, connectError }: ChannelsManagerProp
               key={channel.id}
               channel={channel}
               busy={busyId === channel.id || connecting !== null}
-              onAction={handleAction}
+              onAction={canManageCampaigns ? handleAction : undefined}
             />
           ))}
         </div>
       )}
 
-      <AddChannelDialog
-        open={dialogOpen}
-        providers={data?.providers ?? []}
-        connecting={connecting}
-        onClose={() => setDialogOpen(false)}
-        onSelect={handleSelectProvider}
-      />
+      {canManageCampaigns ? (
+        <AddChannelDialog
+          open={dialogOpen}
+          providers={data?.providers ?? []}
+          connecting={connecting}
+          onClose={() => setDialogOpen(false)}
+          onSelect={handleSelectProvider}
+        />
+      ) : null}
     </div>
   );
 }

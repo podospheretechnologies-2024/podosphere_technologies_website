@@ -19,12 +19,21 @@ interface TimeGridViewProps {
   posts: PostListItem[];
   onOpen: (post: PostListItem) => void;
   onDelete?: (post: PostListItem) => void;
-  onMove: (post: DraggedPost, date: Dayjs) => void;
-  onCreate: (date: Dayjs) => void;
+  onMove?: (post: DraggedPost, date: Dayjs) => void;
+  onCreate?: (date: Dayjs) => void;
+  canManage?: boolean;
 }
 
 // Day and week views: one column per day, one row per hour.
-export function TimeGridView({ days, posts, onOpen, onDelete, onMove, onCreate }: TimeGridViewProps) {
+export function TimeGridView({
+  days,
+  posts,
+  onOpen,
+  onDelete,
+  onMove,
+  onCreate,
+  canManage = true,
+}: TimeGridViewProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const postsBySlot = groupPosts(posts, slotKey);
   const now = dayjs();
@@ -109,8 +118,16 @@ export function TimeGridView({ days, posts, onOpen, onDelete, onMove, onCreate }
                   key={day.valueOf()}
                   label={slotStart.format('dddd D MMMM, HH:mm')}
                   disabled={disabled}
-                  onDropPost={(post) => onMove(post, moveToSlot(post.publishDate, day, hour))}
-                  onCreate={() => onCreate(slotStart.isBefore(now) ? now : slotStart)}
+                  onDropPost={
+                    onMove
+                      ? (post) => onMove(post, moveToSlot(post.publishDate, day, hour))
+                      : undefined
+                  }
+                  onCreate={
+                    onCreate
+                      ? () => onCreate(slotStart.isBefore(now) ? now : slotStart)
+                      : undefined
+                  }
                   className={cn(
                     'border-border relative flex border-l',
                     isDayView
@@ -134,6 +151,7 @@ export function TimeGridView({ days, posts, onOpen, onDelete, onMove, onCreate }
                       post={post}
                       onOpen={onOpen}
                       onDelete={onDelete}
+                      canManage={canManage}
                       variant={isDayView ? 'day' : 'compact'}
                     />
                   ))}

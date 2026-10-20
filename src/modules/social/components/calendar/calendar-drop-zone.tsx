@@ -8,8 +8,9 @@ interface CalendarDropZoneProps {
   /** Past slots accept neither drops nor new posts. */
   disabled: boolean;
   label: string;
-  onDropPost: (post: DraggedPost) => void;
-  onCreate: () => void;
+  /** Omit for read-only calendars (members). */
+  onDropPost?: (post: DraggedPost) => void;
+  onCreate?: () => void;
   className?: string;
   children?: ReactNode;
 }
@@ -25,13 +26,14 @@ export function CalendarDropZone({
   children,
 }: CalendarDropZoneProps) {
   const [isOver, setIsOver] = useState(false);
+  const interactive = !disabled && Boolean(onDropPost || onCreate);
 
   return (
     <div
       aria-label={label}
-      aria-disabled={disabled}
+      aria-disabled={!interactive}
       onDragOver={(event) => {
-        if (disabled || !event.dataTransfer.types.includes(POST_DRAG_TYPE)) {
+        if (!onDropPost || disabled || !event.dataTransfer.types.includes(POST_DRAG_TYPE)) {
           return;
         }
         event.preventDefault();
@@ -46,19 +48,26 @@ export function CalendarDropZone({
       onDrop={(event) => {
         event.preventDefault();
         setIsOver(false);
+        if (!onDropPost || disabled) {
+          return;
+        }
         const post = readDraggedPost(event.dataTransfer);
-        if (post && !disabled) {
+        if (post) {
           onDropPost(post);
         }
       }}
       onClick={(event) => {
-        if (!disabled && event.target === event.currentTarget) {
+        if (onCreate && interactive && event.target === event.currentTarget) {
           onCreate();
         }
       }}
       className={cn(
         'transition-colors',
-        disabled ? 'bg-surface-muted/40' : 'hover:bg-primary/5 cursor-pointer',
+        !interactive
+          ? disabled
+            ? 'bg-surface-muted/40'
+            : undefined
+          : 'hover:bg-primary/5 cursor-pointer',
         isOver && 'bg-primary/15 ring-primary ring-2 ring-inset',
         className
       )}

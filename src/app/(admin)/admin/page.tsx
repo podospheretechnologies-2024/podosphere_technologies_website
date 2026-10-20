@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { adminService } from '@/modules/admin/server/admin.service';
 import { ImpersonateOwnerButton } from '@/modules/admin/components/impersonate-owner-button';
@@ -37,7 +38,15 @@ export default async function SuperAdminPage() {
 
   return (
     <div className="max-w-7xl mx-auto py-8 px-6">
-      <h1 className="text-3xl font-bold mb-8 text-gray-900 tracking-tight">Super Admin Platform</h1>
+      <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
+        <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Super Admin Platform</h1>
+        <Link
+          href="/admin/marketplaces"
+          className="inline-flex items-center rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+        >
+          Marketplace ads (sample)
+        </Link>
+      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">

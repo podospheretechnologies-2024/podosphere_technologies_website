@@ -28,8 +28,8 @@ const approvalStyles: Record<ApprovalStep, { label: string; className: string }>
 interface PostListItemProps {
   post: PostListItemData;
   busy: boolean;
-  onEdit: (group: string) => void;
-  onDelete: (post: PostListItemData) => void;
+  onEdit?: (group: string) => void;
+  onDelete?: (post: PostListItemData) => void;
   onApprovalAction?: (
     post: PostListItemData,
     action: 'submit_internal' | 'submit_client' | 'approve' | 'reject'
@@ -148,22 +148,26 @@ export function PostListItem({
           </div>
         )}
       </div>
-      <div className="flex shrink-0 items-start gap-1">
-        {post.state !== 'published' && (
-          <Button variant="ghost" size="sm" disabled={busy} onClick={() => onEdit(post.group)}>
-            Edit
-          </Button>
-        )}
-        <Button
-          variant="danger-ghost"
-          size="sm"
-          disabled={busy}
-          onClick={() => onDelete(post)}
-          aria-label={`Delete post for ${post.channel.name}`}
-        >
-          Delete
-        </Button>
-      </div>
+      {(onEdit || onDelete) && (
+        <div className="flex shrink-0 items-start gap-1">
+          {onEdit && post.state !== 'published' && (
+            <Button variant="ghost" size="sm" disabled={busy} onClick={() => onEdit(post.group)}>
+              Edit
+            </Button>
+          )}
+          {onDelete && (
+            <Button
+              variant="danger-ghost"
+              size="sm"
+              disabled={busy}
+              onClick={() => onDelete(post)}
+              aria-label={`Delete post for ${post.channel.name}`}
+            >
+              Delete
+            </Button>
+          )}
+        </div>
+      )}
     </li>
   );
 }

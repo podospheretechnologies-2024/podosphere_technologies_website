@@ -12,7 +12,7 @@ export type ChannelAction = 'toggle' | 'reconnect' | 'delete';
 interface ChannelCardProps {
   channel: ChannelItem;
   busy: boolean;
-  onAction: (action: ChannelAction, channel: ChannelItem) => void;
+  onAction?: (action: ChannelAction, channel: ChannelItem) => void;
 }
 
 function ChannelStatus({ channel }: { channel: ChannelItem }) {
@@ -75,34 +75,36 @@ export function ChannelCard({ channel, busy, onAction }: ChannelCardProps) {
         </div>
       </div>
 
-      <div className="border-border bg-surface-muted/30 mt-auto flex items-center justify-between gap-2 border-t px-3 py-2">
-        {channel.refreshNeeded ? (
-          <Button size="sm" disabled={busy} onClick={() => onAction('reconnect', channel)}>
-            <RefreshCw className="size-3.5" />
-            Reconnect
-          </Button>
-        ) : (
+      {onAction ? (
+        <div className="border-border bg-surface-muted/30 mt-auto flex items-center justify-between gap-2 border-t px-3 py-2">
+          {channel.refreshNeeded ? (
+            <Button size="sm" disabled={busy} onClick={() => onAction('reconnect', channel)}>
+              <RefreshCw className="size-3.5" />
+              Reconnect
+            </Button>
+          ) : (
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={busy}
+              onClick={() => onAction('toggle', channel)}
+            >
+              <Power className="size-3.5" />
+              {channel.disabled ? 'Enable' : 'Disable'}
+            </Button>
+          )}
           <Button
-            variant="ghost"
+            variant="danger-ghost"
             size="sm"
             disabled={busy}
-            onClick={() => onAction('toggle', channel)}
+            onClick={() => onAction('delete', channel)}
+            aria-label={`Delete ${channel.name}`}
           >
-            <Power className="size-3.5" />
-            {channel.disabled ? 'Enable' : 'Disable'}
+            <Trash2 className="size-3.5" />
+            Delete
           </Button>
-        )}
-        <Button
-          variant="danger-ghost"
-          size="sm"
-          disabled={busy}
-          onClick={() => onAction('delete', channel)}
-          aria-label={`Delete ${channel.name}`}
-        >
-          <Trash2 className="size-3.5" />
-          Delete
-        </Button>
-      </div>
+        </div>
+      ) : null}
     </div>
   );
 }

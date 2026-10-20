@@ -48,6 +48,8 @@ interface CalendarPostChipProps {
   onDelete?: (post: PostListItem) => void;
   /** Day view uses a roomier card; week/month keep the compact chip. */
   variant?: 'compact' | 'day';
+  /** When false, no drag / edit / duplicate / delete — view only. */
+  canManage?: boolean;
 }
 
 export function CalendarPostChip({
@@ -55,9 +57,10 @@ export function CalendarPostChip({
   onOpen,
   onDelete,
   variant = 'compact',
+  canManage = true,
 }: CalendarPostChipProps) {
   const [hover, setHover] = useState(false);
-  const movable = post.state !== 'published';
+  const movable = canManage && post.state !== 'published';
   const mediaFormat = post.media.find((item) => item.format && item.format !== 'post')?.format;
   const label = formatLabel[mediaFormat ?? 'post'];
   const previewText = post.content.trim() || (label ? label : 'Media only');
@@ -72,7 +75,7 @@ export function CalendarPostChip({
       {hover && (
         <div className="border-border bg-surface absolute -top-9 left-1/2 z-30 flex -translate-x-1/2 items-center gap-0.5 rounded-lg border px-1 py-1 shadow-xl">
           <ChipAction
-            label={post.state === 'published' ? 'View' : 'Edit'}
+            label={canManage && post.state !== 'published' ? 'Edit' : 'View'}
             onClick={() => onOpen(post)}
             icon={<CalendarClock className="size-3.5" />}
           />
@@ -87,12 +90,14 @@ export function CalendarPostChip({
             }}
             icon={<Eye className="size-3.5" />}
           />
-          <ChipAction
-            label="Duplicate"
-            onClick={() => onOpen(post)}
-            icon={<Copy className="size-3.5" />}
-          />
-          {onDelete && (
+          {canManage ? (
+            <ChipAction
+              label="Duplicate"
+              onClick={() => onOpen(post)}
+              icon={<Copy className="size-3.5" />}
+            />
+          ) : null}
+          {canManage && onDelete ? (
             <>
               <span aria-hidden className="bg-border mx-0.5 h-4 w-px" />
               <ChipAction
@@ -102,7 +107,7 @@ export function CalendarPostChip({
                 danger
               />
             </>
-          )}
+          ) : null}
         </div>
       )}
 
@@ -110,6 +115,9 @@ export function CalendarPostChip({
         type="button"
         draggable={movable}
         onDragStart={(event) => {
+          if (!movable) {
+            return;
+          }
           const payload: DraggedPost = { group: post.group, publishDate: post.publishDate };
           event.dataTransfer.setData(POST_DRAG_TYPE, JSON.stringify(payload));
           event.dataTransfer.effectAllowed = 'move';

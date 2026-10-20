@@ -16,9 +16,11 @@ interface MonthViewProps {
   posts: PostListItem[];
   onOpen: (post: PostListItem) => void;
   onDelete?: (post: PostListItem) => void;
-  onMove: (post: DraggedPost, date: Dayjs) => void;
-  onCreate: (date: Dayjs) => void;
+  onMove?: (post: DraggedPost, date: Dayjs) => void;
+  onCreate?: (date: Dayjs) => void;
   onShowDay: (day: Dayjs) => void;
+  /** When false, chips are not draggable and mutate actions are hidden. */
+  canManage?: boolean;
 }
 
 export function MonthView({
@@ -30,6 +32,7 @@ export function MonthView({
   onMove,
   onCreate,
   onShowDay,
+  canManage = true,
 }: MonthViewProps) {
   const postsByDay = groupPosts(posts, dayKey);
   const now = dayjs();
@@ -64,14 +67,16 @@ export function MonthView({
               key={day.valueOf()}
               label={day.format('dddd D MMMM')}
               disabled={disabled}
-              onDropPost={(post) => onMove(post, moveToSlot(post.publishDate, day))}
-              onCreate={() => onCreate(defaultSlot(day))}
+              onDropPost={
+                onMove ? (post) => onMove(post, moveToSlot(post.publishDate, day)) : undefined
+              }
+              onCreate={onCreate ? () => onCreate(defaultSlot(day)) : undefined}
               className={cn(
                 'border-border group/cell relative flex min-h-36 flex-col gap-1.5 border-r border-b p-2 [&:nth-child(7n)]:border-r-0',
                 outsideMonth &&
                   'bg-[repeating-linear-gradient(-45deg,transparent,transparent_6px,rgba(255,255,255,0.03)_6px,rgba(255,255,255,0.03)_7px)] opacity-50',
                 isToday && 'bg-primary/5',
-                !disabled && 'hover:ring-primary/50 hover:ring-1 hover:ring-inset'
+                !disabled && canManage && 'hover:ring-primary/50 hover:ring-1 hover:ring-inset'
               )}
             >
               <span
@@ -88,6 +93,7 @@ export function MonthView({
                   post={post}
                   onOpen={onOpen}
                   onDelete={onDelete}
+                  canManage={canManage}
                 />
               ))}
               {hidden > 0 && (

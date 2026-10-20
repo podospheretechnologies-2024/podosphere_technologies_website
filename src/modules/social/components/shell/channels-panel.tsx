@@ -13,9 +13,10 @@ import type { AvailableProvider, ChannelItem } from '../../types/integration';
 import { AddChannelDialog } from '../channels/add-channel-dialog';
 import { ChannelAvatar } from '../channels/channel-avatar';
 import { ProviderMark } from '../channels/provider-mark';
+import { useWorkspaceRole } from './workspace-role-context';
 
 interface ChannelsPanelProps {
-  onCreatePost: () => void;
+  onCreatePost?: () => void;
 }
 
 interface ChannelGroup {
@@ -47,6 +48,7 @@ export function ChannelsPanel({ onCreatePost }: ChannelsPanelProps) {
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { canManageCampaigns } = useWorkspaceRole();
   const { data, isLoading, mutate } = useChannels();
   const [collapsed, setCollapsed] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -130,7 +132,7 @@ export function ChannelsPanel({ onCreatePost }: ChannelsPanelProps) {
             </button>
           </div>
 
-          {!isAgent && (
+          {!isAgent && canManageCampaigns && (
             <div className={cn('flex flex-col gap-2', collapsed && 'items-center')}>
               <Button
                 variant="secondary"
@@ -145,7 +147,7 @@ export function ChannelsPanel({ onCreatePost }: ChannelsPanelProps) {
                 <Button
                   className={cn('flex-1 justify-start', collapsed && 'size-11 justify-center px-0')}
                   onClick={onCreatePost}
-                  disabled={channels.length === 0}
+                  disabled={!onCreatePost || channels.length === 0}
                   title="Create Post"
                 >
                   <Plus className="size-4" />
@@ -161,13 +163,22 @@ export function ChannelsPanel({ onCreatePost }: ChannelsPanelProps) {
               </div>
             </div>
           )}
+          {!isAgent && !canManageCampaigns && !collapsed && (
+            <p className="text-muted-foreground text-xs leading-relaxed">
+              Only workspace admins can connect channels and create posts.
+            </p>
+          )}
 
           {isLoading && !data ? (
             <p className="text-muted-foreground text-sm">Loading…</p>
           ) : channels.length === 0 && !collapsed ? (
             <div className="text-muted-foreground flex flex-1 flex-col items-center justify-center gap-2 px-2 text-center text-sm">
               <p className="text-foreground text-base font-semibold">No channels yet</p>
-              <p>Connect an account to start scheduling posts.</p>
+              <p>
+                {canManageCampaigns
+                  ? 'Connect an account to start scheduling posts.'
+                  : 'Only workspace admins can connect channels and change campaigns.'}
+              </p>
             </div>
           ) : (
             <div className="flex flex-col gap-3">
@@ -322,7 +333,7 @@ export function ChannelsPanel({ onCreatePost }: ChannelsPanelProps) {
       </aside>
 
       <AddChannelDialog
-        open={dialogOpen}
+        open={canManageCampaigns && dialogOpen}
         providers={providers}
         connecting={connecting}
         onClose={() => {

@@ -1,4 +1,5 @@
 {
+  "/(admin)/admin/marketplaces/page": "app/(admin)/admin/marketplaces/page.js",
   "/(admin)/admin/page": "app/(admin)/admin/page.js",
   "/(approver)/approver/portal/page": "app/(approver)/approver/portal/page.js",
   "/(auth)/login/page": "app/(auth)/login/page.js",

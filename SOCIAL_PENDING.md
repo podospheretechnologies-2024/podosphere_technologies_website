@@ -30,6 +30,7 @@ Legend: ✅ done in working tree · 🟡 partial / needs ops · ❌ not started 
 | Automation: RSS, webhooks, Google Sheets | ✅ |
 | Client scope + switcher, overview, templates, onboarding | ✅ |
 | Approvals + client portal | ✅ |
+| Agency OWNER/ADMIN-only channel connect + post/ads mutations (members read calendar) | ✅ |
 | Reports PDF + Resend + AI narrative | ✅ |
 | Inbox (assign/SLA) + **reply / hide / triage / saved replies** | ✅ |
 | Leads pipeline + **score + PodoCRM push** | ✅ |

@@ -11,6 +11,7 @@
 | `/admin` 401 → login | `(admin)/layout.tsx` redirects unauthenticated users to `/login` (no more “This page couldn't load”) |
 | PM2 standalone start | `ecosystem.config.cjs` runs `scripts/run-standalone-web.cjs` (loads repo `.env`, then `deploy/standalone/server.js`) |
 | Docs | `ARCHITECTURE.md` production steps updated |
+| Agency admin-only connect + campaigns | Channel/WhatsApp/PodoCRM connect, Ads APIs, and post create/edit/schedule/CSV require `OWNER`/`ADMIN`. Members get read-only calendar/channels; Ads page shows admins-only notice. Client magic-link approve unchanged. Platform `/admin` stays ops-only. |
 
 ---
 

@@ -17,10 +17,11 @@ import {
   type ApprovalAction,
 } from '../../lib/posts.client';
 import type { PostListItem as PostListItemData } from '../../types/post';
+import { useWorkspaceRole } from '../shell/workspace-role-context';
 import { PostListItem } from './post-list-item';
 
 interface PostsListProps {
-  onEdit: (group: string) => void;
+  onEdit?: (group: string) => void;
 }
 
 const emptyMessages: Record<PostListFilter, string> = {
@@ -32,6 +33,7 @@ const emptyMessages: Record<PostListFilter, string> = {
 };
 
 export function PostsList({ onEdit }: PostsListProps) {
+  const { canManageCampaigns } = useWorkspaceRole();
   const [filter, setFilter] = useState<PostListFilter>('all');
   const [page, setPage] = useState(1);
   const [busyGroup, setBusyGroup] = useState<string | null>(null);
@@ -46,6 +48,9 @@ export function PostsList({ onEdit }: PostsListProps) {
   }
 
   async function handleDelete(post: PostListItemData) {
+    if (!canManageCampaigns) {
+      return;
+    }
     if (
       !window.confirm('Delete this post? It is removed from every channel it was scheduled for.')
     ) {
@@ -138,8 +143,8 @@ export function PostsList({ onEdit }: PostsListProps) {
               key={post.id}
               post={post}
               busy={busyGroup === post.group}
-              onEdit={onEdit}
-              onDelete={handleDelete}
+              onEdit={canManageCampaigns ? onEdit : undefined}
+              onDelete={canManageCampaigns ? handleDelete : undefined}
               onApprovalAction={handleApproval}
             />
           ))}

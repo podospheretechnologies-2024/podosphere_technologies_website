@@ -34,6 +34,7 @@ export default async function SocialLayout({ children }: { children: ReactNode }
       userName={user.name}
       organizationName={user.organization.name}
       organizationSlug={user.organization.slug}
+      workspaceRole={ctx.role}
       initialClientScope={{ selectedClientId, clients }}
     >
       {children}

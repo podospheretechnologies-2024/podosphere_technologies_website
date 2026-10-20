@@ -1,6 +1,7 @@
 import type { NextRequest } from 'next/server';
 import { z } from 'zod';
 import { whatsappOnboardingService } from '@/modules/social/server/whatsapp/whatsapp-growth.service';
+import { requireRole } from '@/shared/server/access';
 import { getClientScope } from '@/shared/server/client-scope';
 import { errorResponse } from '@/shared/server/http-error';
 
@@ -26,6 +27,7 @@ const completeSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
+    await requireRole('ADMIN');
     const scope = await getClientScope('inbox');
     const body = completeSchema.parse(await request.json());
     return Response.json(await whatsappOnboardingService.completeSignup(scope, body));

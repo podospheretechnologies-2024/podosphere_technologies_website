@@ -44,6 +44,26 @@ export const adminService = {
     });
   },
 
+  async listMarketplaceDemoClients() {
+    await requirePlatformAdmin();
+    const rows = await prisma.socialCustomer.findMany({
+      where: { deletedAt: null },
+      select: {
+        id: true,
+        name: true,
+        organization: { select: { name: true } },
+      },
+      orderBy: { createdAt: 'asc' },
+      take: 3,
+    });
+    return rows.map((row) => ({
+      id: row.id,
+      name: row.name,
+      organizationName: row.organization.name,
+      isDemo: false,
+    }));
+  },
+
   async impersonateUser(targetUserId: string) {
     const ctx = await requirePlatformAdmin();
     

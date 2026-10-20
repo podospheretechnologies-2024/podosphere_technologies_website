@@ -23,6 +23,7 @@ import { ProviderMark } from '../channels/provider-mark';
 import { CsvImportDialog } from '../posts/csv-import-dialog';
 import { PostComposer, type ComposerInitialItem } from '../posts/composer/post-composer';
 import { PostsList } from '../posts/posts-list';
+import { useWorkspaceRole } from '../shell/workspace-role-context';
 import { SuccessToast } from '../shell/success-toast';
 import { MonthView } from './month-view';
 import { TimeGridView } from './time-grid-view';
@@ -44,6 +45,7 @@ type ComposerState =
     };
 
 export function SocialCalendar() {
+  const { canManageCampaigns } = useWorkspaceRole();
   const [view, setView] = useState<CalendarView>('week');
   const [cursor, setCursor] = useState<Dayjs>(() => dayjs());
   const [composer, setComposer] = useState<ComposerState>({ open: false });
@@ -134,14 +136,23 @@ export function SocialCalendar() {
       }
       return;
     }
+    if (!canManageCampaigns) {
+      return;
+    }
     setComposer({ open: true, group: post.group });
   }
 
   function createAt(date: Dayjs) {
+    if (!canManageCampaigns) {
+      return;
+    }
     setComposer({ open: true, group: null, defaultDate: toDateTimeLocal(date.toDate()) });
   }
 
   function seedFromOccasion(seed: OccasionSeed) {
+    if (!canManageCampaigns) {
+      return;
+    }
     // Schedule around mid-morning on the occasion day; topic becomes the draft body.
     const defaultDate = toDateTimeLocal(dayjs(seed.occasionDate).hour(10).minute(0).toDate());
     setComposer({
@@ -153,6 +164,9 @@ export function SocialCalendar() {
   }
 
   async function movePost(post: DraggedPost, date: Dayjs) {
+    if (!canManageCampaigns) {
+      return;
+    }
     if (date.isSame(dayjs(post.publishDate))) {
       return;
     }
@@ -171,6 +185,9 @@ export function SocialCalendar() {
   }
 
   async function deletePost(post: PostListItem) {
+    if (!canManageCampaigns) {
+      return;
+    }
     if (!window.confirm(`Delete this post for ${post.channel.name}?`)) {
       return;
     }
@@ -193,9 +210,10 @@ export function SocialCalendar() {
   const gridProps = {
     posts: visiblePosts,
     onOpen: openPost,
-    onDelete: deletePost,
-    onMove: movePost,
-    onCreate: createAt,
+    onDelete: canManageCampaigns ? deletePost : undefined,
+    onMove: canManageCampaigns ? movePost : undefined,
+    onCreate: canManageCampaigns ? createAt : undefined,
+    canManage: canManageCampaigns,
   };
 
   return (
@@ -412,14 +430,22 @@ export function SocialCalendar() {
               </span>
             ))}
           </div>
-          <Button variant="secondary" onClick={() => setCsvImportOpen(true)}>
-            <FileSpreadsheet className="size-4" />
-            Import CSV
-          </Button>
-          <Button onClick={() => setComposer({ open: true, group: null })}>
-            <Plus className="size-4" />
-            Create post
-          </Button>
+          {canManageCampaigns ? (
+            <>
+              <Button variant="secondary" onClick={() => setCsvImportOpen(true)}>
+                <FileSpreadsheet className="size-4" />
+                Import CSV
+              </Button>
+              <Button onClick={() => setComposer({ open: true, group: null })}>
+                <Plus className="size-4" />
+                Create post
+              </Button>
+            </>
+          ) : (
+            <p className="text-muted-foreground text-xs">
+              View only — only workspace admins can create or change posts.
+            </p>
+          )}
         </div>
       </div>
 
@@ -435,7 +461,13 @@ export function SocialCalendar() {
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_17.5rem]">
         <div className="min-w-0">
           {view === 'list' ? (
-            <PostsList onEdit={(group) => setComposer({ open: true, group })} />
+            <PostsList
+              onEdit={
+                canManageCampaigns
+                  ? (group) => setComposer({ open: true, group })
+                  : undefined
+              }
+            />
           ) : view === 'month' ? (
             <MonthView
               month={cursor}
@@ -450,33 +482,39 @@ export function SocialCalendar() {
         <UpcomingOccasions
           className="h-fit lg:sticky lg:top-4"
           compact
-          onSelect={seedFromOccasion}
+          onSelect={canManageCampaigns ? seedFromOccasion : undefined}
         />
       </div>
 
-      <PostComposer
-        open={composer.open}
-        group={composer.open ? composer.group : null}
-        defaultDate={composer.open ? composer.defaultDate : undefined}
-        initialItems={composer.open ? composer.initialItems : undefined}
-        onClose={() => setComposer({ open: false })}
-        onSaved={() => {
-          setComposer({ open: false });
-          setToast('Added successfully');
-          void revalidatePosts();
-        }}
-      />
+      {canManageCampaigns ? (
+        <>
+          <PostComposer
+            open={composer.open}
+            group={composer.open ? composer.group : null}
+            defaultDate={composer.open ? composer.defaultDate : undefined}
+            initialItems={composer.open ? composer.initialItems : undefined}
+            onClose={() => setComposer({ open: false })}
+            onSaved={() => {
+              setComposer({ open: false });
+              setToast('Added successfully');
+              void revalidatePosts();
+            }}
+          />
 
-      <CsvImportDialog
-        open={csvImportOpen}
-        onClose={() => setCsvImportOpen(false)}
-        onImported={(created) => {
-          setToast(
-            created === 1 ? 'Scheduled 1 post from CSV' : `Scheduled ${created} posts from CSV`
-          );
-          void revalidatePosts();
-        }}
-      />
+          <CsvImportDialog
+            open={csvImportOpen}
+            onClose={() => setCsvImportOpen(false)}
+            onImported={(created) => {
+              setToast(
+                created === 1
+                  ? 'Scheduled 1 post from CSV'
+                  : `Scheduled ${created} posts from CSV`
+              );
+              void revalidatePosts();
+            }}
+          />
+        </>
+      ) : null}
     </div>
   );
 }

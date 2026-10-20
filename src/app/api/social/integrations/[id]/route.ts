@@ -2,10 +2,12 @@ import type { NextRequest } from 'next/server';
 import { updateIntegrationSchema } from '@/modules/social/server/integrations/integration.schema';
 import { integrationRepository } from '@/modules/social/server/integrations/integration.repository';
 import { integrationService } from '@/modules/social/server/integrations/integration.service';
+import { requireRole } from '@/shared/server/access';
 import { getClientScope } from '@/shared/server/client-scope';
 import { errorResponse, HttpError } from '@/shared/server/http-error';
 
 async function requireScopedChannel(id: string) {
+  await requireRole('ADMIN');
   const scope = await getClientScope('view');
   const integration = await integrationRepository.findById(scope.organizationId, id);
   if (!integration) {

@@ -18,7 +18,7 @@ export interface OccasionSeed {
 
 interface UpcomingOccasionsProps {
   withinDays?: number;
-  onSelect: (seed: OccasionSeed) => void;
+  onSelect?: (seed: OccasionSeed) => void;
   className?: string;
   /** Shorter copy for narrow sidebars */
   compact?: boolean;
@@ -31,6 +31,7 @@ export function UpcomingOccasions({
   compact = false,
 }: UpcomingOccasionsProps) {
   const occasions = useMemo(() => getUpcomingOccasions(new Date(), withinDays), [withinDays]);
+  const interactive = Boolean(onSelect);
 
   return (
     <aside
@@ -44,9 +45,11 @@ export function UpcomingOccasions({
         <div>
           <h2 className="text-sm font-semibold">Upcoming occasions</h2>
           <p className="text-muted-foreground text-xs leading-relaxed">
-            {compact
-              ? 'Tap to seed a draft topic.'
-              : 'India-relevant dates. Click one to seed a post draft topic and matching tone.'}
+            {!interactive
+              ? 'Upcoming India-relevant dates (view only).'
+              : compact
+                ? 'Tap to seed a draft topic.'
+                : 'India-relevant dates. Click one to seed a post draft topic and matching tone.'}
           </p>
         </div>
       </div>
@@ -59,15 +62,21 @@ export function UpcomingOccasions({
             <li key={`${occasion.id}-${occasion.date}`}>
               <button
                 type="button"
+                disabled={!interactive}
                 onClick={() =>
-                  onSelect({
+                  onSelect?.({
                     topic: occasion.draftTopic,
                     tonePresetId: occasion.suggestedTonePresetId,
                     occasionDate: occasion.date,
                     occasionName: occasion.name,
                   })
                 }
-                className="border-border hover:border-primary/40 hover:bg-surface-muted/60 flex w-full flex-col gap-0.5 rounded-lg border px-3 py-2.5 text-left transition"
+                className={cn(
+                  'border-border flex w-full flex-col gap-0.5 rounded-lg border px-3 py-2.5 text-left transition',
+                  interactive
+                    ? 'hover:border-primary/40 hover:bg-surface-muted/60'
+                    : 'cursor-default opacity-90'
+                )}
               >
                 <span className="flex items-center justify-between gap-2">
                   <span className="text-sm font-medium">{occasion.name}</span>

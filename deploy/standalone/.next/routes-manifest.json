@@ -418,6 +418,12 @@
       "namedRegex": "^/admin(?:/)?$"
     },
     {
+      "page": "/admin/marketplaces",
+      "regex": "^/admin/marketplaces(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/admin/marketplaces(?:/)?$"
+    },
+    {
       "page": "/api/admin/impersonate",
       "regex": "^/api/admin/impersonate(?:/)?$",
       "routeKeys": {},

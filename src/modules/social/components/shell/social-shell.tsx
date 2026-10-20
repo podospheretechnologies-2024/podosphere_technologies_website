@@ -17,6 +17,11 @@ import { IconRail } from './icon-rail';
 import { NotificationsBell } from './notifications-bell';
 import { SectionBackendPanel } from './section-backend-panel';
 import { SuccessToast } from './success-toast';
+import {
+  WorkspaceRoleProvider,
+  useWorkspaceRole,
+  type WorkspaceRole,
+} from './workspace-role-context';
 
 const THEME_STORAGE_KEY = 'podosphere-social-theme';
 
@@ -27,6 +32,7 @@ interface SocialShellProps {
   userName: string;
   organizationName: string;
   organizationSlug: string;
+  workspaceRole: WorkspaceRole;
   initialClientScope?: ClientScopeState | null;
 }
 
@@ -35,8 +41,8 @@ function SocialShellBody({
   userName,
   organizationName,
   organizationSlug,
-  initialClientScope,
 }: SocialShellProps) {
+  const { canManageCampaigns } = useWorkspaceRole();
   const pathname = usePathname();
   const router = useRouter();
   const navItem = getSocialAppNavItem(pathname);
@@ -156,7 +162,11 @@ function SocialShellBody({
           </header>
           <div className="flex min-h-0 flex-1 gap-px">
             {navItem?.showChannelsPanel && (
-              <ChannelsPanel onCreatePost={() => setComposerOpen(true)} />
+              <ChannelsPanel
+                onCreatePost={
+                  canManageCampaigns ? () => setComposerOpen(true) : undefined
+                }
+              />
             )}
             <main className="bg-surface min-w-0 flex-1 overflow-y-auto p-5">{children}</main>
           </div>
@@ -165,16 +175,18 @@ function SocialShellBody({
 
       {toast && <SuccessToast message={toast} />}
 
-      <PostComposer
-        open={composerOpen}
-        group={null}
-        onClose={() => setComposerOpen(false)}
-        onSaved={() => {
-          setComposerOpen(false);
-          setToast('Added successfully');
-          void revalidatePosts();
-        }}
-      />
+      {canManageCampaigns ? (
+        <PostComposer
+          open={composerOpen}
+          group={null}
+          onClose={() => setComposerOpen(false)}
+          onSaved={() => {
+            setComposerOpen(false);
+            setToast('Added successfully');
+            void revalidatePosts();
+          }}
+        />
+      ) : null}
     </div>
   );
 }
@@ -183,7 +195,9 @@ export function SocialShell(props: SocialShellProps) {
   return (
     <Suspense fallback={<div className="theme-social bg-background min-h-screen" />}>
       <ClientScopeProvider initial={props.initialClientScope}>
-        <SocialShellBody {...props} />
+        <WorkspaceRoleProvider role={props.workspaceRole}>
+          <SocialShellBody {...props} />
+        </WorkspaceRoleProvider>
       </ClientScopeProvider>
     </Suspense>
   );
