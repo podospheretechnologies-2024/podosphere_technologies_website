@@ -73,6 +73,53 @@ function packageExists(pkg) {
 }
 
 /**
+ * Node ESM `import('sharp-<hash>')` from `.next/server/chunks/*.js` only walks
+ * node_modules from that folder upward. Put the shim in every hop.
+ */
+const shimRoots = [
+  nm,
+  join(root, '.next', 'node_modules'),
+  join(root, '.next', 'server', 'node_modules'),
+  join(root, '.next', 'server', 'chunks', 'node_modules'),
+];
+
+function writeShimPackage(destRoot, hashedName, realName) {
+  const shimPath = join(destRoot, ...hashedName.split('/'));
+  rmSync(shimPath, { recursive: true, force: true });
+  mkdirSync(shimPath, { recursive: true });
+
+  writeFileSync(
+    join(shimPath, 'package.json'),
+    JSON.stringify(
+      {
+        name: hashedName,
+        version: '0.0.0-shim',
+        private: true,
+        main: './index.cjs',
+        exports: {
+          '.': {
+            require: './index.cjs',
+            import: './index.mjs',
+            default: './index.cjs',
+          },
+          './package.json': './package.json',
+        },
+      },
+      null,
+      2
+    )
+  );
+  writeFileSync(
+    join(shimPath, 'index.cjs'),
+    `'use strict';\nmodule.exports = require(${JSON.stringify(realName)});\n`
+  );
+  writeFileSync(
+    join(shimPath, 'index.mjs'),
+    `import { createRequire } from 'node:module';\nconst require = createRequire(import.meta.url);\nconst mod = require(${JSON.stringify(realName)});\nexport default mod;\n`
+  );
+}
+
+/**
  * Write a real mini-package (not a symlink). Symlinks break under pnpm + ESM
  * (`import('sharp-hash')` → ERR_MODULE_NOT_FOUND even when the link exists).
  */
@@ -82,92 +129,10 @@ function writeShim(hashedName, realName) {
     return false;
   }
 
-  const shimPath = join(nm, ...hashedName.split('/'));
-  rmSync(shimPath, { recursive: true, force: true });
-  mkdirSync(shimPath, { recursive: true });
-
-  // Scoped deep paths like @prisma/client-HASH must re-export the parent package
-  // and also expose ./runtime/* — mirror by pointing package.json exports at real.
-  const isScopedDeep = hashedName.includes('/');
-
-  writeFileSync(
-    join(shimPath, 'package.json'),
-    JSON.stringify(
-      {
-        name: hashedName,
-        version: '0.0.0-shim',
-        private: true,
-        type: 'commonjs',
-        main: 'index.js',
-        exports: {
-          '.': './index.js',
-          './package.json': './package.json',
-          './*': './*',
-        },
-      },
-      null,
-      2
-    )
-  );
-
-  writeFileSync(
-    join(shimPath, 'index.js'),
-    `'use strict';\nmodule.exports = require(${JSON.stringify(realName)});\n`
-  );
-
-  // For @prisma/client-HASH/runtime/client — create runtime re-exports.
-  if (isScopedDeep || realName === '@prisma/client' || realName === 'sharp') {
-    const realRuntime = join(nm, ...realName.split('/'), 'runtime');
-    if (existsSync(realRuntime)) {
-      const runtimeDir = join(shimPath, 'runtime');
-      mkdirSync(runtimeDir, { recursive: true });
-      // Proxy files commonly requested by Turbopack.
-      for (const file of readdirSync(realRuntime)) {
-        if (!/\.(js|mjs|cjs|json|wasm)$/i.test(file) && !file.endsWith('.node')) {
-          continue;
-        }
-        const target = join(realName, 'runtime', file).replace(/\\/g, '/');
-        // require/import path from shim runtime file → real package runtime file
-        if (file.endsWith('.mjs')) {
-          writeFileSync(
-            join(runtimeDir, file),
-            `export * from ${JSON.stringify(target)};\nexport { default } from ${JSON.stringify(target)};\n`
-          );
-        } else if (file.endsWith('.js') || file.endsWith('.cjs')) {
-          writeFileSync(
-            join(runtimeDir, file),
-            `'use strict';\nmodule.exports = require(${JSON.stringify(target)});\n`
-          );
-        }
-      }
-    }
+  for (const destRoot of shimRoots) {
+    mkdirSync(destRoot, { recursive: true });
+    writeShimPackage(destRoot, hashedName, realName);
   }
-
-  // Also drop a copy under .next/node_modules for resolvers that start from chunks/.
-  const nextNm = join(root, '.next', 'node_modules', ...hashedName.split('/'));
-  rmSync(nextNm, { recursive: true, force: true });
-  mkdirSync(dirname(nextNm), { recursive: true });
-  // Cheap: duplicate the shim package.json + index (runtime optional).
-  mkdirSync(nextNm, { recursive: true });
-  writeFileSync(
-    join(nextNm, 'package.json'),
-    JSON.stringify(
-      {
-        name: hashedName,
-        version: '0.0.0-shim',
-        private: true,
-        type: 'commonjs',
-        main: 'index.js',
-        exports: { '.': './index.js', './package.json': './package.json' },
-      },
-      null,
-      2
-    )
-  );
-  writeFileSync(
-    join(nextNm, 'index.js'),
-    `'use strict';\nmodule.exports = require(${JSON.stringify(realName)});\n`
-  );
 
   console.log(`Shimmed ${hashedName} → ${realName}`);
   return true;

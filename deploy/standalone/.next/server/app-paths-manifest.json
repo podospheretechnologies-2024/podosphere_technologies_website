@@ -1,6 +1,7 @@
 {
   "/(admin)/admin/marketplaces/page": "app/(admin)/admin/marketplaces/page.js",
   "/(admin)/admin/page": "app/(admin)/admin/page.js",
+  "/(admin-auth)/admin/login/page": "app/(admin-auth)/admin/login/page.js",
   "/(approver)/approver/portal/page": "app/(approver)/approver/portal/page.js",
   "/(auth)/login/page": "app/(auth)/login/page.js",
   "/(auth)/register/page": "app/(auth)/register/page.js",

@@ -31,6 +31,7 @@ export function toCurrentUserItem(user: CurrentUser): CurrentUserItem {
     name: user.name,
     email: user.email,
     role: user.role,
+    isPlatformAdmin: user.isPlatformAdmin,
     organization: { id: user.organization.id, name: user.organization.name },
   };
 }

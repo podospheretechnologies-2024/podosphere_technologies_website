@@ -16,7 +16,7 @@ function httpStatus(error: unknown): number | null {
 
 export default async function MarketplaceAdsPage() {
   const user = await getCurrentUser();
-  if (!user) redirect('/login');
+  if (!user) redirect('/admin/login');
   if (!user.isPlatformAdmin) redirect('/dashboard');
 
   let clients;
@@ -24,7 +24,7 @@ export default async function MarketplaceAdsPage() {
     clients = padMarketplaceClients(await adminService.listMarketplaceDemoClients());
   } catch (error) {
     const status = httpStatus(error);
-    if (status === 401) redirect('/login');
+    if (status === 401) redirect('/admin/login');
     if (status === 403 || status === 404) redirect('/dashboard');
     throw error;
   }

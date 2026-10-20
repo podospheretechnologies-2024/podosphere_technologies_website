@@ -36,13 +36,19 @@ export function AuthForm({ mode }: { mode: Mode }) {
     setError(null);
 
     try {
-      await apiFetch<CurrentUserItem>(`/api/auth/${mode}`, {
+      const user = await apiFetch<CurrentUserItem>(`/api/auth/${mode}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(Object.fromEntries(new FormData(event.currentTarget))),
       });
       const next = searchParams.get('next');
-      router.replace(next?.startsWith('/dashboard') ? next : '/dashboard');
+      if (user.isPlatformAdmin && next?.startsWith('/admin')) {
+        router.replace(next);
+      } else if (next?.startsWith('/dashboard')) {
+        router.replace(next);
+      } else {
+        router.replace('/dashboard');
+      }
       router.refresh();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not reach the server. Check your connection.');

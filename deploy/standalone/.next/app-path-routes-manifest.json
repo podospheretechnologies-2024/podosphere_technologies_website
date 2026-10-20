@@ -1,6 +1,7 @@
 {
   "/(admin)/admin/marketplaces/page": "/admin/marketplaces",
   "/(admin)/admin/page": "/admin",
+  "/(admin-auth)/admin/login/page": "/admin/login",
   "/(approver)/approver/portal/page": "/approver/portal",
   "/(auth)/login/page": "/login",
   "/(auth)/register/page": "/register",

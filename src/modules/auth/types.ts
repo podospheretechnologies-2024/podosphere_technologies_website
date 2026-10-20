@@ -3,5 +3,6 @@ export interface CurrentUserItem {
   name: string;
   email: string;
   role: 'OWNER' | 'ADMIN' | 'MEMBER';
+  isPlatformAdmin: boolean;
   organization: { id: string; name: string };
 }

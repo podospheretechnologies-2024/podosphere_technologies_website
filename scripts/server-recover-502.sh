@@ -19,6 +19,11 @@ rm -rf .next
 mkdir -p .next
 cp -a deploy/standalone/.next/. .next/
 node scripts/link-turbopack-externals-shim.mjs
+echo "==> verify sharp turbopack shim from chunk importer path"
+if ! (cd .next/server/chunks && node --input-type=module -e "import('sharp-9b5cd53f6851c3b7').then(() => console.log('sharp shim ok'))"); then
+  echo "ERROR: sharp hashed import still fails. Check pnpm install of sharp."
+  exit 1
+fi
 
 echo "==> restart pm2 (next start on :3100)"
 pm2 delete podo-social-web 2>/dev/null || true
