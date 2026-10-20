@@ -67,11 +67,16 @@ export const PLATFORM_CLIENTS: Record<MarketplaceId, readonly ClientPreference[]
     { name: 'Craftsmen new', match: /craftsmen/i },
     { name: 'Yauvanya Ad Account', match: /yauvanya/i },
     { name: 'Vedashe Ad Account', match: /vedashe/i },
+    { name: 'JKMA Trust [ Podo ]', match: /jkma/i },
+    { name: 'Tayyaba Tourism', match: /tayyaba/i },
+    { name: 'btfilmcity ad account', match: /btfilmcity/i },
   ],
   flipkart: [
     { name: 'PV Jewellers', match: /pv jewellers/i },
     { name: 'Evriddhi', match: /evriddhi/i },
     { name: 'Beyond Basic', match: /beyond basic/i },
+    { name: 'KoTech Digital Hub', match: /kotech/i },
+    { name: 'Dr. Mukesh [Podo Act ]', match: /mukesh/i },
   ],
   amazon: [
     { name: 'Mateshwari Moorti Bandar Ad Account', match: /mateshwari/i },
@@ -1146,6 +1151,340 @@ export function marketplaceClientsFor(
   });
 }
 
+/** Clients beyond the first three on platforms that list more (slot 3 onwards). */
+const EXTRA_PLATFORM_SAMPLE: Partial<Record<SellerMarketplaceId, MarketplaceSnapshot[]>> = {
+  meesho: [
+    {
+      wallet: 300,
+      kpis: { spend: 0, revenue: 0, roas: 0, impressions: 0, clicks: 0, orders: 0 },
+      extras: [
+        { label: 'Live', value: '0' },
+        { label: 'Avg ROI', value: '0' },
+        { label: 'Sale opted-in', value: '2' },
+      ],
+      trend: [7, 1, 14, 8, 13, 14, 18, 19, 22, 28, 34],
+      campaigns: [
+      {
+        id: 'm4-1',
+        name: 'Handloom stoles catalog',
+        type: '1 Catalog',
+        status: 'LIVE',
+        duration: '23 May 2026 – No end date',
+        budgetLabel: '₹330 daily',
+        spend: 2051,
+        impressions: 59070,
+        clicks: 517,
+        orders: 5,
+        revenue: 1848,
+        roas: 0.9,
+      },
+      {
+        id: 'm4-2',
+        name: 'Gift boxes · Auto',
+        type: 'Auto Catalogs',
+        status: 'LIVE',
+        duration: '04 Jul 2026 – No end date',
+        budgetLabel: '₹600 total',
+        spend: 2157,
+        impressions: 45970,
+        clicks: 466,
+        orders: 6,
+        revenue: 2187,
+        roas: 1.01,
+      },
+      {
+        id: 'm4-3',
+        name: 'Festive kurta sets catalog',
+        type: '1 Catalog',
+        status: 'DRAFT',
+        duration: 'Not started',
+        budgetLabel: '₹100 daily',
+        spend: 0,
+        impressions: 0,
+        clicks: 0,
+        orders: 0,
+        revenue: 0,
+        roas: 0,
+      },
+      ],
+    },
+    {
+      wallet: 150,
+      kpis: { spend: 0, revenue: 0, roas: 0, impressions: 0, clicks: 0, orders: 0 },
+      extras: [
+        { label: 'Live', value: '0' },
+        { label: 'Avg ROI', value: '0' },
+        { label: 'Sale opted-in', value: '1' },
+      ],
+      trend: [11, 10, 6, 13, 9, 11, 15, 23, 18, 25, 28],
+      campaigns: [
+      {
+        id: 'm5-1',
+        name: 'Kashmiri shawls catalog',
+        type: '1 Catalog',
+        status: 'LIVE',
+        duration: '21 Sep 2026 – No end date',
+        budgetLabel: '₹330 daily',
+        spend: 1607,
+        impressions: 33828,
+        clicks: 334,
+        orders: 3,
+        revenue: 1234,
+        roas: 0.77,
+      },
+      {
+        id: 'm5-2',
+        name: 'Souvenir magnets · Auto',
+        type: 'Auto Catalogs',
+        status: 'PAUSED',
+        duration: '06 Jul 2026 – No end date',
+        budgetLabel: '₹600 total',
+        spend: 2607,
+        impressions: 44859,
+        clicks: 568,
+        orders: 4,
+        revenue: 2033,
+        roas: 0.78,
+      },
+      {
+        id: 'm5-3',
+        name: 'Winter wear catalog',
+        type: '1 Catalog',
+        status: 'LEARNING',
+        duration: '07 Sep 2026 – No end date',
+        budgetLabel: '₹100 daily',
+        spend: 1007,
+        impressions: 24038,
+        clicks: 249,
+        orders: 5,
+        revenue: 1707,
+        roas: 1.7,
+      },
+      ],
+    },
+    {
+      wallet: 0,
+      kpis: { spend: 0, revenue: 0, roas: 0, impressions: 0, clicks: 0, orders: 0 },
+      extras: [
+        { label: 'Live', value: '0' },
+        { label: 'Avg ROI', value: '0' },
+        { label: 'Sale opted-in', value: '1' },
+      ],
+      trend: [9, 1, 6, 10, 7, 13, 12, 11, 21, 24, 22],
+      campaigns: [
+      {
+        id: 'm6-1',
+        name: 'Movie poster prints catalog',
+        type: '1 Catalog',
+        status: 'PAUSED',
+        duration: '28 May 2026 – No end date',
+        budgetLabel: '₹330 daily',
+        spend: 1338,
+        impressions: 34808,
+        clicks: 285,
+        orders: 4,
+        revenue: 1459,
+        roas: 1.09,
+      },
+      {
+        id: 'm6-2',
+        name: 'Fan tees · Auto',
+        type: 'Auto Catalogs',
+        status: 'LIVE',
+        duration: '22 Oct 2026 – No end date',
+        budgetLabel: '₹600 total',
+        spend: 1236,
+        impressions: 35407,
+        clicks: 403,
+        orders: 7,
+        revenue: 3038,
+        roas: 2.46,
+      },
+      {
+        id: 'm6-3',
+        name: 'Merch combo catalog',
+        type: '1 Catalog',
+        status: 'ENDED',
+        duration: '28 Aug 2026 – 30 Sep 2026',
+        budgetLabel: '₹100 daily',
+        spend: 1555,
+        impressions: 25960,
+        clicks: 353,
+        orders: 7,
+        revenue: 3163,
+        roas: 2.03,
+      },
+      ],
+    },
+  ],
+  flipkart: [
+    {
+      wallet: 720,
+      kpis: { spend: 0, revenue: 0, roas: 0, impressions: 0, clicks: 0, orders: 0 },
+      extras: [
+        { label: 'CTR', value: '0' },
+        { label: 'CVR', value: '0' },
+        { label: 'Units sold', value: '0' },
+      ],
+      trend: [6, 9, 16, 19, 18, 19, 21, 22, 22, 27, 32],
+      campaigns: [
+      {
+        id: 'f4-1',
+        name: 'Laptop stands · PLA',
+        type: 'PLA',
+        status: 'LIVE',
+        duration: '08 Oct 2026 – Till budget ends',
+        budgetLabel: '₹300 daily',
+        spend: 1035,
+        impressions: 21742,
+        clicks: 164,
+        orders: 2,
+        revenue: 1409,
+        roas: 1.36,
+      },
+      {
+        id: 'f4-2',
+        name: 'USB-C cables · PLA',
+        type: 'PLA',
+        status: 'LIVE',
+        duration: '03 Jun 2026 – Till budget ends',
+        budgetLabel: '₹500 daily',
+        spend: 1467,
+        impressions: 25727,
+        clicks: 198,
+        orders: 4,
+        revenue: 2351,
+        roas: 1.6,
+      },
+      {
+        id: 'f4-3',
+        name: 'Wireless mouse · PLA',
+        type: 'PLA',
+        status: 'PAUSED',
+        duration: '26 Jun 2026 – Till budget ends',
+        budgetLabel: '₹1,000 total',
+        spend: 3352,
+        impressions: 40774,
+        clicks: 405,
+        orders: 5,
+        revenue: 3293,
+        roas: 0.98,
+      },
+      {
+        id: 'f4-4',
+        name: 'Power banks · PLA',
+        type: 'PLA',
+        status: 'LIVE',
+        duration: '20 Oct 2026 – Till budget ends',
+        budgetLabel: '₹250 daily',
+        spend: 5191,
+        impressions: 78087,
+        clicks: 583,
+        orders: 10,
+        revenue: 5068,
+        roas: 0.98,
+      },
+      {
+        id: 'f4-5',
+        name: 'Webcams · PLA',
+        type: 'PLA',
+        status: 'DRAFT',
+        duration: 'Not started',
+        budgetLabel: '₹300 daily',
+        spend: 0,
+        impressions: 0,
+        clicks: 0,
+        orders: 0,
+        revenue: 0,
+        roas: 0,
+      },
+      ],
+    },
+    {
+      wallet: 410,
+      kpis: { spend: 0, revenue: 0, roas: 0, impressions: 0, clicks: 0, orders: 0 },
+      extras: [
+        { label: 'CTR', value: '0' },
+        { label: 'CVR', value: '0' },
+        { label: 'Units sold', value: '0' },
+      ],
+      trend: [1, 9, 8, 13, 17, 19, 19, 27, 23, 34, 31],
+      campaigns: [
+      {
+        id: 'f5-1',
+        name: 'Ayurvedic oils · PLA',
+        type: 'PLA',
+        status: 'LIVE',
+        duration: '26 Jun 2026 – Till budget ends',
+        budgetLabel: '₹300 daily',
+        spend: 1647,
+        impressions: 51740,
+        clicks: 343,
+        orders: 4,
+        revenue: 3850,
+        roas: 2.34,
+      },
+      {
+        id: 'f5-2',
+        name: 'Herbal tea · PLA',
+        type: 'PLA',
+        status: 'PAUSED',
+        duration: '03 Sep 2026 – Till budget ends',
+        budgetLabel: '₹500 daily',
+        spend: 5029,
+        impressions: 52059,
+        clicks: 612,
+        orders: 10,
+        revenue: 8748,
+        roas: 1.74,
+      },
+      {
+        id: 'f5-3',
+        name: 'Immunity combo · PLA',
+        type: 'PLA',
+        status: 'LIVE',
+        duration: '06 May 2026 – Till budget ends',
+        budgetLabel: '₹1,000 total',
+        spend: 1335,
+        impressions: 26933,
+        clicks: 175,
+        orders: 2,
+        revenue: 1069,
+        roas: 0.8,
+      },
+      {
+        id: 'f5-4',
+        name: 'Joint care · PLA',
+        type: 'PLA',
+        status: 'ENDED',
+        duration: '15 Aug 2026 – 30 Sep 2026',
+        budgetLabel: '₹250 daily',
+        spend: 1166,
+        impressions: 18848,
+        clicks: 149,
+        orders: 3,
+        revenue: 1714,
+        roas: 1.47,
+      },
+      {
+        id: 'f5-5',
+        name: 'Wellness kit · PLA',
+        type: 'PLA',
+        status: 'DRAFT',
+        duration: 'Not started',
+        budgetLabel: '₹300 daily',
+        spend: 0,
+        impressions: 0,
+        clicks: 0,
+        orders: 0,
+        revenue: 0,
+        roas: 0,
+      },
+      ],
+    },
+  ],
+};
+
 function withCampaignTotals(snapshot: MarketplaceSnapshot): MarketplaceSnapshot {
   const sum = (pick: (row: MarketplaceCampaign) => number) =>
     snapshot.campaigns.reduce((total, row) => total + pick(row), 0);
@@ -1178,8 +1517,19 @@ function withCampaignTotals(snapshot: MarketplaceSnapshot): MarketplaceSnapshot 
   };
 }
 
+/** How many clients a platform lists (3 by default; Meesho and Flipkart list more). */
+export function clientCount(marketplace: MarketplaceId): number {
+  return PLATFORM_CLIENTS[marketplace].length;
+}
+
 export function snapshotFor(slot: number, marketplace: MarketplaceId): MarketplaceSnapshot {
-  const index = Math.min(Math.max(slot, 0), MARKETPLACE_CLIENT_SLOTS - 1);
+  const index = Math.min(Math.max(slot, 0), clientCount(marketplace) - 1);
+  if (index >= MARKETPLACE_CLIENT_SLOTS && marketplace !== 'meta') {
+    const extra = EXTRA_PLATFORM_SAMPLE[marketplace as SellerMarketplaceId];
+    if (extra?.[index - MARKETPLACE_CLIENT_SLOTS]) {
+      return withCampaignTotals(extra[index - MARKETPLACE_CLIENT_SLOTS]);
+    }
+  }
   if (marketplace === 'meta') {
     const meta = withCampaignTotals(META_SAMPLE[index]);
     const live = meta.campaigns.filter((row) => row.status === 'LIVE').length;
@@ -1193,5 +1543,5 @@ export function snapshotFor(slot: number, marketplace: MarketplaceId): Marketpla
       ],
     };
   }
-  return withCampaignTotals(MARKETPLACE_SAMPLE[index][marketplace]);
+  return withCampaignTotals(MARKETPLACE_SAMPLE[Math.min(index, MARKETPLACE_CLIENT_SLOTS - 1)][marketplace]);
 }

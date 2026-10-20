@@ -10,7 +10,7 @@ import {
   type MarketplaceClientOption,
   type MarketplaceId,
   type MarketplaceSnapshot,
-  MARKETPLACE_CLIENT_SLOTS,
+  clientCount,
   marketplaceClientsFor,
   snapshotFor,
 } from '../data/marketplace-ads.sample';
@@ -88,11 +88,13 @@ function sumSnapshots(snapshots: MarketplaceSnapshot[]): MarketplaceSnapshot {
   };
 }
 
-const CLIENT_SLOTS = Array.from({ length: MARKETPLACE_CLIENT_SLOTS }, (_, index) => index);
+function slotsFor(marketplace: MarketplaceId) {
+  return Array.from({ length: clientCount(marketplace) }, (_, index) => index);
+}
 
 /** Every client of one platform, summed. */
 function platformTotals(marketplace: MarketplaceId): MarketplaceSnapshot {
-  return sumSnapshots(CLIENT_SLOTS.map((slot) => snapshotFor(slot, marketplace)));
+  return sumSnapshots(slotsFor(marketplace).map((slot) => snapshotFor(slot, marketplace)));
 }
 
 function Kpi({ label, value }: { label: string; value: string }) {
@@ -319,7 +321,7 @@ export function MarketplaceAdsDashboard({ clients: accounts }: { clients: Market
   const view = useMemo(() => {
     if (tab === 'all') {
       const snapshots = MARKETPLACES.flatMap((marketplace) =>
-        CLIENT_SLOTS.map((index) => ({ marketplace, snapshot: snapshotFor(index, marketplace) })),
+        slotsFor(marketplace).map((index) => ({ marketplace, snapshot: snapshotFor(index, marketplace) })),
       );
       const combined = sumSnapshots(snapshots.map((item) => item.snapshot));
       const rows = snapshots.flatMap(({ marketplace, snapshot }) =>
