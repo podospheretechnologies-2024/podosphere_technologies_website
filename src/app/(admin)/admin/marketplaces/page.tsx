@@ -4,7 +4,7 @@ import { padMarketplaceClients } from '@/modules/admin/data/marketplace-ads.samp
 import { adminService } from '@/modules/admin/server/admin.service';
 import { getCurrentUser } from '@/modules/auth/server/session';
 
-export const metadata = { title: 'Marketplace Ads | Super Admin' };
+export const metadata = { title: 'Ads sample | Super Admin' };
 
 function httpStatus(error: unknown): number | null {
   if (typeof error === 'object' && error !== null && 'status' in error) {

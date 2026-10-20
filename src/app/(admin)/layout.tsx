@@ -7,7 +7,12 @@ import { getCurrentUser } from '@/modules/auth/server/session';
  * so unauthenticated visits go to /admin/login instead of a 500 page.
  */
 export default async function AdminLayout({ children }: { children: ReactNode }) {
-  const user = await getCurrentUser();
+  let user;
+  try {
+    user = await getCurrentUser();
+  } catch {
+    redirect('/admin/login');
+  }
   if (!user) {
     redirect('/admin/login');
   }

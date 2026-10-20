@@ -1,4 +1,4 @@
-export const MARKETPLACES = ['blinkit', 'meesho', 'flipkart', 'amazon'] as const;
+export const MARKETPLACES = ['blinkit', 'meesho', 'flipkart', 'amazon', 'google'] as const;
 export type MarketplaceId = (typeof MARKETPLACES)[number];
 
 export const MARKETPLACE_CLIENT_SLOTS = 3;
@@ -44,6 +44,10 @@ export type MarketplaceClientOption = {
 };
 
 export const MARKETPLACE_META: Record<MarketplaceId, { label: string; pill: string }> = {
+  google: {
+    label: 'Google Ads',
+    pill: 'bg-sky-100 text-sky-800 border-sky-200',
+  },
   blinkit: {
     label: 'Blinkit',
     pill: 'bg-yellow-100 text-yellow-800 border-yellow-200',
@@ -62,7 +66,7 @@ export const MARKETPLACE_META: Record<MarketplaceId, { label: string; pill: stri
   },
 };
 
-/** Three client slots × four marketplaces. Mapped onto real SocialCustomer names at render. */
+/** Three client slots × Google Ads + four marketplaces. Mapped onto real SocialCustomer names at render. */
 export const MARKETPLACE_SAMPLE: Array<Record<MarketplaceId, MarketplaceSnapshot>> = [
   {
     blinkit: {
@@ -282,6 +286,60 @@ export const MARKETPLACE_SAMPLE: Array<Record<MarketplaceId, MarketplaceSnapshot
         },
       ],
     },
+    google: {
+      wallet: 8500,
+      kpis: { spend: 28400, revenue: 41220, roas: 1.45, impressions: 312000, clicks: 4200, orders: 96 },
+      extras: [
+        { label: 'CTR', value: '1.35%' },
+        { label: 'Avg CPC', value: '₹6.76' },
+        { label: 'Conversions', value: '96' },
+      ],
+      trend: [16, 18, 22, 20, 26, 30, 28, 34, 40, 38, 42],
+      campaigns: [
+        {
+          id: 'g1-1',
+          name: 'Staples Search · brand + generics',
+          type: 'Search',
+          status: 'LIVE',
+          duration: '01 Sep 2026 – No end date',
+          budgetLabel: '₹1,200 / day',
+          spend: 18600,
+          impressions: 142000,
+          clicks: 2480,
+          orders: 62,
+          revenue: 26800,
+          roas: 1.44,
+        },
+        {
+          id: 'g1-2',
+          name: 'Grocery Shopping · PLA',
+          type: 'Shopping',
+          status: 'LIVE',
+          duration: '12 Sep 2026 – No end date',
+          budgetLabel: '₹800 / day',
+          spend: 7200,
+          impressions: 98000,
+          clicks: 1120,
+          orders: 28,
+          revenue: 10420,
+          roas: 1.45,
+        },
+        {
+          id: 'g1-3',
+          name: 'Ready meals · PMax',
+          type: 'Performance Max',
+          status: 'LEARNING',
+          duration: '05 Oct 2026 – No end date',
+          budgetLabel: '₹400 / day',
+          spend: 2600,
+          impressions: 72000,
+          clicks: 600,
+          orders: 6,
+          revenue: 4000,
+          roas: 1.54,
+        },
+      ],
+    },
   },
   {
     blinkit: {
@@ -472,6 +530,46 @@ export const MARKETPLACE_SAMPLE: Array<Record<MarketplaceId, MarketplaceSnapshot
         },
       ],
     },
+    google: {
+      wallet: 4200,
+      kpis: { spend: 15400, revenue: 28600, roas: 1.86, impressions: 188000, clicks: 2650, orders: 74 },
+      extras: [
+        { label: 'CTR', value: '1.41%' },
+        { label: 'Avg CPC', value: '₹5.81' },
+        { label: 'Conversions', value: '74' },
+      ],
+      trend: [12, 14, 18, 16, 22, 24, 28, 26, 32, 30, 36],
+      campaigns: [
+        {
+          id: 'g2-1',
+          name: 'Fitblend Search · exact',
+          type: 'Search',
+          status: 'LIVE',
+          duration: '01 Sep 2026 – No end date',
+          budgetLabel: '₹700 / day',
+          spend: 9800,
+          impressions: 64000,
+          clicks: 1540,
+          orders: 48,
+          revenue: 18600,
+          roas: 1.90,
+        },
+        {
+          id: 'g2-2',
+          name: 'Kitchen appliances · Shopping',
+          type: 'Shopping',
+          status: 'LIVE',
+          duration: '18 Sep 2026 – No end date',
+          budgetLabel: '₹500 / day',
+          spend: 5600,
+          impressions: 124000,
+          clicks: 1110,
+          orders: 26,
+          revenue: 10000,
+          roas: 1.79,
+        },
+      ],
+    },
   },
   {
     blinkit: {
@@ -659,6 +757,46 @@ export const MARKETPLACE_SAMPLE: Array<Record<MarketplaceId, MarketplaceSnapshot
           orders: 6,
           revenue: 2240,
           roas: 1.37,
+        },
+      ],
+    },
+    google: {
+      wallet: 2100,
+      kpis: { spend: 8900, revenue: 14200, roas: 1.60, impressions: 96000, clicks: 1280, orders: 38 },
+      extras: [
+        { label: 'CTR', value: '1.33%' },
+        { label: 'Avg CPC', value: '₹6.95' },
+        { label: 'Conversions', value: '38' },
+      ],
+      trend: [8, 10, 12, 11, 14, 16, 18, 17, 20, 22, 21],
+      campaigns: [
+        {
+          id: 'g3-1',
+          name: 'Whey isolate Search',
+          type: 'Search',
+          status: 'LIVE',
+          duration: '01 Aug 2026 – No end date',
+          budgetLabel: '₹450 / day',
+          spend: 6100,
+          impressions: 52000,
+          clicks: 860,
+          orders: 26,
+          revenue: 9800,
+          roas: 1.61,
+        },
+        {
+          id: 'g3-2',
+          name: 'Gym accessories · Display',
+          type: 'Display',
+          status: 'PAUSED',
+          duration: '20 Jul 2026 – No end date',
+          budgetLabel: '₹250 / day',
+          spend: 2800,
+          impressions: 44000,
+          clicks: 420,
+          orders: 12,
+          revenue: 4400,
+          roas: 1.57,
         },
       ],
     },

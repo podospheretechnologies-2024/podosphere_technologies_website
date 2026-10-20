@@ -75,7 +75,7 @@ function sumSnapshots(snapshots: MarketplaceSnapshot[]): MarketplaceSnapshot {
       orders: snapshots.reduce((sum, item) => sum + item.kpis.orders, 0),
     },
     extras: [
-      { label: 'Marketplaces', value: String(snapshots.length) },
+      { label: 'Platforms', value: String(snapshots.length) },
       { label: 'Campaigns', value: String(campaigns.length) },
       { label: 'Live', value: String(campaigns.filter((row) => row.status === 'LIVE').length) },
     ],
@@ -89,6 +89,119 @@ function Kpi({ label, value }: { label: string; value: string }) {
     <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
       <div className="text-xs font-semibold uppercase tracking-wider text-gray-500">{label}</div>
       <div className="mt-1 text-xl font-semibold text-gray-900">{value}</div>
+    </div>
+  );
+}
+
+function meeshoStatusLabel(status: MarketplaceCampaign['status']) {
+  if (status === 'LIVE') return 'Live';
+  if (status === 'LEARNING') return 'Learning';
+  return 'Paused';
+}
+
+function MeeshoAdsView({
+  clientName,
+  snapshot,
+}: {
+  clientName: string;
+  snapshot: MarketplaceSnapshot;
+}) {
+  const live = snapshot.campaigns.filter((row) => row.status === 'LIVE').length;
+  return (
+    <div className="overflow-hidden rounded-2xl border border-pink-200 bg-white shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-[#F43397] px-5 py-4 text-white">
+        <div>
+          <div className="text-xs font-semibold uppercase tracking-wider text-pink-100">
+            Supplier Hub · Ads
+          </div>
+          <h2 className="text-lg font-semibold">{clientName} · Meesho Ads</h2>
+        </div>
+        <div className="text-right text-sm text-pink-100">
+          <div>Ads wallet {formatMoney(snapshot.wallet)}</div>
+          <div className="text-xs">{live} live catalog campaigns</div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-px border-b border-pink-100 bg-pink-50 md:grid-cols-3 xl:grid-cols-6">
+        <Kpi label="Ad spend" value={formatMoney(snapshot.kpis.spend)} />
+        <Kpi label="Sales" value={formatMoney(snapshot.kpis.revenue)} />
+        <Kpi label="ROI" value={snapshot.kpis.roas.toFixed(2)} />
+        <Kpi label="Views" value={compact.format(snapshot.kpis.impressions)} />
+        <Kpi label="Clicks" value={compact.format(snapshot.kpis.clicks)} />
+        <Kpi label="Orders" value={String(snapshot.kpis.orders)} />
+      </div>
+
+      <div className="flex flex-wrap gap-2 border-b border-gray-100 bg-white px-4 py-3">
+        {snapshot.extras.map((extra) => (
+          <span
+            key={extra.label}
+            className="rounded-full border border-pink-100 bg-pink-50 px-3 py-1 text-xs font-medium text-pink-800"
+          >
+            {extra.label}: {extra.value}
+          </span>
+        ))}
+      </div>
+
+      <div className="overflow-x-auto">
+        <table className="min-w-full divide-y divide-gray-200 text-sm">
+          <thead className="bg-[#FFF5F9]">
+            <tr>
+              {[
+                'Campaign',
+                'Catalogs',
+                'Status',
+                'Duration',
+                'Budget',
+                'Spend',
+                'Views',
+                'Clicks',
+                'Orders',
+                'Sales',
+                'ROI',
+              ].map((label, index) => (
+                <th
+                  key={label}
+                  className={`px-4 py-3 text-xs font-medium uppercase tracking-wider text-pink-900 ${
+                    index >= 5 ? 'text-right' : 'text-left'
+                  }`}
+                >
+                  {label}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {snapshot.campaigns.map((row) => (
+              <tr key={row.id} className="align-top hover:bg-pink-50/40">
+                <td className="px-4 py-3">
+                  <div className="font-medium text-gray-900">{row.name}</div>
+                  {row.action ? <div className="mt-1 text-xs text-red-600">{row.action}</div> : null}
+                </td>
+                <td className="whitespace-nowrap px-4 py-3 text-gray-600">{row.type}</td>
+                <td className="px-4 py-3">
+                  <span
+                    className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-semibold ${statusClass(row.status)}`}
+                  >
+                    {meeshoStatusLabel(row.status)}
+                  </span>
+                </td>
+                <td className="px-4 py-3 text-gray-600">{row.duration}</td>
+                <td className="whitespace-nowrap px-4 py-3 text-gray-600">{row.budgetLabel}</td>
+                <td className="whitespace-nowrap px-4 py-3 text-right text-gray-900">
+                  {formatMoney(row.spend)}
+                </td>
+                <td className="px-4 py-3 text-right text-gray-600">{compact.format(row.impressions)}</td>
+                <td className="px-4 py-3 text-right text-gray-600">{compact.format(row.clicks)}</td>
+                <td className="px-4 py-3 text-right text-gray-600">{row.orders}</td>
+                <td className="whitespace-nowrap px-4 py-3 text-right text-gray-900">
+                  {formatMoney(row.revenue)}
+                </td>
+                <td className="px-4 py-3 text-right font-medium text-gray-900">{row.roas.toFixed(2)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
@@ -182,7 +295,7 @@ function CampaignTable({
 
 export function MarketplaceAdsDashboard({ clients }: { clients: MarketplaceClientOption[] }) {
   const [clientId, setClientId] = useState(clients[0]?.id ?? '');
-  const [tab, setTab] = useState<TabId>('all');
+  const [tab, setTab] = useState<TabId>('meesho');
   const slot = Math.max(
     clients.findIndex((client) => client.id === clientId),
     0,
@@ -218,14 +331,14 @@ export function MarketplaceAdsDashboard({ clients }: { clients: MarketplaceClien
             Super Admin
           </Link>
           <div className="flex flex-wrap items-center gap-3">
-            <h1 className="text-3xl font-bold tracking-tight text-gray-900">Marketplace ads</h1>
+            <h1 className="text-3xl font-bold tracking-tight text-gray-900">Ads sample</h1>
             <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-semibold uppercase tracking-wide text-amber-800">
               Sample data
             </span>
           </div>
           <p className="mt-1 text-sm text-gray-500">
-            Blinkit, Meesho, Flipkart, and Amazon for three clients from Client Management. Numbers
-            are demo-only.
+            Google Ads, Blinkit, Meesho, Flipkart, and Amazon for the same three clients. Sample
+            numbers only — no API keys.
           </p>
         </div>
         <div className="rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-600 shadow-sm">
@@ -273,7 +386,7 @@ export function MarketplaceAdsDashboard({ clients }: { clients: MarketplaceClien
           }`}
         >
           <Store className="size-3.5" />
-          All marketplaces
+          All platforms
         </button>
         {MARKETPLACES.map((marketplace) => (
           <button
@@ -283,7 +396,9 @@ export function MarketplaceAdsDashboard({ clients }: { clients: MarketplaceClien
             className={`rounded-full border px-3 py-1.5 text-sm font-medium ${
               tab === marketplace
                 ? `${MARKETPLACE_META[marketplace].pill} ring-1 ring-offset-1`
-                : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
+                : marketplace === 'meesho'
+                  ? 'border-pink-200 bg-pink-50 text-pink-800 hover:bg-pink-100'
+                  : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
             }`}
           >
             {MARKETPLACE_META[marketplace].label}
@@ -291,42 +406,48 @@ export function MarketplaceAdsDashboard({ clients }: { clients: MarketplaceClien
         ))}
       </div>
 
-      <div className="mb-4 flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h2 className="text-lg font-semibold text-gray-900">
-            {client?.name}
-            {tab === 'all' ? ' · all marketplaces' : ` · ${MARKETPLACE_META[tab].label}`}
-          </h2>
-          <p className="text-sm text-gray-500">
-            Wallet {formatMoney(view.snapshot.wallet)}
-            {tab !== 'all' ? ` · ${MARKETPLACE_META[tab].label} seller ads` : null}
-          </p>
-        </div>
-        <Sparkline values={view.snapshot.trend} />
-      </div>
+      {tab === 'meesho' ? (
+        <MeeshoAdsView clientName={client?.name ?? 'Client'} snapshot={view.snapshot} />
+      ) : (
+        <>
+          <div className="mb-4 flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">
+                {client?.name}
+                {tab === 'all' ? ' · all marketplaces' : ` · ${MARKETPLACE_META[tab].label}`}
+              </h2>
+              <p className="text-sm text-gray-500">
+                Wallet {formatMoney(view.snapshot.wallet)}
+                {tab !== 'all' ? ` · ${MARKETPLACE_META[tab].label} seller ads` : null}
+              </p>
+            </div>
+            <Sparkline values={view.snapshot.trend} />
+          </div>
 
-      <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
-        <Kpi label="Ad spend" value={formatMoney(view.snapshot.kpis.spend)} />
-        <Kpi label="Revenue" value={formatMoney(view.snapshot.kpis.revenue)} />
-        <Kpi label="ROAS" value={view.snapshot.kpis.roas.toFixed(2)} />
-        <Kpi label="Views" value={compact.format(view.snapshot.kpis.impressions)} />
-        <Kpi label="Clicks" value={compact.format(view.snapshot.kpis.clicks)} />
-        <Kpi label="Orders" value={String(view.snapshot.kpis.orders)} />
-      </div>
+          <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+            <Kpi label="Ad spend" value={formatMoney(view.snapshot.kpis.spend)} />
+            <Kpi label="Revenue" value={formatMoney(view.snapshot.kpis.revenue)} />
+            <Kpi label="ROAS" value={view.snapshot.kpis.roas.toFixed(2)} />
+            <Kpi label="Views" value={compact.format(view.snapshot.kpis.impressions)} />
+            <Kpi label="Clicks" value={compact.format(view.snapshot.kpis.clicks)} />
+            <Kpi label="Orders" value={String(view.snapshot.kpis.orders)} />
+          </div>
 
-      <div className="mb-6 flex flex-wrap gap-2">
-        {view.snapshot.extras.map((extra) => (
-          <span
-            key={extra.label}
-            className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm text-gray-600"
-          >
-            <span className="text-gray-400">{extra.label}:</span>{' '}
-            <span className="font-medium text-gray-900">{extra.value}</span>
-          </span>
-        ))}
-      </div>
+          <div className="mb-6 flex flex-wrap gap-2">
+            {view.snapshot.extras.map((extra) => (
+              <span
+                key={extra.label}
+                className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm text-gray-600"
+              >
+                <span className="text-gray-400">{extra.label}:</span>{' '}
+                <span className="font-medium text-gray-900">{extra.value}</span>
+              </span>
+            ))}
+          </div>
 
-      <CampaignTable rows={view.rows} showMarketplace={view.showMarketplace} />
+          <CampaignTable rows={view.rows} showMarketplace={view.showMarketplace} />
+        </>
+      )}
     </div>
   );
 }

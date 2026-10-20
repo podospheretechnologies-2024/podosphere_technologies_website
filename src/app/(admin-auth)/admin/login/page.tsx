@@ -5,7 +5,12 @@ import { getCurrentUser } from '@/modules/auth/server/session';
 export const metadata = { title: 'Super Admin login' };
 
 export default async function AdminLoginPage() {
-  const user = await getCurrentUser();
+  let user = null;
+  try {
+    user = await getCurrentUser();
+  } catch {
+    // Session lookup can fail while deploy shims are settling — still show login.
+  }
   if (user?.isPlatformAdmin) redirect('/admin');
   if (user) redirect('/dashboard');
 
