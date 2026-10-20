@@ -334,7 +334,7 @@ export function MarketplaceAdsDashboard({ clients }: { clients: MarketplaceClien
             <h1 className="text-3xl font-bold tracking-tight text-gray-900">Marketplace ads</h1>
           </div>
           <p className="mt-1 text-sm text-gray-500">
-            Meta Ads, Google Ads, Blinkit, Meesho, Flipkart, and Amazon for Dastkar, Sitara Beauty, and Podosphere.
+            Meta Ads, Google Ads, Blinkit, Meesho, Flipkart, and Amazon for Kabira Its Handmade, Siyara Beauty, and Himshakti.
           </p>
         </div>
         <div className="rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-600 shadow-sm">
