@@ -91,12 +91,14 @@ function writePrismaRuntimeShims(shimPath) {
   mkdirSync(runtimeDir, { recursive: true });
   for (const file of readdirSync(realRuntime)) {
     if (!/\.(js|mjs|cjs)$/i.test(file)) continue;
-    const sub = file.replace(/\.(mjs|cjs|js)$/i, '');
-    const target = `@prisma/client/runtime/${sub}`;
+    // Keep the filename (including .mjs). ESM does not add extensions, so
+    // `@prisma/client/runtime/query_compiler_fast_bg.mysql` 404s while
+    // `@prisma/client/runtime/query_compiler_fast_bg.mysql.mjs` resolves.
+    const target = `@prisma/client/runtime/${file}`;
     if (file.endsWith('.mjs')) {
       writeFileSync(
         join(runtimeDir, file),
-        `export * from ${JSON.stringify(target)};\nexport { default } from ${JSON.stringify(target)};\n`
+        `export * from ${JSON.stringify(target)};\nimport * as __mod from ${JSON.stringify(target)};\nexport default __mod.default ?? __mod;\n`
       );
     } else {
       writeFileSync(
@@ -135,6 +137,9 @@ function writeShimPackage(destRoot, hashedName, realName) {
             import: './runtime/client.mjs',
             default: './runtime/client.js',
           },
+          './runtime/query_compiler_fast_bg.mysql.mjs': './runtime/query_compiler_fast_bg.mysql.mjs',
+          './runtime/query_compiler_fast_bg.mysql.wasm-base64.mjs':
+            './runtime/query_compiler_fast_bg.mysql.wasm-base64.mjs',
           './*': './*',
         },
       },

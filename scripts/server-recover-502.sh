@@ -28,6 +28,14 @@ if ! (cd .next/server/chunks/ssr && node -e "require('@prisma/client-24e0c89f9a6
   echo "ERROR: prisma hashed runtime/client still fails."
   exit 1
 fi
+if ! (cd .next/server/chunks && node --input-type=module -e "import('@prisma/client-24e0c89f9a65f861/runtime/query_compiler_fast_bg.mysql.mjs').then(() => console.log('prisma mysql compiler shim ok'))"); then
+  echo "ERROR: prisma hashed query_compiler_fast_bg.mysql.mjs still fails."
+  exit 1
+fi
+if ! (cd .next/server/chunks && node --input-type=module -e "import('@prisma/client-24e0c89f9a65f861/runtime/query_compiler_fast_bg.mysql.wasm-base64.mjs').then(() => console.log('prisma mysql wasm shim ok'))"); then
+  echo "ERROR: prisma hashed query_compiler_fast_bg.mysql.wasm-base64.mjs still fails."
+  exit 1
+fi
 
 echo "==> restart pm2 (next start on :3100)"
 pm2 delete podo-social-web 2>/dev/null || true
