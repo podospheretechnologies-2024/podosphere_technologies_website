@@ -1,5 +1,6 @@
-export const MARKETPLACES = ['blinkit', 'meesho', 'flipkart', 'amazon', 'google'] as const;
+export const MARKETPLACES = ['meta', 'google', 'blinkit', 'meesho', 'flipkart', 'amazon'] as const;
 export type MarketplaceId = (typeof MARKETPLACES)[number];
+type SellerMarketplaceId = Exclude<MarketplaceId, 'meta'>;
 
 export const MARKETPLACE_CLIENT_SLOTS = 3;
 
@@ -43,31 +44,47 @@ export type MarketplaceClientOption = {
   isDemo: boolean;
 };
 
-export const MARKETPLACE_META: Record<MarketplaceId, { label: string; pill: string }> = {
+export const PREFERRED_SAMPLE_CLIENTS = [
+  { name: 'Dastkar', match: /dastkar/i },
+  { name: 'Sitara Beauty', match: /sitara/i },
+  { name: 'Podosphere', match: /podosphere/i },
+] as const;
+
+export const MARKETPLACE_META: Record<MarketplaceId, { label: string; pill: string; accent: string }> = {
+  meta: {
+    label: 'Meta Ads',
+    pill: 'bg-blue-100 text-blue-800 border-blue-200',
+    accent: '#1877F2',
+  },
   google: {
     label: 'Google Ads',
     pill: 'bg-sky-100 text-sky-800 border-sky-200',
+    accent: '#1A73E8',
   },
   blinkit: {
     label: 'Blinkit',
     pill: 'bg-yellow-100 text-yellow-800 border-yellow-200',
+    accent: '#F8C41A',
   },
   meesho: {
     label: 'Meesho',
     pill: 'bg-pink-100 text-pink-800 border-pink-200',
+    accent: '#F43397',
   },
   flipkart: {
     label: 'Flipkart',
     pill: 'bg-blue-100 text-blue-800 border-blue-200',
+    accent: '#2874F0',
   },
   amazon: {
     label: 'Amazon',
     pill: 'bg-orange-100 text-orange-800 border-orange-200',
+    accent: '#FF9900',
   },
 };
 
 /** Three client slots × Google Ads + four marketplaces. Mapped onto real SocialCustomer names at render. */
-export const MARKETPLACE_SAMPLE: Array<Record<MarketplaceId, MarketplaceSnapshot>> = [
+export const MARKETPLACE_SAMPLE: Array<Record<SellerMarketplaceId, MarketplaceSnapshot>> = [
   {
     blinkit: {
       wallet: 779.98,
@@ -803,22 +820,116 @@ export const MARKETPLACE_SAMPLE: Array<Record<MarketplaceId, MarketplaceSnapshot
   },
 ];
 
-export function padMarketplaceClients(rows: MarketplaceClientOption[]): MarketplaceClientOption[] {
-  const clients = rows.slice(0, MARKETPLACE_CLIENT_SLOTS);
-  let demo = 1;
-  while (clients.length < MARKETPLACE_CLIENT_SLOTS) {
-    clients.push({
-      id: `demo-${demo}`,
-      name: `Demo Client ${clients.length + 1}`,
+function metaCampaign(
+  id: string,
+  name: string,
+  type: string,
+  status: CampaignStatus,
+  budgetLabel: string,
+  spend: number,
+  impressions: number,
+  clicks: number,
+  orders: number,
+): MarketplaceCampaign {
+  const revenue = orders > 0 ? Math.round(spend * (orders > 4 ? 1.8 : 1.2)) : 0;
+  return {
+    id,
+    name,
+    type,
+    status,
+    duration: 'No end date',
+    budgetLabel,
+    spend,
+    impressions,
+    clicks,
+    orders,
+    revenue,
+    roas: spend > 0 && revenue > 0 ? revenue / spend : 0,
+  };
+}
+
+const META_SAMPLE: MarketplaceSnapshot[] = [
+  {
+    wallet: 12400,
+    kpis: { spend: 18640, revenue: 31220, roas: 1.67, impressions: 214000, clicks: 2860, orders: 94 },
+    extras: [
+      { label: 'Active', value: '2' },
+      { label: 'Leads', value: '94' },
+      { label: 'CPL', value: '₹198' },
+    ],
+    trend: [12, 16, 18, 22, 20, 26, 30, 28, 34, 36, 40],
+    campaigns: [
+      metaCampaign('d-m1', 'Dastkar festive handicrafts', 'LEADS', 'LIVE', '₹500.00 Daily', 8420, 98000, 1240, 48),
+      metaCampaign('d-m2', 'Dastkar D2C shop', 'SALES', 'LIVE', '₹300.00 Daily', 6120, 72000, 890, 32),
+      metaCampaign('d-m3', 'Dastkar crafts · 14 may 2026', 'LEADS', 'PAUSED', '₹300.00 Daily', 2100, 24000, 410, 8),
+      metaCampaign('d-m4', 'Dastkar Instagram post: Hello!', 'OUTCOME_ENGAGEMENT', 'PAUSED', '₹200.00 Daily', 2000, 20000, 320, 6),
+      metaCampaign('d-m5', 'Dastkar new arrival 16 DEC 2025', 'LEADS', 'PAUSED', '₹300.00 Daily', 0, 0, 0, 0),
+    ],
+  },
+  {
+    wallet: 8600,
+    kpis: { spend: 14280, revenue: 26840, roas: 1.88, impressions: 168000, clicks: 2210, orders: 76 },
+    extras: [
+      { label: 'Active', value: '2' },
+      { label: 'Leads', value: '76' },
+      { label: 'CPL', value: '₹188' },
+    ],
+    trend: [10, 14, 16, 18, 22, 24, 26, 30, 28, 32, 34],
+    campaigns: [
+      metaCampaign('s-m1', 'Sitara Beauty glow leads', 'LEADS', 'LIVE', '₹400.00 Daily', 7640, 86000, 1180, 44),
+      metaCampaign('s-m2', 'Sitara serum D2C', 'SALES', 'LIVE', '₹300.00 Daily', 4480, 52000, 640, 22),
+      metaCampaign('s-m3', 'Sitara 14 may 2026', 'LEADS', 'PAUSED', '₹300.00 Daily', 2160, 30000, 390, 10),
+      metaCampaign('s-m4', 'Sitara d2c 23 feb', 'SALES', 'PAUSED', '₹300.00 Daily', 0, 0, 0, 0),
+      metaCampaign('s-m5', 'Sitara Instagram post: Hello!', 'OUTCOME_ENGAGEMENT', 'PAUSED', '₹200.00 Daily', 0, 0, 0, 0),
+    ],
+  },
+  {
+    wallet: 5400,
+    kpis: { spend: 0, revenue: 0, roas: 0, impressions: 0, clicks: 0, orders: 0 },
+    extras: [
+      { label: 'Active', value: '1' },
+      { label: 'Leads', value: '0' },
+      { label: 'CPL', value: '—' },
+    ],
+    trend: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    campaigns: [
+      metaCampaign('p-m1', 'leads 14 may 2026', 'LEADS', 'LIVE', '₹300.00 Daily', 0, 0, 0, 0),
+      metaCampaign('p-m2', 'd2c 23 feb', 'SALES', 'PAUSED', '₹300.00 Daily', 0, 0, 0, 0),
+      metaCampaign('p-m3', 'leads 20 feb 2026 - Copy', 'LEADS', 'PAUSED', '₹300.00 Daily', 0, 0, 0, 0),
+      metaCampaign('p-m4', 'leads 16 feb 2026', 'LEADS', 'PAUSED', '₹300.00 Daily', 0, 0, 0, 0),
+      metaCampaign('p-m5', 'LEADS 16DEC2025 NEW ARRIVAL', 'LEADS', 'PAUSED', '₹300.00 Daily', 0, 0, 0, 0),
+      metaCampaign('p-m6', 'AD D2C 2 AD SET 16 DEC 2025', 'SALES', 'PAUSED', '₹200.00 Daily', 0, 0, 0, 0),
+      metaCampaign('p-m7', 'ertefa sales ab', 'SALES', 'PAUSED', '₹500.00 Daily', 0, 0, 0, 0),
+      metaCampaign('p-m8', 'ertefa in 22 sep', 'SALES', 'PAUSED', '₹1,000.00 Daily', 0, 0, 0, 0),
+      metaCampaign('p-m9', 'Instagram post: Hello!', 'OUTCOME_ENGAGEMENT', 'PAUSED', '₹200.00 Daily', 0, 0, 0, 0),
+      metaCampaign('p-m10', 'Instagram post: Hello! All retailers…', 'OUTCOME_ENGAGEMENT', 'PAUSED', '₹200.00 Daily', 0, 0, 0, 0),
+    ],
+  },
+];
+
+export function pickMarketplaceClients(rows: MarketplaceClientOption[]): MarketplaceClientOption[] {
+  const unused = [...rows];
+  return PREFERRED_SAMPLE_CLIENTS.map((pref, index) => {
+    const matchIndex = unused.findIndex((row) => pref.match.test(row.name));
+    if (matchIndex >= 0) {
+      const [found] = unused.splice(matchIndex, 1);
+      return found;
+    }
+    return {
+      id: `demo-${index + 1}`,
+      name: pref.name,
       organizationName: 'Sample',
       isDemo: true,
-    });
-    demo += 1;
-  }
-  return clients;
+    };
+  });
+}
+
+export function padMarketplaceClients(rows: MarketplaceClientOption[]): MarketplaceClientOption[] {
+  return pickMarketplaceClients(rows);
 }
 
 export function snapshotFor(slot: number, marketplace: MarketplaceId): MarketplaceSnapshot {
-  const index = Math.min(Math.max(slot, 0), MARKETPLACE_SAMPLE.length - 1);
+  const index = Math.min(Math.max(slot, 0), MARKETPLACE_CLIENT_SLOTS - 1);
+  if (marketplace === 'meta') return META_SAMPLE[index];
   return MARKETPLACE_SAMPLE[index][marketplace];
 }

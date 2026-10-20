@@ -54,7 +54,6 @@ export const adminService = {
         organization: { select: { name: true } },
       },
       orderBy: { createdAt: 'asc' },
-      take: 3,
     });
     return rows.map((row) => ({
       id: row.id,

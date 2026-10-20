@@ -337,7 +337,7 @@ export function MarketplaceAdsDashboard({ clients }: { clients: MarketplaceClien
             </span>
           </div>
           <p className="mt-1 text-sm text-gray-500">
-            Google Ads, Blinkit, Meesho, Flipkart, and Amazon for the same three clients. Sample
+            Meta Ads, Google Ads, Blinkit, Meesho, Flipkart, and Amazon for Dastkar, Sitara Beauty, and Podosphere. Sample
             numbers only — no API keys.
           </p>
         </div>
