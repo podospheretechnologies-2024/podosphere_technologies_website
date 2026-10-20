@@ -81,12 +81,39 @@ const shimRoots = [
   join(root, '.next', 'node_modules'),
   join(root, '.next', 'server', 'node_modules'),
   join(root, '.next', 'server', 'chunks', 'node_modules'),
+  join(root, '.next', 'server', 'chunks', 'ssr', 'node_modules'),
 ];
+
+function writePrismaRuntimeShims(shimPath) {
+  const realRuntime = join(nm, '@prisma', 'client', 'runtime');
+  if (!existsSync(realRuntime)) return;
+  const runtimeDir = join(shimPath, 'runtime');
+  mkdirSync(runtimeDir, { recursive: true });
+  for (const file of readdirSync(realRuntime)) {
+    if (!/\.(js|mjs|cjs)$/i.test(file)) continue;
+    const sub = file.replace(/\.(mjs|cjs|js)$/i, '');
+    const target = `@prisma/client/runtime/${sub}`;
+    if (file.endsWith('.mjs')) {
+      writeFileSync(
+        join(runtimeDir, file),
+        `export * from ${JSON.stringify(target)};\nexport { default } from ${JSON.stringify(target)};\n`
+      );
+    } else {
+      writeFileSync(
+        join(runtimeDir, file),
+        `'use strict';\nmodule.exports = require(${JSON.stringify(target)});\n`
+      );
+    }
+  }
+}
 
 function writeShimPackage(destRoot, hashedName, realName) {
   const shimPath = join(destRoot, ...hashedName.split('/'));
   rmSync(shimPath, { recursive: true, force: true });
   mkdirSync(shimPath, { recursive: true });
+
+  const isPrisma = realName === '@prisma/client';
+  if (isPrisma) writePrismaRuntimeShims(shimPath);
 
   writeFileSync(
     join(shimPath, 'package.json'),
@@ -103,6 +130,12 @@ function writeShimPackage(destRoot, hashedName, realName) {
             default: './index.cjs',
           },
           './package.json': './package.json',
+          './runtime/client': {
+            require: './runtime/client.js',
+            import: './runtime/client.mjs',
+            default: './runtime/client.js',
+          },
+          './*': './*',
         },
       },
       null,

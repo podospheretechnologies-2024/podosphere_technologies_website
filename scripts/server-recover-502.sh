@@ -19,9 +19,13 @@ rm -rf .next
 mkdir -p .next
 cp -a deploy/standalone/.next/. .next/
 node scripts/link-turbopack-externals-shim.mjs
-echo "==> verify sharp turbopack shim from chunk importer path"
+echo "==> verify turbopack shims from chunk importer path"
 if ! (cd .next/server/chunks && node --input-type=module -e "import('sharp-9b5cd53f6851c3b7').then(() => console.log('sharp shim ok'))"); then
   echo "ERROR: sharp hashed import still fails. Check pnpm install of sharp."
+  exit 1
+fi
+if ! (cd .next/server/chunks/ssr && node -e "require('@prisma/client-24e0c89f9a65f861/runtime/client'); console.log('prisma runtime shim ok')"); then
+  echo "ERROR: prisma hashed runtime/client still fails."
   exit 1
 fi
 
