@@ -451,3 +451,86 @@ export function MarketplaceAdsDashboard({ clients }: { clients: MarketplaceClien
     </div>
   );
 }
+
+/** Sample-data view for a single platform, embedded in the workspace Ads page (platform admins only). */
+export function MarketplaceSamplePanel({
+  marketplace,
+  clients,
+}: {
+  marketplace: Exclude<MarketplaceId, 'meta'>;
+  clients: MarketplaceClientOption[];
+}) {
+  const [clientId, setClientId] = useState(clients[0]?.id ?? '');
+  const slot = Math.max(
+    clients.findIndex((client) => client.id === clientId),
+    0,
+  );
+  const client = clients[slot];
+  const snapshot = snapshotFor(slot, marketplace);
+  const rows = snapshot.campaigns.map((campaign) => ({ ...campaign, marketplace }));
+
+  return (
+    <div>
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-semibold uppercase tracking-wide text-amber-800">
+          Sample data · admin only
+        </span>
+        {clients.map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            onClick={() => setClientId(item.id)}
+            className={`rounded-full border px-3 py-1.5 text-sm font-medium ${
+              item.id === clientId
+                ? 'border-indigo-300 bg-indigo-50 text-indigo-800'
+                : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
+            }`}
+          >
+            {item.name}
+          </button>
+        ))}
+      </div>
+
+      {marketplace === 'meesho' ? (
+        <MeeshoAdsView clientName={client?.name ?? 'Client'} snapshot={snapshot} />
+      ) : (
+        <>
+          <div className="mb-4 flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">
+                {client?.name} · {MARKETPLACE_META[marketplace].label}
+              </h2>
+              <p className="text-sm text-gray-500">
+                Wallet {formatMoney(snapshot.wallet)} · {MARKETPLACE_META[marketplace].label} ads
+              </p>
+            </div>
+            <Sparkline values={snapshot.trend} />
+          </div>
+
+          <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+            <Kpi label="Ad spend" value={formatMoney(snapshot.kpis.spend)} />
+            <Kpi label="Revenue" value={formatMoney(snapshot.kpis.revenue)} />
+            <Kpi label="ROAS" value={snapshot.kpis.roas.toFixed(2)} />
+            <Kpi label="Views" value={compact.format(snapshot.kpis.impressions)} />
+            <Kpi label="Clicks" value={compact.format(snapshot.kpis.clicks)} />
+            <Kpi label="Orders" value={String(snapshot.kpis.orders)} />
+          </div>
+
+          <div className="mb-6 flex flex-wrap gap-2">
+            {snapshot.extras.map((extra) => (
+              <span
+                key={extra.label}
+                className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm text-gray-600"
+              >
+                <span className="text-gray-400">{extra.label}:</span>{' '}
+                <span className="font-medium text-gray-900">{extra.value}</span>
+              </span>
+            ))}
+          </div>
+
+          <CampaignTable rows={rows} showMarketplace={false} />
+        </>
+      )}
+    </div>
+  );
+}

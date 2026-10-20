@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { MarketplaceSamplePanel } from '@/modules/admin/components/marketplace-ads-dashboard';
+import { padMarketplaceClients, type MarketplaceId } from '@/modules/admin/data/marketplace-ads.sample';
 import { EmptyState } from '@/shared/components/ui/empty-state';
 import {
   ADS_DEFAULT_DATE_PRESET,
@@ -171,15 +173,27 @@ function MetaAdsDashboard() {
   );
 }
 
-type AdsPlatform = 'meta' | 'google';
+type SampleMarketplace = Exclude<MarketplaceId, 'meta'>;
+type AdsPlatform = 'meta' | 'google' | SampleMarketplace;
 
-const PLATFORMS: { value: AdsPlatform; label: string }[] = [
+const BASE_PLATFORMS: { value: AdsPlatform; label: string }[] = [
   { value: 'meta', label: 'Meta Ads' },
   { value: 'google', label: 'Google Ads' },
 ];
 
-export function AdsDashboard() {
+// Sample-data tabs, shown to platform admins only.
+const ADMIN_SAMPLE_PLATFORMS: { value: AdsPlatform; label: string }[] = [
+  { value: 'blinkit', label: 'Blinkit' },
+  { value: 'meesho', label: 'Meesho' },
+  { value: 'flipkart', label: 'Flipkart' },
+  { value: 'amazon', label: 'Amazon' },
+];
+
+const SAMPLE_CLIENTS = padMarketplaceClients([]);
+
+export function AdsDashboard({ isPlatformAdmin = false }: { isPlatformAdmin?: boolean }) {
   const [platform, setPlatform] = useState<AdsPlatform>('meta');
+  const platforms = isPlatformAdmin ? [...BASE_PLATFORMS, ...ADMIN_SAMPLE_PLATFORMS] : BASE_PLATFORMS;
 
   // The Google OAuth callback returns to ?platform=google.
   useEffect(() => {
@@ -195,7 +209,7 @@ export function AdsDashboard() {
         aria-label="Ad platform"
         className="flex gap-1 border-b border-[#DADCE0] bg-white px-5 pt-2"
       >
-        {PLATFORMS.map((item) => (
+        {platforms.map((item) => (
           <button
             key={item.value}
             type="button"
@@ -212,7 +226,19 @@ export function AdsDashboard() {
           </button>
         ))}
       </div>
-      <div className="p-5">{platform === 'meta' ? <MetaAdsDashboard /> : <GoogleAdsPanel />}</div>
+      <div className="p-5">
+        {platform === 'meta' ? (
+          <MetaAdsDashboard />
+        ) : platform === 'google' ? (
+          isPlatformAdmin ? (
+            <MarketplaceSamplePanel marketplace="google" clients={SAMPLE_CLIENTS} />
+          ) : (
+            <GoogleAdsPanel />
+          )
+        ) : (
+          <MarketplaceSamplePanel marketplace={platform} clients={SAMPLE_CLIENTS} />
+        )}
+      </div>
     </div>
   );
 }

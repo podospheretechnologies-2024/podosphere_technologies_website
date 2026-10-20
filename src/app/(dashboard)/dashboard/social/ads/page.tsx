@@ -8,7 +8,7 @@ export const metadata: Metadata = {
 };
 
 export default async function AdsPage() {
-  const { role } = await getAccess();
+  const { role, isPlatformAdmin } = await getAccess();
   if (role === 'MEMBER') {
     return (
       <AdminsOnlyNotice
@@ -17,5 +17,5 @@ export default async function AdsPage() {
       />
     );
   }
-  return <AdsDashboard />;
+  return <AdsDashboard isPlatformAdmin={isPlatformAdmin} />;
 }
