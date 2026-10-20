@@ -98,7 +98,7 @@ export const MARKETPLACE_SAMPLE: Array<Record<SellerMarketplaceId, MarketplaceSn
       campaigns: [
         {
           id: 'b1-1',
-          name: 'Atta & staples · Delhi booster',
+          name: 'Handmade diyas · Festive booster',
           type: 'Product Booster',
           status: 'LIVE',
           duration: '23 Sep \'26 – 30 Oct \'26',
@@ -112,7 +112,7 @@ export const MARKETPLACE_SAMPLE: Array<Record<SellerMarketplaceId, MarketplaceSn
         },
         {
           id: 'b1-2',
-          name: 'Oil & ghee · NCR booster',
+          name: 'Brass décor · NCR booster',
           type: 'Product Booster',
           status: 'LIVE',
           duration: '23 Sep \'26 – 30 Oct \'26',
@@ -126,7 +126,7 @@ export const MARKETPLACE_SAMPLE: Array<Record<SellerMarketplaceId, MarketplaceSn
         },
         {
           id: 'b1-3',
-          name: 'Ready meals · Recommendation ads',
+          name: 'Gift hampers · Recommendation ads',
           type: 'Recommendation Ads',
           status: 'LIVE',
           duration: '07 Oct \'26 – No end date',
@@ -152,7 +152,7 @@ export const MARKETPLACE_SAMPLE: Array<Record<SellerMarketplaceId, MarketplaceSn
       campaigns: [
         {
           id: 'm1-1',
-          name: '4987165-10/5/2026',
+          name: 'Block-print kurtis catalog',
           type: '1 Catalog',
           status: 'LIVE',
           duration: '05 Oct 2026 – No end date',
@@ -167,7 +167,7 @@ export const MARKETPLACE_SAMPLE: Array<Record<SellerMarketplaceId, MarketplaceSn
         },
         {
           id: 'm1-2',
-          name: '4987165-10/5/2026 Auto',
+          name: 'Handloom dupattas · Auto',
           type: 'Auto Catalogs',
           status: 'LEARNING',
           duration: '05 Oct 2026 – Till budget lasts',
@@ -181,7 +181,7 @@ export const MARKETPLACE_SAMPLE: Array<Record<SellerMarketplaceId, MarketplaceSn
         },
         {
           id: 'm1-3',
-          name: 'New_Catalog_Tester_28 Sep 2026',
+          name: 'Diwali decor · Catalog test',
           type: '1 Catalog',
           status: 'LIVE',
           duration: '28 Sep 2026 – No end date',
@@ -207,7 +207,7 @@ export const MARKETPLACE_SAMPLE: Array<Record<SellerMarketplaceId, MarketplaceSn
       campaigns: [
         {
           id: 'f1-1',
-          name: 'Staples PLA · keywords',
+          name: 'Handicraft PLA · keywords',
           type: 'PLA',
           status: 'LIVE',
           duration: '13 Oct \'26 – Till budget ends',
@@ -221,7 +221,7 @@ export const MARKETPLACE_SAMPLE: Array<Record<SellerMarketplaceId, MarketplaceSn
         },
         {
           id: 'f1-2',
-          name: 'HMB Advertisement Campaign',
+          name: 'Home décor · Bestsellers PLA',
           type: 'PLA',
           status: 'LIVE',
           duration: '17 Sep \'25 – Till budget ends',
@@ -235,7 +235,7 @@ export const MARKETPLACE_SAMPLE: Array<Record<SellerMarketplaceId, MarketplaceSn
         },
         {
           id: 'f1-3',
-          name: 'PLA_Campaign-2026-01-31',
+          name: 'Festive gifting · PLA',
           type: 'PLA',
           status: 'PAUSED',
           duration: '31 Jan \'26 – Till budget ends',
@@ -261,7 +261,7 @@ export const MARKETPLACE_SAMPLE: Array<Record<SellerMarketplaceId, MarketplaceSn
       campaigns: [
         {
           id: 'a1-1',
-          name: 'Thise x Auto - NVeg',
+          name: 'Handmade decor · SP Auto',
           type: 'Sponsored Products · Automatic',
           status: 'PAUSED',
           duration: '29 May 2026 – No end date',
@@ -275,7 +275,7 @@ export const MARKETPLACE_SAMPLE: Array<Record<SellerMarketplaceId, MarketplaceSn
         },
         {
           id: 'a1-2',
-          name: 'Thise x Auto - Veg',
+          name: 'Brass idols · SP Exact',
           type: 'Sponsored Products · Automatic',
           status: 'PAUSED',
           duration: '29 May 2026 – No end date',
@@ -289,7 +289,7 @@ export const MARKETPLACE_SAMPLE: Array<Record<SellerMarketplaceId, MarketplaceSn
         },
         {
           id: 'a1-3',
-          name: 'ANA_SPN_SG_Adaptive Campaign',
+          name: 'Artisan gifts · SP Adaptive',
           type: 'Sponsored Products · Manual',
           status: 'LIVE',
           duration: '8 Jul 2026 – No end date',
@@ -315,7 +315,7 @@ export const MARKETPLACE_SAMPLE: Array<Record<SellerMarketplaceId, MarketplaceSn
       campaigns: [
         {
           id: 'g1-1',
-          name: 'Staples Search · brand + generics',
+          name: 'Handicrafts Search · brand + generic',
           type: 'Search',
           status: 'LIVE',
           duration: '01 Sep 2026 – No end date',
@@ -329,7 +329,7 @@ export const MARKETPLACE_SAMPLE: Array<Record<SellerMarketplaceId, MarketplaceSn
         },
         {
           id: 'g1-2',
-          name: 'Grocery Shopping · PLA',
+          name: 'Festive décor · Shopping',
           type: 'Shopping',
           status: 'LIVE',
           duration: '12 Sep 2026 – No end date',
@@ -343,7 +343,7 @@ export const MARKETPLACE_SAMPLE: Array<Record<SellerMarketplaceId, MarketplaceSn
         },
         {
           id: 'g1-3',
-          name: 'Ready meals · PMax',
+          name: 'Artisan gifts · PMax',
           type: 'Performance Max',
           status: 'LEARNING',
           duration: '05 Oct 2026 – No end date',
@@ -371,7 +371,7 @@ export const MARKETPLACE_SAMPLE: Array<Record<SellerMarketplaceId, MarketplaceSn
       campaigns: [
         {
           id: 'b2-1',
-          name: 'Starogaze Fitblend Blender 500W · Delhi',
+          name: 'Vitamin C serum · 10-min delivery',
           type: 'Product Booster',
           status: 'LIVE',
           duration: '23 Sep \'26 – 30 Oct \'26',
@@ -385,7 +385,7 @@ export const MARKETPLACE_SAMPLE: Array<Record<SellerMarketplaceId, MarketplaceSn
         },
         {
           id: 'b2-2',
-          name: 'Starogaze Fitblend · Recommendation',
+          name: 'Lip care · Recommendation ads',
           type: 'Recommendation Ads',
           status: 'LIVE',
           duration: '07 Oct \'26 – No end date',
@@ -399,7 +399,7 @@ export const MARKETPLACE_SAMPLE: Array<Record<SellerMarketplaceId, MarketplaceSn
         },
         {
           id: 'b2-3',
-          name: 'Magnet Electric Chopper · Keywords',
+          name: 'Face wash · Delhi booster',
           type: 'Product Booster',
           status: 'LIVE',
           duration: '07 Oct \'26 – No end date',
@@ -425,7 +425,7 @@ export const MARKETPLACE_SAMPLE: Array<Record<SellerMarketplaceId, MarketplaceSn
       campaigns: [
         {
           id: 'm2-1',
-          name: 'Kitchen catalog · festive',
+          name: 'Skincare combo catalog',
           type: '1 Catalog',
           status: 'LIVE',
           duration: '01 Oct 2026 – No end date',
@@ -439,7 +439,7 @@ export const MARKETPLACE_SAMPLE: Array<Record<SellerMarketplaceId, MarketplaceSn
         },
         {
           id: 'm2-2',
-          name: 'Chopper auto catalogs',
+          name: 'Lipstick shades · Auto',
           type: 'Auto Catalogs',
           status: 'LEARNING',
           duration: '12 Oct 2026 – Till budget lasts',
@@ -453,7 +453,7 @@ export const MARKETPLACE_SAMPLE: Array<Record<SellerMarketplaceId, MarketplaceSn
         },
         {
           id: 'm2-3',
-          name: 'Blender listing ads',
+          name: 'Hair care · Listing ads',
           type: '1 Catalog',
           status: 'PAUSED',
           duration: '20 Sep 2026 – No end date',
@@ -479,7 +479,7 @@ export const MARKETPLACE_SAMPLE: Array<Record<SellerMarketplaceId, MarketplaceSn
       campaigns: [
         {
           id: 'f2-1',
-          name: 'Fitblend PLA · bestsellers',
+          name: 'Glow serum PLA · bestsellers',
           type: 'PLA',
           status: 'LIVE',
           duration: '04 Sep \'26 – Till budget ends',
@@ -493,7 +493,7 @@ export const MARKETPLACE_SAMPLE: Array<Record<SellerMarketplaceId, MarketplaceSn
         },
         {
           id: 'f2-2',
-          name: 'Chopper PLA · keywords',
+          name: 'Makeup PLA · keywords',
           type: 'PLA',
           status: 'LIVE',
           duration: '12 Dec \'25 – Till budget ends',
@@ -519,7 +519,7 @@ export const MARKETPLACE_SAMPLE: Array<Record<SellerMarketplaceId, MarketplaceSn
       campaigns: [
         {
           id: 'a2-1',
-          name: 'Blender SP · exact keywords',
+          name: 'Serum SP · exact keywords',
           type: 'Sponsored Products · Manual',
           status: 'LIVE',
           duration: '01 Sep 2026 – No end date',
@@ -533,7 +533,7 @@ export const MARKETPLACE_SAMPLE: Array<Record<SellerMarketplaceId, MarketplaceSn
         },
         {
           id: 'a2-2',
-          name: 'Chopper SP · auto',
+          name: 'Skincare SP · auto',
           type: 'Sponsored Products · Automatic',
           status: 'LIVE',
           duration: '15 Sep 2026 – No end date',
@@ -559,7 +559,7 @@ export const MARKETPLACE_SAMPLE: Array<Record<SellerMarketplaceId, MarketplaceSn
       campaigns: [
         {
           id: 'g2-1',
-          name: 'Fitblend Search · exact',
+          name: 'Sitara Beauty Search · exact',
           type: 'Search',
           status: 'LIVE',
           duration: '01 Sep 2026 – No end date',
@@ -573,7 +573,7 @@ export const MARKETPLACE_SAMPLE: Array<Record<SellerMarketplaceId, MarketplaceSn
         },
         {
           id: 'g2-2',
-          name: 'Kitchen appliances · Shopping',
+          name: 'Skincare · Shopping',
           type: 'Shopping',
           status: 'LIVE',
           duration: '18 Sep 2026 – No end date',
@@ -601,7 +601,7 @@ export const MARKETPLACE_SAMPLE: Array<Record<SellerMarketplaceId, MarketplaceSn
       campaigns: [
         {
           id: 'b3-1',
-          name: 'Whey isolate · 10-min delivery',
+          name: 'Daily wellness pack · 10-min delivery',
           type: 'Product Booster',
           status: 'LIVE',
           duration: '01 Oct \'26 – 31 Oct \'26',
@@ -615,7 +615,7 @@ export const MARKETPLACE_SAMPLE: Array<Record<SellerMarketplaceId, MarketplaceSn
         },
         {
           id: 'b3-2',
-          name: 'Creatine · Recommendation ads',
+          name: 'Herbal tea · Recommendation ads',
           type: 'Recommendation Ads',
           status: 'LEARNING',
           duration: '14 Oct \'26 – No end date',
@@ -641,7 +641,7 @@ export const MARKETPLACE_SAMPLE: Array<Record<SellerMarketplaceId, MarketplaceSn
       campaigns: [
         {
           id: 'm3-1',
-          name: 'Gym accessories catalog',
+          name: 'Wellness essentials catalog',
           type: '1 Catalog',
           status: 'LIVE',
           duration: '08 Oct 2026 – No end date',
@@ -655,7 +655,7 @@ export const MARKETPLACE_SAMPLE: Array<Record<SellerMarketplaceId, MarketplaceSn
         },
         {
           id: 'm3-2',
-          name: 'Shaker bottles · auto',
+          name: 'Lifestyle combo · Auto',
           type: 'Auto Catalogs',
           status: 'LIVE',
           duration: '16 Oct 2026 – Till budget lasts',
@@ -681,7 +681,7 @@ export const MARKETPLACE_SAMPLE: Array<Record<SellerMarketplaceId, MarketplaceSn
       campaigns: [
         {
           id: 'f3-1',
-          name: 'tmg keywords ads',
+          name: 'Podosphere essentials PLA',
           type: 'PLA',
           status: 'LIVE',
           duration: '13 Oct \'26 – Till budget ends',
@@ -695,7 +695,7 @@ export const MARKETPLACE_SAMPLE: Array<Record<SellerMarketplaceId, MarketplaceSn
         },
         {
           id: 'f3-2',
-          name: 'HMB Advertisement Campaign',
+          name: 'Wellness bestsellers PLA',
           type: 'PLA',
           status: 'LIVE',
           duration: '17 Sep \'25 – Till budget ends',
@@ -709,7 +709,7 @@ export const MARKETPLACE_SAMPLE: Array<Record<SellerMarketplaceId, MarketplaceSn
         },
         {
           id: 'f3-3',
-          name: '4september',
+          name: 'Festive combo PLA',
           type: 'PLA',
           status: 'PAUSED',
           duration: '04 Sep \'25 – Till budget ends',
@@ -723,7 +723,7 @@ export const MARKETPLACE_SAMPLE: Array<Record<SellerMarketplaceId, MarketplaceSn
         },
         {
           id: 'f3-4',
-          name: 'PLA_Campaign-2025-12-12',
+          name: 'Brand keywords ads',
           type: 'PLA',
           status: 'LIVE',
           duration: '12 Dec \'25 – Till budget ends',
@@ -749,7 +749,7 @@ export const MARKETPLACE_SAMPLE: Array<Record<SellerMarketplaceId, MarketplaceSn
       campaigns: [
         {
           id: 'a3-1',
-          name: 'Whey SP · exact',
+          name: 'Essentials SP · exact',
           type: 'Sponsored Products · Manual',
           status: 'LIVE',
           duration: '01 Aug 2026 – No end date',
@@ -763,7 +763,7 @@ export const MARKETPLACE_SAMPLE: Array<Record<SellerMarketplaceId, MarketplaceSn
         },
         {
           id: 'a3-2',
-          name: 'Accessories SP · auto',
+          name: 'Wellness SP · auto',
           type: 'Sponsored Products · Automatic',
           status: 'PAUSED',
           duration: '20 Jul 2026 – No end date',
@@ -789,7 +789,7 @@ export const MARKETPLACE_SAMPLE: Array<Record<SellerMarketplaceId, MarketplaceSn
       campaigns: [
         {
           id: 'g3-1',
-          name: 'Whey isolate Search',
+          name: 'Podosphere Search · brand',
           type: 'Search',
           status: 'LIVE',
           duration: '01 Aug 2026 – No end date',
@@ -803,7 +803,7 @@ export const MARKETPLACE_SAMPLE: Array<Record<SellerMarketplaceId, MarketplaceSn
         },
         {
           id: 'g3-2',
-          name: 'Gym accessories · Display',
+          name: 'Wellness products · Display',
           type: 'Display',
           status: 'PAUSED',
           duration: '20 Jul 2026 – No end date',
@@ -928,8 +928,26 @@ export function padMarketplaceClients(rows: MarketplaceClientOption[]): Marketpl
   return pickMarketplaceClients(rows);
 }
 
+function withCampaignTotals(snapshot: MarketplaceSnapshot): MarketplaceSnapshot {
+  const sum = (pick: (row: MarketplaceCampaign) => number) =>
+    snapshot.campaigns.reduce((total, row) => total + pick(row), 0);
+  const spend = sum((row) => row.spend);
+  const revenue = sum((row) => row.revenue);
+  return {
+    ...snapshot,
+    kpis: {
+      spend,
+      revenue,
+      roas: spend > 0 ? Math.round((revenue / spend) * 100) / 100 : 0,
+      impressions: sum((row) => row.impressions),
+      clicks: sum((row) => row.clicks),
+      orders: sum((row) => row.orders),
+    },
+  };
+}
+
 export function snapshotFor(slot: number, marketplace: MarketplaceId): MarketplaceSnapshot {
   const index = Math.min(Math.max(slot, 0), MARKETPLACE_CLIENT_SLOTS - 1);
   if (marketplace === 'meta') return META_SAMPLE[index];
-  return MARKETPLACE_SAMPLE[index][marketplace];
+  return withCampaignTotals(MARKETPLACE_SAMPLE[index][marketplace]);
 }

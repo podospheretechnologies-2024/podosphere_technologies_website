@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { MarketplaceSamplePanel } from '@/modules/admin/components/marketplace-ads-dashboard';
+import { MarketplaceOverviewPanel, MarketplaceSamplePanel } from '@/modules/admin/components/marketplace-ads-dashboard';
 import { padMarketplaceClients, type MarketplaceId } from '@/modules/admin/data/marketplace-ads.sample';
 import { EmptyState } from '@/shared/components/ui/empty-state';
 import {
@@ -174,7 +174,7 @@ function MetaAdsDashboard() {
 }
 
 type SampleMarketplace = Exclude<MarketplaceId, 'meta'>;
-type AdsPlatform = 'meta' | 'google' | SampleMarketplace;
+type AdsPlatform = 'dashboard' | 'meta' | 'google' | SampleMarketplace;
 
 const BASE_PLATFORMS: { value: AdsPlatform; label: string }[] = [
   { value: 'meta', label: 'Meta Ads' },
@@ -182,6 +182,8 @@ const BASE_PLATFORMS: { value: AdsPlatform; label: string }[] = [
 ];
 
 // Sample-data tabs, shown to platform admins only.
+const ADMIN_DASHBOARD_TAB: { value: AdsPlatform; label: string } = { value: 'dashboard', label: 'Dashboard' };
+
 const ADMIN_SAMPLE_PLATFORMS: { value: AdsPlatform; label: string }[] = [
   { value: 'blinkit', label: 'Blinkit' },
   { value: 'meesho', label: 'Meesho' },
@@ -193,7 +195,9 @@ const SAMPLE_CLIENTS = padMarketplaceClients([]);
 
 export function AdsDashboard({ isPlatformAdmin = false }: { isPlatformAdmin?: boolean }) {
   const [platform, setPlatform] = useState<AdsPlatform>('meta');
-  const platforms = isPlatformAdmin ? [...BASE_PLATFORMS, ...ADMIN_SAMPLE_PLATFORMS] : BASE_PLATFORMS;
+  const platforms = isPlatformAdmin
+    ? [ADMIN_DASHBOARD_TAB, ...BASE_PLATFORMS, ...ADMIN_SAMPLE_PLATFORMS]
+    : BASE_PLATFORMS;
 
   // The Google OAuth callback returns to ?platform=google.
   useEffect(() => {
@@ -227,7 +231,9 @@ export function AdsDashboard({ isPlatformAdmin = false }: { isPlatformAdmin?: bo
         ))}
       </div>
       <div className="p-5">
-        {platform === 'meta' ? (
+        {platform === 'dashboard' ? (
+          <MarketplaceOverviewPanel clients={SAMPLE_CLIENTS} onSelectPlatform={setPlatform} />
+        ) : platform === 'meta' ? (
           <MetaAdsDashboard />
         ) : platform === 'google' ? (
           isPlatformAdmin ? (

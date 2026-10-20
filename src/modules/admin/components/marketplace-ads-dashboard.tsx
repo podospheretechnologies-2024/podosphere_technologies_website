@@ -331,14 +331,10 @@ export function MarketplaceAdsDashboard({ clients }: { clients: MarketplaceClien
             Super Admin
           </Link>
           <div className="flex flex-wrap items-center gap-3">
-            <h1 className="text-3xl font-bold tracking-tight text-gray-900">Ads sample</h1>
-            <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-semibold uppercase tracking-wide text-amber-800">
-              Sample data
-            </span>
+            <h1 className="text-3xl font-bold tracking-tight text-gray-900">Marketplace ads</h1>
           </div>
           <p className="mt-1 text-sm text-gray-500">
-            Meta Ads, Google Ads, Blinkit, Meesho, Flipkart, and Amazon for Dastkar, Sitara Beauty, and Podosphere. Sample
-            numbers only — no API keys.
+            Meta Ads, Google Ads, Blinkit, Meesho, Flipkart, and Amazon for Dastkar, Sitara Beauty, and Podosphere.
           </p>
         </div>
         <div className="rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-600 shadow-sm">
@@ -363,11 +359,6 @@ export function MarketplaceAdsDashboard({ clients }: { clients: MarketplaceClien
             >
               <div className="flex items-center justify-between gap-2">
                 <div className="text-sm font-semibold text-gray-900">{item.name}</div>
-                {item.isDemo ? (
-                  <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-semibold uppercase text-gray-500">
-                    Demo name
-                  </span>
-                ) : null}
               </div>
               <div className="mt-1 text-xs text-gray-500">{item.organizationName}</div>
             </button>
@@ -452,7 +443,7 @@ export function MarketplaceAdsDashboard({ clients }: { clients: MarketplaceClien
   );
 }
 
-/** Sample-data view for a single platform, embedded in the workspace Ads page (platform admins only). */
+/** Single-platform view, embedded in the workspace Ads page (platform admins only). */
 export function MarketplaceSamplePanel({
   marketplace,
   clients,
@@ -472,9 +463,6 @@ export function MarketplaceSamplePanel({
   return (
     <div>
       <div className="mb-4 flex flex-wrap items-center gap-2">
-        <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-semibold uppercase tracking-wide text-amber-800">
-          Sample data · admin only
-        </span>
         {clients.map((item) => (
           <button
             key={item.id}
@@ -531,6 +519,132 @@ export function MarketplaceSamplePanel({
           <CampaignTable rows={rows} showMarketplace={false} />
         </>
       )}
+    </div>
+  );
+}
+
+/** Cross-platform report for one client, embedded in the workspace Ads page (platform admins only). */
+export function MarketplaceOverviewPanel({
+  clients,
+  onSelectPlatform,
+}: {
+  clients: MarketplaceClientOption[];
+  onSelectPlatform: (marketplace: MarketplaceId) => void;
+}) {
+  const [clientId, setClientId] = useState(clients[0]?.id ?? '');
+  const slot = Math.max(
+    clients.findIndex((client) => client.id === clientId),
+    0,
+  );
+  const client = clients[slot];
+
+  const { total, perPlatform, topRows, trend } = useMemo(() => {
+    const perPlatform = MARKETPLACES.map((marketplace) => ({
+      marketplace,
+      snapshot: snapshotFor(slot, marketplace),
+    }));
+    const total = sumSnapshots(perPlatform.map((item) => item.snapshot));
+    const length = Math.max(...perPlatform.map((item) => item.snapshot.trend.length));
+    const trend = Array.from({ length }, (_, index) =>
+      perPlatform.reduce((sum, item) => sum + (item.snapshot.trend[index] ?? 0), 0),
+    );
+    const topRows = perPlatform
+      .flatMap(({ marketplace, snapshot }) => snapshot.campaigns.map((campaign) => ({ ...campaign, marketplace })))
+      .sort((a, b) => b.revenue - a.revenue)
+      .slice(0, 8);
+    return { total, perPlatform, topRows, trend };
+  }, [slot]);
+
+  const maxSpend = Math.max(...perPlatform.map((item) => item.snapshot.kpis.spend), 1);
+
+  return (
+    <div>
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        {clients.map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            onClick={() => setClientId(item.id)}
+            className={`rounded-full border px-3 py-1.5 text-sm font-medium ${
+              item.id === clientId
+                ? 'border-indigo-300 bg-indigo-50 text-indigo-800'
+                : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
+            }`}
+          >
+            {item.name}
+          </button>
+        ))}
+      </div>
+
+      <div className="mb-4 flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h2 className="text-lg font-semibold text-gray-900">{client?.name} · all platforms</h2>
+          <p className="text-sm text-gray-500">
+            Meta Ads, Google Ads, Blinkit, Meesho, Flipkart and Amazon combined · Wallet {formatMoney(total.wallet)}
+          </p>
+        </div>
+        <Sparkline values={trend} />
+      </div>
+
+      <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+        <Kpi label="Ad spend" value={formatMoney(total.kpis.spend)} />
+        <Kpi label="Revenue" value={formatMoney(total.kpis.revenue)} />
+        <Kpi label="ROAS" value={total.kpis.roas.toFixed(2)} />
+        <Kpi label="Views" value={compact.format(total.kpis.impressions)} />
+        <Kpi label="Clicks" value={compact.format(total.kpis.clicks)} />
+        <Kpi label="Orders" value={String(total.kpis.orders)} />
+      </div>
+
+      <h3 className="mb-2 text-sm font-semibold uppercase tracking-wider text-gray-500">By platform</h3>
+      <div className="mb-6 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+        {perPlatform.map(({ marketplace, snapshot }) => (
+          <button
+            key={marketplace}
+            type="button"
+            onClick={() => onSelectPlatform(marketplace)}
+            className="rounded-xl border border-gray-200 bg-white p-4 text-left shadow-sm transition hover:border-gray-300 hover:shadow"
+          >
+            <div className="flex items-center justify-between gap-2">
+              <span
+                className={`rounded-full border px-2.5 py-0.5 text-xs font-semibold ${MARKETPLACE_META[marketplace].pill}`}
+              >
+                {MARKETPLACE_META[marketplace].label}
+              </span>
+              <span className="text-xs text-gray-400">View details →</span>
+            </div>
+            <div className="mt-3 grid grid-cols-3 gap-2 text-sm">
+              <div>
+                <div className="text-xs text-gray-400">Spend</div>
+                <div className="font-semibold text-gray-900">{formatMoney(snapshot.kpis.spend)}</div>
+              </div>
+              <div>
+                <div className="text-xs text-gray-400">Revenue</div>
+                <div className="font-semibold text-gray-900">{formatMoney(snapshot.kpis.revenue)}</div>
+              </div>
+              <div>
+                <div className="text-xs text-gray-400">ROAS</div>
+                <div className="font-semibold text-gray-900">{snapshot.kpis.roas.toFixed(2)}</div>
+              </div>
+            </div>
+            <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-gray-100">
+              <div
+                className="h-full rounded-full"
+                style={{
+                  width: `${(snapshot.kpis.spend / maxSpend) * 100}%`,
+                  backgroundColor: MARKETPLACE_META[marketplace].accent,
+                }}
+              />
+            </div>
+            <div className="mt-2 text-xs text-gray-500">
+              {compact.format(snapshot.kpis.clicks)} clicks · {snapshot.kpis.orders} orders · {snapshot.campaigns.length}{' '}
+              campaigns
+            </div>
+          </button>
+        ))}
+      </div>
+
+      <h3 className="mb-2 text-sm font-semibold uppercase tracking-wider text-gray-500">Top campaigns by revenue</h3>
+      <CampaignTable rows={topRows} showMarketplace />
     </div>
   );
 }

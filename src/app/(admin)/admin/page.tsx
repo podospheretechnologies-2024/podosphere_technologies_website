@@ -44,7 +44,7 @@ export default async function SuperAdminPage() {
           href="/admin/marketplaces"
           className="inline-flex items-center rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
         >
-          Ads sample (Google + marketplaces)
+          Marketplace ads (Google + marketplaces)
         </Link>
       </div>
 
