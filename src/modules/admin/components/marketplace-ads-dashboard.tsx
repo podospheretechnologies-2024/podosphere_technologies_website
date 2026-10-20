@@ -10,6 +10,8 @@ import {
   type MarketplaceClientOption,
   type MarketplaceId,
   type MarketplaceSnapshot,
+  MARKETPLACE_CLIENT_SLOTS,
+  marketplaceClientsFor,
   snapshotFor,
 } from '../data/marketplace-ads.sample';
 
@@ -84,6 +86,13 @@ function sumSnapshots(snapshots: MarketplaceSnapshot[]): MarketplaceSnapshot {
     trend: snapshots[0]?.trend ?? [],
     campaigns,
   };
+}
+
+const CLIENT_SLOTS = Array.from({ length: MARKETPLACE_CLIENT_SLOTS }, (_, index) => index);
+
+/** Every client of one platform, summed. */
+function platformTotals(marketplace: MarketplaceId): MarketplaceSnapshot {
+  return sumSnapshots(CLIENT_SLOTS.map((slot) => snapshotFor(slot, marketplace)));
 }
 
 function Kpi({ label, value }: { label: string; value: string }) {
@@ -301,21 +310,20 @@ function CampaignTable({
   );
 }
 
-export function MarketplaceAdsDashboard({ clients }: { clients: MarketplaceClientOption[] }) {
-  const [clientId, setClientId] = useState(clients[0]?.id ?? '');
+export function MarketplaceAdsDashboard({ clients: accounts }: { clients: MarketplaceClientOption[] }) {
   const [tab, setTab] = useState<TabId>('meesho');
-  const slot = Math.max(
-    clients.findIndex((client) => client.id === clientId),
-    0,
-  );
+  const [slot, setSlot] = useState(0);
+  const clients = useMemo(() => (tab === 'all' ? [] : marketplaceClientsFor(tab, accounts)), [tab, accounts]);
   const client = clients[slot];
 
   const view = useMemo(() => {
     if (tab === 'all') {
-      const snapshots = MARKETPLACES.map((marketplace) => snapshotFor(slot, marketplace));
-      const combined = sumSnapshots(snapshots);
-      const rows = MARKETPLACES.flatMap((marketplace) =>
-        snapshotFor(slot, marketplace).campaigns.map((campaign) => ({ ...campaign, marketplace })),
+      const snapshots = MARKETPLACES.flatMap((marketplace) =>
+        CLIENT_SLOTS.map((index) => ({ marketplace, snapshot: snapshotFor(index, marketplace) })),
+      );
+      const combined = sumSnapshots(snapshots.map((item) => item.snapshot));
+      const rows = snapshots.flatMap(({ marketplace, snapshot }) =>
+        snapshot.campaigns.map((campaign) => ({ ...campaign, marketplace })),
       );
       return { snapshot: combined, rows, showMarketplace: true };
     }
@@ -326,6 +334,11 @@ export function MarketplaceAdsDashboard({ clients }: { clients: MarketplaceClien
       showMarketplace: false,
     };
   }, [slot, tab]);
+
+  function selectTab(next: TabId) {
+    setTab(next);
+    setSlot(0);
+  }
 
   return (
     <div className="mx-auto max-w-7xl px-6 py-8">
@@ -352,13 +365,13 @@ export function MarketplaceAdsDashboard({ clients }: { clients: MarketplaceClien
       </div>
 
       <div className="mb-6 grid grid-cols-1 gap-3 md:grid-cols-3">
-        {clients.map((item) => {
-          const active = item.id === clientId;
+        {clients.map((item, index) => {
+          const active = index === slot;
           return (
             <button
               key={item.id}
               type="button"
-              onClick={() => setClientId(item.id)}
+              onClick={() => setSlot(index)}
               className={`rounded-xl border p-4 text-left shadow-sm transition ${
                 active
                   ? 'border-indigo-300 bg-indigo-50 ring-2 ring-indigo-200'
@@ -377,7 +390,7 @@ export function MarketplaceAdsDashboard({ clients }: { clients: MarketplaceClien
       <div className="mb-6 flex flex-wrap gap-2">
         <button
           type="button"
-          onClick={() => setTab('all')}
+          onClick={() => selectTab('all')}
           className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium ${
             tab === 'all'
               ? 'border-gray-900 bg-gray-900 text-white'
@@ -391,7 +404,7 @@ export function MarketplaceAdsDashboard({ clients }: { clients: MarketplaceClien
           <button
             key={marketplace}
             type="button"
-            onClick={() => setTab(marketplace)}
+            onClick={() => selectTab(marketplace)}
             className={`rounded-full border px-3 py-1.5 text-sm font-medium ${
               tab === marketplace
                 ? `${MARKETPLACE_META[marketplace].pill} ring-1 ring-offset-1`
@@ -412,7 +425,7 @@ export function MarketplaceAdsDashboard({ clients }: { clients: MarketplaceClien
           <div className="mb-4 flex flex-wrap items-end justify-between gap-4">
             <div>
               <h2 className="text-lg font-semibold text-gray-900">
-                {client?.name}
+                {tab === 'all' ? 'All clients' : client?.name}
                 {tab === 'all' ? ' · all marketplaces' : ` · ${MARKETPLACE_META[tab].label}`}
               </h2>
               <p className="text-sm text-gray-500">
@@ -562,26 +575,16 @@ export function MarketplaceSamplePanel({
   );
 }
 
-/** Cross-platform report for one client, embedded in the workspace Ads page (platform admins only). */
+/** Cross-platform report for all clients, embedded in the workspace Ads page (platform admins only). */
 export function MarketplaceOverviewPanel({
-  clients,
   onSelectPlatform,
 }: {
-  clients: MarketplaceClientOption[];
   onSelectPlatform: (marketplace: MarketplaceId) => void;
 }) {
-  const [pickedId, setClientId] = useState(clients[0]?.id ?? '');
-  const clientId = clients.some((item) => item.id === pickedId) ? pickedId : (clients[0]?.id ?? '');
-  const slot = Math.max(
-    clients.findIndex((client) => client.id === clientId),
-    0,
-  );
-  const client = clients[slot];
-
   const { total, perPlatform, topRows, trend } = useMemo(() => {
     const perPlatform = MARKETPLACES.map((marketplace) => ({
       marketplace,
-      snapshot: snapshotFor(slot, marketplace),
+      snapshot: platformTotals(marketplace),
     }));
     const total = sumSnapshots(perPlatform.map((item) => item.snapshot));
     const length = Math.max(...perPlatform.map((item) => item.snapshot.trend.length));
@@ -593,32 +596,15 @@ export function MarketplaceOverviewPanel({
       .sort((a, b) => b.revenue - a.revenue)
       .slice(0, 8);
     return { total, perPlatform, topRows, trend };
-  }, [slot]);
+  }, []);
 
   const maxSpend = Math.max(...perPlatform.map((item) => item.snapshot.kpis.spend), 1);
 
   return (
     <div>
-      <div className="mb-4 flex flex-wrap items-center gap-2">
-        {clients.map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            onClick={() => setClientId(item.id)}
-            className={`rounded-full border px-3 py-1.5 text-sm font-medium ${
-              item.id === clientId
-                ? 'border-indigo-300 bg-indigo-50 text-indigo-800'
-                : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
-            }`}
-          >
-            {item.name}
-          </button>
-        ))}
-      </div>
-
       <div className="mb-4 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h2 className="text-lg font-semibold text-gray-900">{client?.name} · all platforms</h2>
+          <h2 className="text-lg font-semibold text-gray-900">All clients · all platforms</h2>
           <p className="text-sm text-gray-500">
             Meta Ads, Google Ads, Blinkit, Meesho, Flipkart and Amazon combined · Wallet {formatMoney(total.wallet)}
           </p>

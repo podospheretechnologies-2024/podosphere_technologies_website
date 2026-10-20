@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { MarketplaceOverviewPanel, MarketplaceSamplePanel } from '@/modules/admin/components/marketplace-ads-dashboard';
-import { padMarketplaceClients, type MarketplaceId } from '@/modules/admin/data/marketplace-ads.sample';
+import { marketplaceClientsFor, type MarketplaceId } from '@/modules/admin/data/marketplace-ads.sample';
 import { EmptyState } from '@/shared/components/ui/empty-state';
 import {
   ADS_DEFAULT_DATE_PRESET,
@@ -194,17 +194,15 @@ const ADMIN_SAMPLE_PLATFORMS: { value: AdsPlatform; label: string }[] = [
 export function AdsDashboard({ isPlatformAdmin = false }: { isPlatformAdmin?: boolean }) {
   const [platform, setPlatform] = useState<AdsPlatform>('meta');
   const accountsQuery = useAdAccounts();
-  // Client names come from the connected Meta ad accounts (Kabira, Siyara, Himshakti, …).
-  const marketplaceClients = useMemo(
+  // Each platform lists its own clients; names come from the connected Meta ad accounts when they match.
+  const accountRows = useMemo(
     () =>
-      padMarketplaceClients(
-        (accountsQuery.data?.accounts ?? []).map((account) => ({
-          id: account.id,
-          name: account.name,
-          organizationName: 'Meta ad account',
-          isDemo: false,
-        })),
-      ),
+      (accountsQuery.data?.accounts ?? []).map((account) => ({
+        id: account.id,
+        name: account.name,
+        organizationName: 'Meta ad account',
+        isDemo: false,
+      })),
     [accountsQuery.data],
   );
   const platforms = isPlatformAdmin
@@ -244,17 +242,21 @@ export function AdsDashboard({ isPlatformAdmin = false }: { isPlatformAdmin?: bo
       </div>
       <div className="p-5">
         {platform === 'dashboard' ? (
-          <MarketplaceOverviewPanel clients={marketplaceClients} onSelectPlatform={setPlatform} />
+          <MarketplaceOverviewPanel onSelectPlatform={setPlatform} />
         ) : platform === 'meta' ? (
           <MetaAdsDashboard />
         ) : platform === 'google' ? (
           isPlatformAdmin ? (
-            <MarketplaceSamplePanel marketplace="google" clients={marketplaceClients} />
+            <MarketplaceSamplePanel key="google" marketplace="google" clients={marketplaceClientsFor('google', accountRows)} />
           ) : (
             <GoogleAdsPanel />
           )
         ) : (
-          <MarketplaceSamplePanel marketplace={platform} clients={marketplaceClients} />
+          <MarketplaceSamplePanel
+            key={platform}
+            marketplace={platform}
+            clients={marketplaceClientsFor(platform, accountRows)}
+          />
         )}
       </div>
     </div>

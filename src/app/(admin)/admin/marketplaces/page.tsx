@@ -1,6 +1,5 @@
 import { redirect } from 'next/navigation';
 import { MarketplaceAdsDashboard } from '@/modules/admin/components/marketplace-ads-dashboard';
-import { padMarketplaceClients } from '@/modules/admin/data/marketplace-ads.sample';
 import { adminService } from '@/modules/admin/server/admin.service';
 import { getCurrentUser } from '@/modules/auth/server/session';
 
@@ -21,7 +20,7 @@ export default async function MarketplaceAdsPage() {
 
   let clients;
   try {
-    clients = padMarketplaceClients(await adminService.listMarketplaceDemoClients());
+    clients = await adminService.listMarketplaceDemoClients();
   } catch (error) {
     const status = httpStatus(error);
     if (status === 401) redirect('/admin/login');
