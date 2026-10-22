@@ -132,7 +132,7 @@ Legend: ✅ done in working tree · 🟡 partial / needs ops · ❌ not started 
 
 | Pri | Item | Owner |
 |---|---|---|
-| 🔴 | Meta App Review — Advanced Access (Pages, IG, WhatsApp, Ads, Leads) | Founder / dev |
+| 🔴 | Meta App Review — Advanced Access (Pages, IG, WhatsApp, Ads, Leads). `pages_read_user_content` / Page Public Content Access is what the worker's `(#10)` backfill failures wait on; they now log one line each instead of a stack. | Founder / dev |
 | 🔴 | Token scopes: `read_insights`, `instagram_manage_*`, `pages_manage_engagement`, messaging scopes | Dev |
 | 🔴 | App settings: data-deletion URL, support URL, verify contact email; BM 2FA + domain | Founder |
 | 🟠 | Subscribe Page + IG webhooks → `/api/webhooks/meta` on prod | Dev |
@@ -143,7 +143,7 @@ Legend: ✅ done in working tree · 🟡 partial / needs ops · ❌ not started 
 | 🟠 | **Google Ads: set `GOOGLE_ADS_CLIENT_ID` / `GOOGLE_ADS_CLIENT_SECRET`** from the `Podo Social — Google Ads` OAuth client. Do **not** overwrite `GOOGLE_CLIENT_*` — four integrations share it. | Dev |
 | 🟠 | **Google Ads: link the 4 client ad accounts into MCC `987-922-1937`** (it currently has none), then set `GOOGLE_ADS_LOGIN_CUSTOMER_ID=9879221937` | Founder |
 | 🟡 | **Google Ads: migrate the personal-account Cloud project** that owns `GOOGLE_CLIENT_ID` into the org, so YouTube / GBP / Sheets stop depending on a personal Gmail | Founder / Dev |
-| 🟠 | Reconnect integrations marked `refreshNeeded`; fix Siyara Beauty Meta ad account | Founder / Dev |
+| 🟠 | Reconnect integrations marked `refreshNeeded` (~75 live); the analytics worker now **skips** them, so their stats stay frozen until someone reconnects. Also fix the Siyara Beauty Meta ad account. | Founder / Dev |
 | 🟠 | Real WhatsApp templates (beyond `hello_world`); Tech Provider | Founder |
 | 🟠 | Monitoring + **tested** restore | Dev |
 | 🟡 | Pricing / packaging; pilots | Founder |

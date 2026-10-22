@@ -33,6 +33,21 @@ function rethrowIfRetryable(error: unknown): void {
   if (error instanceof GraphApiError && error.isRateLimitError) throw error;
 }
 
+/**
+ * An unapproved Meta permission is an App Review item, not a bug, and it repeats for every
+ * affected integration on every run — log one line so the real failures stay readable.
+ * Anything else keeps its stack.
+ */
+function logGraphFailure(context: string, error: unknown): void {
+  if (error instanceof GraphApiError && error.isPermissionError) {
+    console.warn(
+      `[analytics-worker] ${context}: Meta permission not granted (code ${error.code}) — ${error.message}`
+    );
+    return;
+  }
+  console.error(`[analytics-worker] ${context}`, error);
+}
+
 const SYNC_POSTS_EVERY_MS = 2 * 60 * 60 * 1000;
 const SYNC_POST_METRICS_EVERY_MS = 6 * 60 * 60 * 1000;
 const CAPTURE_STORIES_EVERY_MS = 4 * 60 * 60 * 1000;
@@ -87,6 +102,14 @@ function getGraphConfig(): GraphConfig {
 }
 
 const META_PROVIDERS = ['facebook', 'instagram'] as const;
+
+/**
+ * Channels worth a Graph call. `disabled` is off by the operator's choice; `refreshNeeded` means
+ * the token is dead until someone reconnects, so calling Graph for it can only fail with code 190
+ * and burn the app's shared rate limit. Reconnecting clears the flag
+ * (`integrationRepository.updateTokens`), so these channels resume syncing on their own.
+ */
+const SYNCABLE_INTEGRATION = { deletedAt: null, disabled: false, refreshNeeded: false } as const;
 
 function utcDateOnly(date = new Date()): Date {
   return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
@@ -188,7 +211,7 @@ async function markBackfillRun(
 async function syncPosts() {
   console.log('[analytics-worker] Syncing posts (external posts + basic counts)...');
   const integrations = await prisma.socialIntegration.findMany({
-    where: { providerIdentifier: { in: [...META_PROVIDERS] }, deletedAt: null },
+    where: { providerIdentifier: { in: [...META_PROVIDERS] }, ...SYNCABLE_INTEGRATION },
   });
   const config = getGraphConfig();
 
@@ -274,7 +297,7 @@ async function syncPosts() {
         continue;
       }
       rethrowIfRetryable(e);
-      console.error(`[analytics-worker] Failed syncing posts for integration ${integration.id}`, e);
+      logGraphFailure(`Failed syncing posts for integration ${integration.id}`, e);
     }
   }
 }
@@ -292,7 +315,7 @@ async function syncPostMetrics() {
 
   const integrationIds = Array.from(new Set(recentPosts.map(p => p.integrationId)));
   const integrations = await prisma.socialIntegration.findMany({
-    where: { id: { in: integrationIds }, deletedAt: null },
+    where: { id: { in: integrationIds }, ...SYNCABLE_INTEGRATION },
     select: { id: true, providerIdentifier: true, accessToken: true },
   });
   const integrationMap = new Map<string, any>(integrations.map((i: any) => [i.id, i]));
@@ -330,7 +353,7 @@ async function syncPostMetrics() {
         continue;
       }
       rethrowIfRetryable(e);
-      console.error(`[analytics-worker] Failed syncing metrics for post ${post.id}`, e);
+      logGraphFailure(`Failed syncing metrics for post ${post.id}`, e);
     }
   }
 }
@@ -338,7 +361,7 @@ async function syncPostMetrics() {
 async function captureStories() {
   console.log('[analytics-worker] Capturing live stories...');
   const integrations = await prisma.socialIntegration.findMany({
-    where: { providerIdentifier: 'instagram', deletedAt: null, disabled: false },
+    where: { providerIdentifier: 'instagram', ...SYNCABLE_INTEGRATION },
   });
   const config = getGraphConfig();
 
@@ -419,10 +442,7 @@ async function captureStories() {
         continue;
       }
       rethrowIfRetryable(e);
-      console.error(
-        `[analytics-worker] Failed capturing stories for integration ${integration.id}`,
-        e
-      );
+      logGraphFailure(`Failed capturing stories for integration ${integration.id}`, e);
     }
   }
 }
@@ -674,7 +694,7 @@ async function backfillIntegration(integrationId: string): Promise<void> {
       lastError: e instanceof Error ? e.message : String(e),
       failures: (existing?.failures ?? 0) + 1,
     });
-    console.error(`[analytics-worker] Backfill failed for ${integration.id}`, e);
+    logGraphFailure(`Backfill failed for ${integration.id}`, e);
   }
 }
 
@@ -688,11 +708,7 @@ async function runBackfill(data: BackfillJobData = {}): Promise<void> {
   }
 
   const integrations = await prisma.socialIntegration.findMany({
-    where: {
-      providerIdentifier: { in: [...META_PROVIDERS] },
-      deletedAt: null,
-      disabled: false,
-    },
+    where: { providerIdentifier: { in: [...META_PROVIDERS] }, ...SYNCABLE_INTEGRATION },
     select: { id: true },
   });
 
@@ -794,7 +810,7 @@ async function syncDailyInsights() {
     '[analytics-worker] Syncing daily insights (followers, reach, impressions, profile views, website clicks)...'
   );
   const integrations = await prisma.socialIntegration.findMany({
-    where: { providerIdentifier: { in: [...META_PROVIDERS] }, deletedAt: null },
+    where: { providerIdentifier: { in: [...META_PROVIDERS] }, ...SYNCABLE_INTEGRATION },
   });
   const config = getGraphConfig();
 
@@ -865,7 +881,7 @@ async function syncDailyInsights() {
         continue;
       }
       rethrowIfRetryable(e);
-      console.error(`[analytics-worker] Failed syncing daily insights for integration ${integration.id}`, e);
+      logGraphFailure(`Failed syncing daily insights for integration ${integration.id}`, e);
     }
   }
 }
@@ -958,7 +974,7 @@ async function syncCompetitors() {
       });
     } catch (e) {
       rethrowIfRetryable(e);
-      console.error(`[analytics-worker] Failed syncing competitor ${comp.name}`, e);
+      logGraphFailure(`Failed syncing competitor ${comp.name}`, e);
     }
   }
 }

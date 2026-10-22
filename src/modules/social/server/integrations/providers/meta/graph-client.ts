@@ -14,6 +14,9 @@ export interface GraphConfig {
 /** Meta rate-limit / throttle Graph error codes (retryable). */
 const RATE_LIMIT_CODES = new Set([4, 17, 32]);
 
+/** Missing permission / unapproved feature. Only App Review clears these; a retry never does. */
+const PERMISSION_CODES = new Set([10, 200]);
+
 /** Back off before the next page when any usage metric reaches this percent. */
 const USAGE_BACKOFF_THRESHOLD = 75;
 const USAGE_BACKOFF_MS = 2_000;
@@ -40,6 +43,15 @@ export class GraphApiError extends Error {
   /** App / user / page rate limit — safe for BullMQ exponential backoff. */
   get isRateLimitError() {
     return this.code !== undefined && RATE_LIMIT_CODES.has(this.code);
+  }
+
+  /**
+   * The app lacks a permission or feature this endpoint needs (e.g. `pages_read_user_content`,
+   * Page Public Content Access). Pending App Review — the token is fine, so don't mark the
+   * integration refreshNeeded, and don't retry: the next call fails the same way.
+   */
+  get isPermissionError() {
+    return this.code !== undefined && PERMISSION_CODES.has(this.code);
   }
 }
 
