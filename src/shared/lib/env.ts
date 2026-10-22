@@ -48,7 +48,13 @@ const serverEnvSchema = z.object({
   // Google Sheets plug (OAuth). Optional — Connect stays disabled until both are set.
   GOOGLE_CLIENT_ID: z.string().optional(),
   GOOGLE_CLIENT_SECRET: z.string().optional(),
-  // Google Ads connector (reuses the Google OAuth client above). Connect stays disabled until the developer token is set.
+  // Google Ads connector. Set these to run Ads on its own OAuth client, so the Google Ads access
+  // level can sit on a separate Cloud project without touching YouTube / GBP / Sheets. Unset falls
+  // back to the GOOGLE_CLIENT_* pair above. Connect needs only a client id + secret.
+  GOOGLE_ADS_CLIENT_ID: z.string().optional(),
+  GOOGLE_ADS_CLIENT_SECRET: z.string().optional(),
+  // Access level is granted per Google Cloud project; developer tokens were sunset 9 Sep 2026.
+  // Keep this set only if a legacy token is still in use; it is sent as developer-token when present.
   GOOGLE_ADS_DEVELOPER_TOKEN: z.string().optional(),
   // Manager (MCC) customer id, digits only; sent as login-customer-id when accounts are reached through it.
   GOOGLE_ADS_LOGIN_CUSTOMER_ID: z.string().optional(),

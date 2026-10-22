@@ -20,6 +20,9 @@ import type { AdsOverviewDateQuery } from '../ads/ads.schema';
 import { googleAdsOAuthState } from './google-ads-oauth-state';
 
 // Read-only: nothing here creates, edits or pauses Google Ads entities.
+// Access level is per Google Cloud project (developer tokens were sunset 9 Sep 2026), so
+// GOOGLE_ADS_DEVELOPER_TOKEN is optional and only sent when set. The OAuth client is
+// GOOGLE_ADS_CLIENT_* when set, else the shared GOOGLE_CLIENT_*. See docs/GOOGLE_ADS_SETUP.md.
 
 const AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
 const TOKEN_URL = 'https://oauth2.googleapis.com/token';
@@ -74,12 +77,24 @@ function findConnection(organizationId: string) {
   return prisma.socialGoogleAdsConnection.findUnique({ where: { organizationId } });
 }
 
-function missingEnv(): string[] {
+// Prefers the Ads-only OAuth client so the Google Ads access level can live on its own Cloud
+// project; falls back to the Google client shared with Sheets, YouTube and Business Profile.
+function oauthClient(): { clientId?: string; clientSecret?: string } {
   const env = getServerEnv();
+  // Fall back as a pair, never field by field: an id from one Cloud project with a secret from
+  // another passes isConfigured() and then dies at token exchange with an opaque invalid_client.
+  // Half a GOOGLE_ADS_* pair is reported as missing instead.
+  if (env.GOOGLE_ADS_CLIENT_ID || env.GOOGLE_ADS_CLIENT_SECRET) {
+    return { clientId: env.GOOGLE_ADS_CLIENT_ID, clientSecret: env.GOOGLE_ADS_CLIENT_SECRET };
+  }
+  return { clientId: env.GOOGLE_CLIENT_ID, clientSecret: env.GOOGLE_CLIENT_SECRET };
+}
+
+function missingEnv(): string[] {
+  const { clientId, clientSecret } = oauthClient();
   const missing: string[] = [];
-  if (!env.GOOGLE_CLIENT_ID) missing.push('GOOGLE_CLIENT_ID');
-  if (!env.GOOGLE_CLIENT_SECRET) missing.push('GOOGLE_CLIENT_SECRET');
-  if (!env.GOOGLE_ADS_DEVELOPER_TOKEN) missing.push('GOOGLE_ADS_DEVELOPER_TOKEN');
+  if (!clientId) missing.push('GOOGLE_ADS_CLIENT_ID');
+  if (!clientSecret) missing.push('GOOGLE_ADS_CLIENT_SECRET');
   return missing;
 }
 
@@ -89,10 +104,11 @@ function requireConfigured() {
     throw new HttpError(400, `Google Ads is not configured. Set ${missing.join(', ')} in .env.`);
   }
   const env = getServerEnv();
+  const { clientId, clientSecret } = oauthClient();
   return {
-    clientId: env.GOOGLE_CLIENT_ID!,
-    clientSecret: env.GOOGLE_CLIENT_SECRET!,
-    developerToken: env.GOOGLE_ADS_DEVELOPER_TOKEN!,
+    clientId: clientId!,
+    clientSecret: clientSecret!,
+    developerToken: env.GOOGLE_ADS_DEVELOPER_TOKEN || undefined,
     defaultLoginCustomerId: env.GOOGLE_ADS_LOGIN_CUSTOMER_ID || undefined,
     version: env.GOOGLE_ADS_API_VERSION || DEFAULT_API_VERSION,
   };
@@ -169,7 +185,7 @@ async function adsRequest<T>(
     ...init,
     headers: {
       Authorization: `Bearer ${accessToken}`,
-      'developer-token': developerToken,
+      ...(developerToken ? { 'developer-token': developerToken } : {}),
       'Content-Type': 'application/json',
       ...(loginCustomerId ? { 'login-customer-id': loginCustomerId } : {}),
     },

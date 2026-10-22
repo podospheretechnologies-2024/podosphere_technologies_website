@@ -1,6 +1,10 @@
 # Podo Social — Status (done vs pending)
 
 > **Updated 19 Oct 2026.** Source of truth for ship status after the multi-agent wave + prod hardening.
+> **22 Oct 2026 addendum:** Google Ads connector landed after this file was written — code complete.
+> It runs on its own Cloud project `podo-social-ads` (org `podospheretechnologies.com`) and its own
+> OAuth client, so it cannot disturb the shared `GOOGLE_CLIENT_*` used by YouTube / GBP / Sheets.
+> Remaining: Explorer access + linking client accounts into the MCC. See `docs/GOOGLE_ADS_SETUP.md`.
 > Older narrative plans (`PODO_SOCIAL.md`, `PODO_SOCIAL_CLIENT_PLAN.md`) may still describe historical gaps — prefer **this file** + `PENDING_CHANGES.md`.
 > Read `AGENTS.md` before writing code (Next.js 16).
 
@@ -15,7 +19,7 @@ Legend: ✅ done in working tree · 🟡 partial / needs ops · ❌ not started 
 | Feature wave on `main` | ✅ committed (`cc64eae` + follow-ups) |
 | `/admin` unauthenticated | ✅ layout redirects to `/login` (was 500) |
 | PM2 web entry | ✅ `scripts/run-standalone-web.cjs` (no `next start` warning) |
-| Migrations | **41** (latest `20261018194000_ai_copilot_agent`) |
+| Migrations | **42** (latest `20261019100000_google_ads_connector`) |
 | `deploy/standalone/` | 🟡 rebuild/pack after this pass before prod sees admin layout |
 | Live tokens / Meta | 🟡 reconnect `refreshNeeded` channels; fix Siyara BM account |
 
@@ -40,6 +44,7 @@ Legend: ✅ done in working tree · 🟡 partial / needs ops · ❌ not started 
 | White-label + custom domain Caddy ask | ✅ |
 | Public `/api/v1`, health, backup/smoke docs | ✅ |
 | Ads: per-account tokens, campaigns/adsets/ads sync, creative helper (draft-only) | ✅ |
+| **Google Ads**: OAuth, MCC account discovery, GAQL spend/campaigns/ad groups/ads, client mapping (read-only) | ✅ code · 🟡 awaiting Explorer access |
 | Analytics: pagination, stories, backfill, best-times, competitor media | ✅ |
 
 ---
@@ -133,13 +138,18 @@ Legend: ✅ done in working tree · 🟡 partial / needs ops · ❌ not started 
 | 🟠 | Subscribe Page + IG webhooks → `/api/webhooks/meta` on prod | Dev |
 | 🟠 | Staging/prod: `pnpm db:deploy` → `pnpm db:backfill-clients --apply` → `pnpm build:deploy` → **pm2 reload** (standalone entry) | Dev |
 | 🟠 | Env: `RESEND_API_KEY`, Razorpay + `RAZORPAY_PLAN_*`, AI keys, Pinterest, Threads | Dev |
+| 🟠 | **Google Ads: apply for Explorer access** — Cloud Console → `podo-social-ads` → Google Ads API → **Access levels** → Manage. Developer tokens were sunset 9 Sep 2026; no token needed. | Founder / Dev |
+| 🟠 | **Google Ads: add the `adwords` scope** under Google Auth Platform → Data Access in `podo-social-ads` (consent screen is **Internal**, so no verification and no test-user list) | Dev |
+| 🟠 | **Google Ads: set `GOOGLE_ADS_CLIENT_ID` / `GOOGLE_ADS_CLIENT_SECRET`** from the `Podo Social — Google Ads` OAuth client. Do **not** overwrite `GOOGLE_CLIENT_*` — four integrations share it. | Dev |
+| 🟠 | **Google Ads: link the 4 client ad accounts into MCC `987-922-1937`** (it currently has none), then set `GOOGLE_ADS_LOGIN_CUSTOMER_ID=9879221937` | Founder |
+| 🟡 | **Google Ads: migrate the personal-account Cloud project** that owns `GOOGLE_CLIENT_ID` into the org, so YouTube / GBP / Sheets stop depending on a personal Gmail | Founder / Dev |
 | 🟠 | Reconnect integrations marked `refreshNeeded`; fix Siyara Beauty Meta ad account | Founder / Dev |
 | 🟠 | Real WhatsApp templates (beyond `hello_world`); Tech Provider | Founder |
 | 🟠 | Monitoring + **tested** restore | Dev |
 | 🟡 | Pricing / packaging; pilots | Founder |
 | 🟡 | Commit + ship this hardening pass (`/admin` layout + ecosystem standalone) | Dev |
 
-See also: `docs/META_APP_REVIEW.md`, `docs/ops-runbook.md`.
+See also: `docs/META_APP_REVIEW.md`, `docs/GOOGLE_ADS_SETUP.md`, `docs/ops-runbook.md`.
 
 ---
 
