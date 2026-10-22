@@ -246,11 +246,7 @@ export function AdsDashboard({ isPlatformAdmin = false }: { isPlatformAdmin?: bo
         ) : platform === 'meta' ? (
           <MetaAdsDashboard />
         ) : platform === 'google' ? (
-          isPlatformAdmin ? (
-            <MarketplaceSamplePanel key="google" marketplace="google" clients={marketplaceClientsFor('google', accountRows)} />
-          ) : (
-            <GoogleAdsPanel />
-          )
+          <GoogleAdsPanel />
         ) : (
           <MarketplaceSamplePanel
             key={platform}
