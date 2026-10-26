@@ -41,11 +41,23 @@ function defaultModel(provider: AiProvider): string {
   }
 }
 
-/** Single selected client → its id; 'All clients' → null (workspace default). Ambiguous → 400. */
+/** Single selected client → its id; 'All clients' → null (read-only: env / leftover workspace row). */
 function levelCustomerId(scope: ClientScope): string | null {
   if (scope.customerIds === 'all') return null;
   if (scope.customerIds.length === 1) return scope.customerIds[0];
-  throw new HttpError(400, 'Pick a single client (or "All clients") to set the AI provider.');
+  throw new HttpError(400, 'Pick a single client to set the AI provider.');
+}
+
+/** UI keys are per client only. The .env key is the all-clients fallback. */
+function requireClientId(scope: ClientScope): string {
+  const customerId = levelCustomerId(scope);
+  if (!customerId) {
+    throw new HttpError(
+      400,
+      'Pick a client to set their AI provider. The server env key is used for every client that does not have its own.'
+    );
+  }
+  return customerId;
 }
 
 function activeConfig(row: SettingsRow | undefined | null): ResolvedAiConfig | null {
@@ -158,10 +170,10 @@ export const aiSettingsService = {
     };
   },
 
-  /** Upsert the config at this scope level. Overwrites the key only when a new one is supplied. */
+  /** Upsert the config for one client. Overwrites the key only when a new one is supplied. */
   async save(scope: ClientScope, input: AiSettingsInput): Promise<AiProviderDisplay> {
     const organizationId = scope.organizationId;
-    const customerId = levelCustomerId(scope);
+    const customerId = requireClientId(scope);
     const model = input.model?.trim() || null;
 
     const existing = await prisma.socialAiSettings.findFirst({
@@ -189,10 +201,10 @@ export const aiSettingsService = {
     return this.getDisplay(scope);
   },
 
-  /** Remove the config at this level so the scope falls back to workspace / env. */
+  /** Remove the client key so this client falls back to workspace / env. */
   async remove(scope: ClientScope): Promise<AiProviderDisplay> {
     const organizationId = scope.organizationId;
-    const customerId = levelCustomerId(scope);
+    const customerId = requireClientId(scope);
     await prisma.socialAiSettings.deleteMany({ where: { organizationId, customerId } });
     return this.getDisplay(scope);
   },

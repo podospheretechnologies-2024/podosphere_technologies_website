@@ -1,6 +1,6 @@
 'use client';
 
-import type { ReactNode } from 'react';
+import { useCallback, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSWRConfig } from 'swr';
 import { apiFetch } from '@/shared/lib/fetcher';
@@ -32,16 +32,19 @@ export function ClientScopeProvider({
   const clients = data?.clients ?? initial?.clients ?? [];
   const scopeKey = selectedClientId ?? 'all';
 
-  async function setSelectedClientId(clientId: string | null) {
-    const next = await apiFetch<ClientScopeState>(CLIENT_SCOPE_API_ROUTE, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ clientId }),
-    });
-    await mutate(next, { revalidate: false });
-    await globalMutate(isSocialSwrKey, undefined, { revalidate: true });
-    router.refresh();
-  }
+  const setSelectedClientId = useCallback(
+    async (clientId: string | null) => {
+      const next = await apiFetch<ClientScopeState>(CLIENT_SCOPE_API_ROUTE, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clientId }),
+      });
+      await mutate(next, { revalidate: false });
+      await globalMutate(isSocialSwrKey, undefined, { revalidate: true });
+      router.refresh();
+    },
+    [globalMutate, mutate, router]
+  );
 
   return (
     <ClientScopeContext.Provider

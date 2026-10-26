@@ -7,7 +7,7 @@ import { requireRole } from '@/shared/server/access';
 import { getClientScope } from '@/shared/server/client-scope';
 import { errorResponse } from '@/shared/server/http-error';
 
-// AI provider + key config for the selected client (or the workspace default when "All clients").
+// AI provider + key config for the selected client. All-clients fallback is the server .env key.
 // Admin-only; the stored key is never returned — GET exposes only its last 4 characters.
 
 export async function GET() {

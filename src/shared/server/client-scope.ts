@@ -16,10 +16,19 @@ export interface ClientScope {
   customerIds: 'all' | string[];
 }
 
+/** Clients the switcher may list. OWNER/ADMIN → `'all'`; MEMBER → assigned ids they can `permission`. */
+export function listableClientIds(
+  ctx: AccessContext,
+  permission: ClientPermission = 'view'
+): 'all' | string[] {
+  return ctx.clientIds === 'all' ? 'all' : ctx.clientIds.filter((id) => ctx.can(permission, id));
+}
+
 /**
  * Pure: builds the scope from an already-loaded access context.
  * `selectedClientId` is the client picked in the switcher (cookie or `?client=`). A MEMBER only gets the
  * clients where they hold `permission`; asking for any other client gives 404, the same as `requireClient()`.
+ * A MEMBER with no pick is pinned to their first assigned client so Instagram/Facebook lists never mix.
  */
 export function scopeFromAccess(
   ctx: AccessContext,
@@ -27,7 +36,18 @@ export function scopeFromAccess(
   permission: ClientPermission = 'view'
 ): ClientScope {
   const organizationId = ctx.organization.id;
-  const allowed = ctx.clientIds === 'all' ? 'all' : ctx.clientIds.filter((id) => ctx.can(permission, id));
+  const allowed = listableClientIds(ctx, permission);
+
+  if (ctx.role === 'MEMBER') {
+    const ids = allowed === 'all' ? [] : allowed;
+    if (selectedClientId) {
+      if (!ids.includes(selectedClientId)) {
+        throw new HttpError(404, 'Not found');
+      }
+      return { organizationId, customerIds: [selectedClientId] };
+    }
+    return { organizationId, customerIds: ids[0] ? [ids[0]] : [] };
+  }
 
   if (selectedClientId) {
     if (allowed !== 'all' && !allowed.includes(selectedClientId)) {
@@ -36,6 +56,21 @@ export function scopeFromAccess(
     return { organizationId, customerIds: [selectedClientId] };
   }
   return { organizationId, customerIds: allowed };
+}
+
+/**
+ * Switcher selection after dropping a stale cookie. MEMBERs never sit on
+ * "All clients" — they keep a valid cookie pick or are pinned to their first assigned client.
+ */
+export function pinSelectedClientId(
+  role: AccessContext['role'],
+  clients: { id: string }[],
+  fromCookie: string | null
+): string | null {
+  const allowed = clients.map((client) => client.id);
+  if (fromCookie && allowed.includes(fromCookie)) return fromCookie;
+  if (role === 'MEMBER' && allowed.length > 0) return allowed[0];
+  return null;
 }
 
 /**

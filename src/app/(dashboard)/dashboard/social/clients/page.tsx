@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import useSWR from 'swr';
-import { Plus, Link as LinkIcon, Check, Ban, BookmarkPlus, LayoutTemplate, Wand2 } from 'lucide-react';
+import { Plus, Link as LinkIcon, Check, Ban, BookmarkPlus, LayoutTemplate, Wand2, Pencil } from 'lucide-react';
 import { apiFetch } from '@/shared/lib/fetcher';
 import { useClientScopeKey } from '@/modules/social/hooks/use-client-scope';
 
@@ -14,36 +14,141 @@ type ClientTemplateListItem = {
   updatedAt: string;
 };
 
+type ClientRow = {
+  id: string;
+  name: string;
+  onboardingStep?: string | null;
+  approvers: { id: string; name: string | null; email: string }[];
+  adAccounts: { id: string; name: string; externalId: string }[];
+  googleAdsAccounts: { id: string; name: string; googleCustomerId: string }[];
+  integrations: { id: string; name: string; providerIdentifier: string; username: string | null }[];
+};
+
+type AssignableAsset = {
+  id: string;
+  name: string;
+  customerId: string | null;
+  customerName: string | null;
+  providerName?: string;
+};
+
+type AssignableResponse = {
+  channels: AssignableAsset[];
+  adAccounts: AssignableAsset[];
+  googleAdAccounts: AssignableAsset[];
+};
+
+type LinkForm = {
+  name: string;
+  approverName: string;
+  approverEmail: string;
+  integrationIds: string[];
+  adAccountIds: string[];
+  googleAdAccountIds: string[];
+};
+
+const EMPTY_FORM: LinkForm = {
+  name: '',
+  approverName: '',
+  approverEmail: '',
+  integrationIds: [],
+  adAccountIds: [],
+  googleAdAccountIds: [],
+};
+
+function toggleId(ids: string[], id: string): string[] {
+  return ids.includes(id) ? ids.filter((entry) => entry !== id) : [...ids, id];
+}
+
+function AssetPicker({
+  label,
+  description,
+  items,
+  selectedIds,
+  onToggle,
+  empty,
+}: {
+  label: string;
+  description?: string;
+  items: { id: string; label: string; hint?: string }[];
+  selectedIds: string[];
+  onToggle: (id: string) => void;
+  empty: string;
+}) {
+  return (
+    <div className="space-y-2">
+      <div>
+        <p className="text-sm font-medium">{label}</p>
+        {description ? <p className="text-muted-foreground text-xs">{description}</p> : null}
+      </div>
+      {items.length === 0 ? (
+        <p className="text-muted-foreground text-sm">{empty}</p>
+      ) : (
+        <div className="bg-surface border-border max-h-48 space-y-1 overflow-y-auto rounded-md border p-2">
+          {items.map((item) => (
+            <label
+              key={item.id}
+              className="hover:bg-surface-muted flex cursor-pointer items-start gap-2 rounded-md px-2 py-1.5 text-sm"
+            >
+              <input
+                type="checkbox"
+                checked={selectedIds.includes(item.id)}
+                onChange={() => onToggle(item.id)}
+                className="mt-0.5"
+              />
+              <span>
+                {item.label}
+                {item.hint ? <span className="text-muted-foreground block text-xs">{item.hint}</span> : null}
+              </span>
+            </label>
+          ))}
+        </div>
+      )}
+      {selectedIds.length > 0 ? (
+        <p className="text-muted-foreground text-xs">{selectedIds.length} selected</p>
+      ) : null}
+    </div>
+  );
+}
+
+function ChipList({ items }: { items: { id: string; label: string }[] }) {
+  if (items.length === 0) {
+    return <span className="text-muted-foreground text-xs">Unlinked</span>;
+  }
+  return (
+    <div className="flex flex-wrap gap-1">
+      {items.map((item) => (
+        <span key={item.id} className="bg-primary/10 text-primary rounded px-2 py-1 text-xs font-medium">
+          {item.label}
+        </span>
+      ))}
+    </div>
+  );
+}
+
 export default function ClientsPage() {
   const scopeKey = useClientScopeKey();
-  const { data: clients, mutate } = useSWR<any[]>(
-    ['/api/social/clients', scopeKey],
-    ([url]) => apiFetch(url)
-  );
+  const { data: clients, mutate } = useSWR<ClientRow[]>(['/api/social/clients', scopeKey], ([url]) => apiFetch(url));
   const { data: templates, mutate: mutateTemplates } = useSWR<ClientTemplateListItem[]>(
     ['/api/social/client-templates', scopeKey],
     ([url]) => apiFetch(url)
   );
-  const { data: adAccountsRes } = useSWR<any>(
-    ['/api/social/ads/accounts', scopeKey],
-    ([url]) => apiFetch(url)
-  );
-  const { data: integrationsRes } = useSWR<any>(
-    ['/api/social/integrations', scopeKey],
-    ([url]) => apiFetch(url)
-  );
-  const adAccounts = adAccountsRes?.accounts || [];
-  const integrations = integrationsRes?.channels || [];
+  const { data: assignable, mutate: mutateAssignable } = useSWR<AssignableResponse>(['/api/social/clients/assignable', scopeKey], async ([url]) => {
+    try {
+      return await apiFetch<AssignableResponse>(url);
+    } catch {
+      return { channels: [], adAccounts: [], googleAdAccounts: [] };
+    }
+  });
+
+  const integrations = assignable?.channels ?? [];
+  const adAccounts = assignable?.adAccounts ?? [];
+  const googleAdAccounts = assignable?.googleAdAccounts ?? [];
 
   const [isAdding, setIsAdding] = useState(false);
   const [isFromTemplate, setIsFromTemplate] = useState(false);
-  const [form, setForm] = useState({
-    name: '',
-    approverName: '',
-    approverEmail: '',
-    adAccountId: '',
-    integrationId: '',
-  });
+  const [editingClient, setEditingClient] = useState<{ id: string; name: string } | null>(null);
+  const [form, setForm] = useState<LinkForm>(EMPTY_FORM);
   const [templateForm, setTemplateForm] = useState({
     templateId: '',
     name: '',
@@ -55,17 +160,90 @@ export default function ClientsPage() {
   const [revokedId, setRevokedId] = useState<string | null>(null);
   const [savingTemplateId, setSavingTemplateId] = useState<string | null>(null);
   const [savedTemplateId, setSavedTemplateId] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+
+  function openAdd() {
+    setForm(EMPTY_FORM);
+    setFormError(null);
+    setEditingClient(null);
+    setIsFromTemplate(false);
+    setIsAdding(true);
+  }
+
+  function openEdit(client: ClientRow) {
+    setForm({
+      name: client.name,
+      approverName: '',
+      approverEmail: '',
+      integrationIds: (client.integrations ?? []).map((channel) => channel.id),
+      adAccountIds: (client.adAccounts ?? []).map((account) => account.externalId),
+      googleAdAccountIds: (client.googleAdsAccounts ?? []).map((account) => account.googleCustomerId),
+    });
+    setFormError(null);
+    setIsAdding(false);
+    setIsFromTemplate(false);
+    setEditingClient({ id: client.id, name: client.name });
+  }
+
+  function closeForms() {
+    setIsAdding(false);
+    setIsFromTemplate(false);
+    setEditingClient(null);
+    setForm(EMPTY_FORM);
+    setFormError(null);
+  }
 
   async function handleAddClient(e: React.FormEvent) {
     e.preventDefault();
-    await apiFetch('/api/social/clients', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(form),
-    });
-    setForm({ name: '', approverName: '', approverEmail: '', adAccountId: '', integrationId: '' });
-    setIsAdding(false);
-    mutate();
+    setSaving(true);
+    setFormError(null);
+    try {
+      await apiFetch('/api/social/clients', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: form.name,
+          approverName: form.approverName,
+          approverEmail: form.approverEmail,
+          integrationIds: form.integrationIds,
+          adAccountIds: form.adAccountIds,
+          googleAdAccountIds: form.googleAdAccountIds,
+        }),
+      });
+      closeForms();
+      mutate();
+      mutateAssignable();
+    } catch (error) {
+      setFormError(error instanceof Error ? error.message : 'Could not create client');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleUpdateLinks(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editingClient) return;
+    setSaving(true);
+    setFormError(null);
+    try {
+      await apiFetch(`/api/social/clients/${editingClient.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          integrationIds: form.integrationIds,
+          adAccountIds: form.adAccountIds,
+          googleAdAccountIds: form.googleAdAccountIds,
+        }),
+      });
+      closeForms();
+      mutate();
+      mutateAssignable();
+    } catch (error) {
+      setFormError(error instanceof Error ? error.message : 'Could not update links');
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function handleCreateFromTemplate(e: React.FormEvent) {
@@ -99,7 +277,9 @@ export default function ClientsPage() {
   }
 
   async function generateLink(clientId: string) {
-    const res = (await apiFetch(`/api/social/clients/${clientId}/magic-link`, { method: 'POST' })) as any;
+    const res = (await apiFetch(`/api/social/clients/${clientId}/magic-link`, { method: 'POST' })) as {
+      magicLink: string;
+    };
     await navigator.clipboard.writeText(res.magicLink);
     setCopiedId(clientId);
     setTimeout(() => setCopiedId(null), 2000);
@@ -121,6 +301,68 @@ export default function ClientsPage() {
     }
   }
 
+  const editingId = editingClient?.id ?? null;
+
+  function assetHint(asset: AssignableAsset, fallback?: string) {
+    const elsewhere = asset.customerId && asset.customerId !== editingId;
+    if (elsewhere) return `Currently linked to ${asset.customerName ?? 'another client'}`;
+    return fallback;
+  }
+
+  const channelItems = integrations.map((channel) => ({
+    id: channel.id,
+    label: `${channel.name}${channel.providerName ? ` (${channel.providerName})` : ''}`,
+    hint: assetHint(channel),
+  }));
+  const metaAdItems = adAccounts.map((account) => ({
+    id: account.id,
+    label: account.name,
+    hint: assetHint(account, account.id),
+  }));
+  const googleAdItems = googleAdAccounts.map((account) => ({
+    id: account.id,
+    label: account.name,
+    hint: assetHint(account, account.id),
+  }));
+
+  const linkPickers = (
+    <>
+      <div className="col-span-2">
+        <AssetPicker
+          label="Link social channels (optional)"
+          description="Select every Instagram, Facebook, LinkedIn, or other channel this client owns. Picking a channel already on another client moves it here."
+          items={channelItems}
+          selectedIds={form.integrationIds}
+          onToggle={(id) => setForm((current) => ({ ...current, integrationIds: toggleId(current.integrationIds, id) }))}
+          empty="No social channels connected yet. Add them under Channels first."
+        />
+      </div>
+      <div className="col-span-2 grid gap-4 sm:grid-cols-2">
+        <AssetPicker
+          label="Meta ad accounts (optional)"
+          description="Facebook / Instagram Ads. Multiple accounts allowed."
+          items={metaAdItems}
+          selectedIds={form.adAccountIds}
+          onToggle={(id) => setForm((current) => ({ ...current, adAccountIds: toggleId(current.adAccountIds, id) }))}
+          empty="No Meta ad accounts synced yet."
+        />
+        <AssetPicker
+          label="Google Ads accounts (optional)"
+          description="Search / YouTube / Display. Multiple accounts allowed."
+          items={googleAdItems}
+          selectedIds={form.googleAdAccountIds}
+          onToggle={(id) =>
+            setForm((current) => ({
+              ...current,
+              googleAdAccountIds: toggleId(current.googleAdAccountIds, id),
+            }))
+          }
+          empty="No Google Ads accounts connected yet."
+        />
+      </div>
+    </>
+  );
+
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
       <div className="flex items-center justify-between gap-3">
@@ -133,16 +375,14 @@ export default function ClientsPage() {
             onClick={() => {
               setIsFromTemplate(true);
               setIsAdding(false);
+              setEditingClient(null);
             }}
             className="border-border flex items-center gap-2 rounded-md border bg-surface px-4 py-2 text-sm font-medium transition hover:bg-surface-muted"
           >
             <LayoutTemplate className="size-4" /> Create from template
           </button>
           <button
-            onClick={() => {
-              setIsAdding(true);
-              setIsFromTemplate(false);
-            }}
+            onClick={openAdd}
             className="bg-primary text-primary-foreground hover:bg-primary/90 flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition"
           >
             <Plus className="size-4" /> Add Client
@@ -256,36 +496,6 @@ export default function ClientsPage() {
                 />
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium">Link Ad Account (Optional)</label>
-                <select
-                  value={form.adAccountId}
-                  onChange={(e) => setForm({ ...form, adAccountId: e.target.value })}
-                  className="bg-surface border-border flex h-10 w-full rounded-md border px-3 py-2 text-sm"
-                >
-                  <option value="">-- None --</option>
-                  {adAccounts?.map((acc: any) => (
-                    <option key={acc.id} value={acc.id}>
-                      {acc.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Link Social Channel (Optional)</label>
-                <select
-                  value={form.integrationId}
-                  onChange={(e) => setForm({ ...form, integrationId: e.target.value })}
-                  className="bg-surface border-border flex h-10 w-full rounded-md border px-3 py-2 text-sm"
-                >
-                  <option value="">-- None --</option>
-                  {integrations?.map((channel: any) => (
-                    <option key={channel.id} value={channel.id}>
-                      {channel.name} ({channel.providerName})
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="space-y-2">
                 <label className="text-sm font-medium">Approver Name</label>
                 <input
                   type="text"
@@ -307,20 +517,50 @@ export default function ClientsPage() {
                   placeholder="e.g. sushant@example.com"
                 />
               </div>
+              {linkPickers}
             </div>
+            {formError ? <p className="text-sm text-red-600">{formError}</p> : null}
             <div className="flex justify-end gap-3 pt-4">
               <button
                 type="button"
-                onClick={() => setIsAdding(false)}
+                onClick={closeForms}
                 className="text-muted-foreground hover:text-foreground text-sm font-medium"
               >
                 Cancel
               </button>
               <button
                 type="submit"
-                className="bg-primary text-primary-foreground hover:bg-primary/90 rounded-md px-4 py-2 text-sm font-medium transition"
+                disabled={saving}
+                className="bg-primary text-primary-foreground hover:bg-primary/90 rounded-md px-4 py-2 text-sm font-medium transition disabled:opacity-60"
               >
-                Create Client
+                {saving ? 'Creating…' : 'Create Client'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {editingClient && (
+        <div className="bg-surface-muted rounded-xl border p-6">
+          <h3 className="text-lg font-medium mb-1">Link channels &amp; ad accounts</h3>
+          <p className="text-muted-foreground mb-4 text-sm">{editingClient.name}</p>
+          <form onSubmit={handleUpdateLinks} className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">{linkPickers}</div>
+            {formError ? <p className="text-sm text-red-600">{formError}</p> : null}
+            <div className="flex justify-end gap-3 pt-4">
+              <button
+                type="button"
+                onClick={closeForms}
+                className="text-muted-foreground hover:text-foreground text-sm font-medium"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={saving}
+                className="bg-primary text-primary-foreground hover:bg-primary/90 rounded-md px-4 py-2 text-sm font-medium transition disabled:opacity-60"
+              >
+                {saving ? 'Saving…' : 'Save links'}
               </button>
             </div>
           </form>
@@ -352,7 +592,7 @@ export default function ClientsPage() {
                 </td>
               </tr>
             ) : (
-              clients.map((client: any) => (
+              clients.map((client) => (
                 <tr key={client.id} className="hover:bg-surface-muted/30 transition">
                   <td className="px-6 py-4 font-medium">
                     <div>{client.name}</div>
@@ -367,26 +607,35 @@ export default function ClientsPage() {
                     <span className="text-muted-foreground text-xs">{client.approvers?.[0]?.email}</span>
                   </td>
                   <td className="px-6 py-4">
-                    {client.adAccounts?.length ? (
-                      <span className="bg-primary/10 text-primary px-2 py-1 rounded text-xs font-medium">
-                        {client.adAccounts[0].name}
-                      </span>
-                    ) : (
-                      <span className="text-muted-foreground text-xs">Unlinked</span>
-                    )}
+                    <ChipList
+                      items={[
+                        ...(client.adAccounts ?? []).map((account) => ({
+                          id: account.id,
+                          label: `Meta · ${account.name}`,
+                        })),
+                        ...(client.googleAdsAccounts ?? []).map((account) => ({
+                          id: account.id,
+                          label: `Google · ${account.name}`,
+                        })),
+                      ]}
+                    />
                   </td>
                   <td className="px-6 py-4">
-                    {client.integrations?.length ? (
-                      <span className="bg-primary/10 text-primary px-2 py-1 rounded text-xs font-medium">
-                        {client.integrations[0].name}
-                        {client.integrations.length > 1 && ` (+${client.integrations.length - 1})`}
-                      </span>
-                    ) : (
-                      <span className="text-muted-foreground text-xs">Unlinked</span>
-                    )}
+                    <ChipList
+                      items={(client.integrations ?? []).map((channel) => ({
+                        id: channel.id,
+                        label: channel.name,
+                      }))}
+                    />
                   </td>
                   <td className="px-6 py-4 text-right">
                     <div className="inline-flex flex-wrap items-center justify-end gap-2">
+                      <button
+                        onClick={() => openEdit(client)}
+                        className="inline-flex items-center gap-1.5 rounded-md border bg-surface px-3 py-1.5 text-xs font-medium shadow-sm hover:bg-surface-muted transition"
+                      >
+                        <Pencil className="size-3.5" /> Edit links
+                      </button>
                       <Link
                         href={`/dashboard/social/clients/${client.id}/onboarding`}
                         className="inline-flex items-center gap-1.5 rounded-md border bg-surface px-3 py-1.5 text-xs font-medium shadow-sm hover:bg-surface-muted transition"

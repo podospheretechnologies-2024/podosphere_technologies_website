@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   organizationScope,
+  pinSelectedClientId,
   resolveSelectedClientId,
   scopeFromAccess,
   scopeWhere,
@@ -22,6 +23,7 @@ function ctx(clientIds: 'all' | string[], perms: Record<string, string[]> = {}):
   const held = (id: string) => perms[id] ?? ['view'];
   return {
     organization: { id: 'org-1' },
+    role: clientIds === 'all' ? 'OWNER' : 'MEMBER',
     clientIds,
     can: (p: string, id: string | null) =>
       clientIds === 'all' || (!!id && (held(id).includes(p) || (p === 'view' && held(id).length > 0))),
@@ -71,6 +73,10 @@ describe('client scope', () => {
     const scope = scopeFromAccess(ctx(['client-a', 'client-b']), 'client-b');
     expect(scope.customerIds).toEqual(['client-b']);
   });
+
+  it('MEMBER with several clients and no pick is pinned to the first assigned client', () => {
+    expect(scopeFromAccess(ctx(['client-a', 'client-b'])).customerIds).toEqual(['client-a']);
+  });
 });
 
 describe('resolveSelectedClientId', () => {
@@ -95,5 +101,32 @@ describe('resolveSelectedClientId', () => {
     headerGet.mockReturnValue('');
     cookieGet.mockReturnValue({ value: 'client-from-cookie' });
     await expect(resolveSelectedClientId()).resolves.toBeNull();
+  });
+});
+
+describe('pinSelectedClientId', () => {
+  const clients = [{ id: 'client-a' }, { id: 'client-b' }];
+
+  it('keeps a valid cookie pick', () => {
+    expect(pinSelectedClientId('ADMIN', clients, 'client-b')).toBe('client-b');
+    expect(pinSelectedClientId('MEMBER', [{ id: 'client-a' }], 'client-a')).toBe('client-a');
+  });
+
+  it('drops a cookie the user cannot see', () => {
+    expect(pinSelectedClientId('MEMBER', [{ id: 'client-a' }], 'client-b')).toBe('client-a');
+    expect(pinSelectedClientId('ADMIN', clients, 'client-z')).toBeNull();
+  });
+
+  it('pins a MEMBER with one client so they never land on All clients', () => {
+    expect(pinSelectedClientId('MEMBER', [{ id: 'client-a' }], null)).toBe('client-a');
+  });
+
+  it('pins a MEMBER with several clients to the first assigned client', () => {
+    expect(pinSelectedClientId('MEMBER', clients, null)).toBe('client-a');
+  });
+
+  it('does not invent a pick for ADMIN or OWNER', () => {
+    expect(pinSelectedClientId('ADMIN', clients, null)).toBeNull();
+    expect(pinSelectedClientId('OWNER', [{ id: 'client-a' }], null)).toBeNull();
   });
 });

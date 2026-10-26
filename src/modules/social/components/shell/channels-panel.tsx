@@ -8,6 +8,7 @@ import { Button } from '@/shared/components/ui/button';
 import { cn } from '@/shared/lib/cn';
 import { SOCIAL_BASE_PATH } from '../../config/navigation';
 import { useChannels } from '../../hooks/use-channels';
+import { useClientScope } from '../../hooks/use-client-scope';
 import { startChannelConnect } from '../../lib/integrations.client';
 import type { AvailableProvider, ChannelItem } from '../../types/integration';
 import { AddChannelDialog } from '../channels/add-channel-dialog';
@@ -49,6 +50,7 @@ export function ChannelsPanel({ onCreatePost }: ChannelsPanelProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { canManageCampaigns } = useWorkspaceRole();
+  const { selectedClientId } = useClientScope();
   const { data, isLoading, mutate } = useChannels();
   const [collapsed, setCollapsed] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -75,6 +77,7 @@ export function ChannelsPanel({ onCreatePost }: ChannelsPanelProps) {
   }, [channels, search]);
   const groups = useMemo(() => groupChannels(filteredChannels), [filteredChannels]);
   const isAgent = pathname.includes('/ai') || pathname.includes('/agent');
+  const needsClientPick = isAgent && !selectedClientId;
 
   async function connect(provider: AvailableProvider) {
     if (provider.comingSoon) {
@@ -169,7 +172,12 @@ export function ChannelsPanel({ onCreatePost }: ChannelsPanelProps) {
             </p>
           )}
 
-          {isLoading && !data ? (
+          {needsClientPick && !collapsed ? (
+            <div className="text-muted-foreground flex flex-1 flex-col items-center justify-center gap-2 px-2 text-center text-sm">
+              <p className="text-foreground text-base font-semibold">Pick a client</p>
+              <p>Choose a client in the switcher to see their Instagram and Facebook accounts.</p>
+            </div>
+          ) : isLoading && !data ? (
             <p className="text-muted-foreground text-sm">Loading…</p>
           ) : channels.length === 0 && !collapsed ? (
             <div className="text-muted-foreground flex flex-1 flex-col items-center justify-center gap-2 px-2 text-center text-sm">

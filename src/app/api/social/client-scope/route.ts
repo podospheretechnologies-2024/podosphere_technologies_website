@@ -5,7 +5,8 @@ import { prisma } from '@/shared/lib/prisma';
 import { getAccess } from '@/shared/server/access';
 import {
   CLIENT_SCOPE_COOKIE,
-  getClientScope,
+  listableClientIds,
+  pinSelectedClientId,
   resolveSelectedClientId,
   scopeFromAccess,
 } from '@/shared/server/client-scope';
@@ -18,30 +19,49 @@ const putSchema = z.object({
 });
 
 async function listSwitcherClients() {
-  const scope = await getClientScope('view', null);
+  const ctx = await getAccess();
+  const listable = listableClientIds(ctx, 'view');
   return prisma.socialCustomer.findMany({
     where: {
-      organizationId: scope.organizationId,
-      ...(scope.customerIds === 'all' ? {} : { id: { in: scope.customerIds } }),
+      organizationId: ctx.organization.id,
+      ...(listable === 'all' ? {} : { id: { in: listable } }),
     },
     select: { id: true, name: true },
     orderBy: { name: 'asc' },
   });
 }
 
+function writeClientCookie(
+  cookieStore: Awaited<ReturnType<typeof cookies>>,
+  clientId: string | null
+) {
+  if (clientId) {
+    cookieStore.set(CLIENT_SCOPE_COOKIE, clientId, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+      maxAge: CLIENT_SCOPE_MAX_AGE,
+    });
+    return;
+  }
+  cookieStore.delete(CLIENT_SCOPE_COOKIE);
+}
+
 /** Current switcher selection + clients the user may pick. */
 export async function GET() {
   try {
-    const [selectedClientId, clients] = await Promise.all([
+    const [selectedClientId, clients, ctx] = await Promise.all([
       resolveSelectedClientId(),
       listSwitcherClients(),
+      getAccess(),
     ]);
-    // Drop a stale cookie value the user can no longer access.
-    const allowedIds = new Set(clients.map((c) => c.id));
-    const safeSelected =
-      selectedClientId && allowedIds.has(selectedClientId) ? selectedClientId : null;
-    if (selectedClientId && !safeSelected) {
-      (await cookies()).delete(CLIENT_SCOPE_COOKIE);
+    const safeSelected = pinSelectedClientId(ctx.role, clients, selectedClientId);
+    const cookieStore = await cookies();
+    if (safeSelected && safeSelected !== selectedClientId) {
+      writeClientCookie(cookieStore, safeSelected);
+    } else if (selectedClientId && !safeSelected) {
+      cookieStore.delete(CLIENT_SCOPE_COOKIE);
     }
     return NextResponse.json({ selectedClientId: safeSelected, clients });
   } catch (error) {
@@ -56,25 +76,15 @@ export async function PUT(request: Request) {
     const ctx = await getAccess();
 
     if (body.clientId) {
-      // Validate the pick the same way list routes will.
       scopeFromAccess(ctx, body.clientId, 'view');
-    }
-
-    const cookieStore = await cookies();
-    if (body.clientId) {
-      cookieStore.set(CLIENT_SCOPE_COOKIE, body.clientId, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
-        path: '/',
-        maxAge: CLIENT_SCOPE_MAX_AGE,
-      });
-    } else {
-      cookieStore.delete(CLIENT_SCOPE_COOKIE);
+    } else if (ctx.role === 'MEMBER') {
+      throw new HttpError(400, 'Pick a client. Client users cannot switch to All clients.');
     }
 
     const clients = await listSwitcherClients();
-    return NextResponse.json({ selectedClientId: body.clientId, clients });
+    const selectedClientId = pinSelectedClientId(ctx.role, clients, body.clientId);
+    writeClientCookie(await cookies(), selectedClientId);
+    return NextResponse.json({ selectedClientId, clients });
   } catch (error) {
     if (error instanceof HttpError) return errorResponse(error);
     return errorResponse(error);

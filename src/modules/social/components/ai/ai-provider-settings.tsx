@@ -35,8 +35,8 @@ export function AiProviderSettings() {
   }, [scopeKey]);
 
   const option = AI_PROVIDER_OPTIONS.find((item) => item.value === provider);
-  const scopeNoun =
-    display?.level === 'client' ? 'this client' : 'all clients (the workspace default)';
+  const clientReady = display?.level === 'client';
+  const scopeNoun = clientReady ? 'this client' : 'the selected client';
 
   async function test() {
     if (!apiKey.trim()) {
@@ -117,8 +117,8 @@ export function AiProviderSettings() {
       <div>
         <h2 className="text-sm font-semibold">AI provider</h2>
         <p className="text-muted-foreground text-xs">
-          Choose which AI writes content and bring your own key. Changes apply to {scopeNoun} — pick
-          a client in the switcher above to set a per-client key. The Copilot chat always uses Claude.
+          Add a ChatGPT, Claude or Gemini key for one client. Every other client uses the server
+          env key. The Copilot chat always uses Claude.
         </p>
       </div>
 
@@ -131,61 +131,70 @@ export function AiProviderSettings() {
         <p className="text-xs text-amber-600">No AI provider is configured yet.</p>
       )}
 
-      <div className="grid gap-3 md:grid-cols-2">
-        <label>
-          <span className="text-muted-foreground mb-1 block text-xs font-medium">Provider</span>
-          <select
-            value={provider}
-            onChange={(event) => setProvider(event.target.value as AiProvider)}
-            className="border-border bg-surface-muted/40 h-10 w-full rounded-xl border px-3 text-sm outline-none"
-          >
-            {AI_PROVIDER_OPTIONS.map((item) => (
-              <option key={item.value} value={item.value}>
-                {item.label}
-              </option>
-            ))}
-          </select>
-        </label>
+      {!clientReady ? (
+        <p className="text-xs text-amber-600">
+          Pick a client in the switcher to add their API key. The env key stays the fallback for
+          all clients.
+        </p>
+      ) : (
+        <>
+          <div className="grid gap-3 md:grid-cols-2">
+            <label>
+              <span className="text-muted-foreground mb-1 block text-xs font-medium">Provider</span>
+              <select
+                value={provider}
+                onChange={(event) => setProvider(event.target.value as AiProvider)}
+                className="border-border bg-surface-muted/40 h-10 w-full rounded-xl border px-3 text-sm outline-none"
+              >
+                {AI_PROVIDER_OPTIONS.map((item) => (
+                  <option key={item.value} value={item.value}>
+                    {item.label}
+                  </option>
+                ))}
+              </select>
+            </label>
 
-        <label>
-          <span className="text-muted-foreground mb-1 block text-xs font-medium">
-            Model <span className="font-normal">(optional)</span>
-          </span>
-          <input
-            value={model}
-            placeholder={option?.modelPlaceholder}
-            onChange={(event) => setModel(event.target.value)}
-            className="border-border bg-surface-muted/40 h-10 w-full rounded-xl border px-3 text-sm outline-none"
-          />
-        </label>
+            <label>
+              <span className="text-muted-foreground mb-1 block text-xs font-medium">
+                Model <span className="font-normal">(optional)</span>
+              </span>
+              <input
+                value={model}
+                placeholder={option?.modelPlaceholder}
+                onChange={(event) => setModel(event.target.value)}
+                className="border-border bg-surface-muted/40 h-10 w-full rounded-xl border px-3 text-sm outline-none"
+              />
+            </label>
 
-        <label className="md:col-span-2">
-          <span className="text-muted-foreground mb-1 block text-xs font-medium">API key</span>
-          <input
-            type="password"
-            autoComplete="off"
-            value={apiKey}
-            placeholder={keyPlaceholder}
-            onChange={(event) => setApiKey(event.target.value)}
-            className="border-border bg-surface-muted/40 h-10 w-full rounded-xl border px-3 text-sm outline-none"
-          />
-        </label>
-      </div>
+            <label className="md:col-span-2">
+              <span className="text-muted-foreground mb-1 block text-xs font-medium">API key</span>
+              <input
+                type="password"
+                autoComplete="off"
+                value={apiKey}
+                placeholder={keyPlaceholder}
+                onChange={(event) => setApiKey(event.target.value)}
+                className="border-border bg-surface-muted/40 h-10 w-full rounded-xl border px-3 text-sm outline-none"
+              />
+            </label>
+          </div>
 
-      <div className="flex flex-wrap items-center gap-3">
-        <Button type="button" onClick={() => void save()} disabled={busy}>
-          {busy ? 'Working…' : 'Save'}
-        </Button>
-        <Button type="button" variant="secondary" onClick={() => void test()} disabled={busy}>
-          Test key
-        </Button>
-        {display?.provider && (
-          <Button type="button" variant="ghost" onClick={() => void remove()} disabled={busy}>
-            Remove
-          </Button>
-        )}
-        {status && <p className="text-muted-foreground text-xs">{status}</p>}
-      </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <Button type="button" onClick={() => void save()} disabled={busy}>
+              {busy ? 'Working…' : 'Save'}
+            </Button>
+            <Button type="button" variant="secondary" onClick={() => void test()} disabled={busy}>
+              Test key
+            </Button>
+            {display?.provider && (
+              <Button type="button" variant="ghost" onClick={() => void remove()} disabled={busy}>
+                Remove
+              </Button>
+            )}
+            {status && <p className="text-muted-foreground text-xs">{status}</p>}
+          </div>
+        </>
+      )}
     </section>
   );
 }

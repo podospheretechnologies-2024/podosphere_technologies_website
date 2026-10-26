@@ -1,80 +1,35 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/shared/lib/prisma';
 import { requireRole } from '@/shared/server/access';
 import { getClientScope } from '@/shared/server/client-scope';
-import { customerService } from '@/modules/social/server/customers/customer.service';
+import { errorResponse } from '@/shared/server/http-error';
 import { logAudit } from '@/shared/server/audit.service';
+import { createClientSchema } from '@/modules/social/server/customers/customer.schema';
+import { customerService } from '@/modules/social/server/customers/customer.service';
 
 export async function GET() {
   try {
     const scope = await getClientScope('view');
-    const clients = await prisma.socialCustomer.findMany({
-      where: {
-        organizationId: scope.organizationId,
-        ...(scope.customerIds === 'all' ? {} : { id: { in: scope.customerIds } }),
-      },
-      include: {
-        approvers: true,
-        adAccounts: true,
-        integrations: true,
-      },
-      orderBy: { createdAt: 'desc' }
-    });
-
-    return NextResponse.json(clients);
-  } catch (error: any) {
-    return new NextResponse(error.message, { status: 500 });
+    return NextResponse.json(await customerService.listCustomers(scope));
+  } catch (error) {
+    return errorResponse(error);
   }
 }
 
 export async function POST(req: Request) {
   try {
     const ctx = await requireRole('ADMIN');
-    const body = await req.json();
-    const { name, approverName, approverEmail, adAccountId, integrationId } = body;
-
-    if (!name || !approverName || !approverEmail) {
-      return new NextResponse('Missing required fields', { status: 400 });
-    }
-
-    // 1. Create the Client Profile
-    const customer = await customerService.createCustomer(name, approverEmail);
-
-    // 2. Create the Approver Login
-    await prisma.clientApprover.create({
-      data: { 
-        organizationId: ctx.organization.id, 
-        customerId: customer.id, 
-        email: approverEmail, 
-        name: approverName 
-      }
-    });
-
-    // 3. Link Ad Account if provided
-    if (adAccountId) {
-      await prisma.adAccount.update({
-        where: { externalId: adAccountId },
-        data: { customerId: customer.id }
-      });
-    }
-
-    // 4. Link Social Integration if provided
-    if (integrationId) {
-      await prisma.socialIntegration.update({
-        where: { id: integrationId },
-        data: { customerId: customer.id }
-      });
-    }
+    const body = createClientSchema.parse(await req.json());
+    const customer = await customerService.createClient(ctx.organization.id, body);
 
     await logAudit({
       action: 'create_client',
       targetType: 'SocialCustomer',
       targetId: customer.id,
-      metadata: { name, approverEmail }
+      metadata: { name: body.name, approverEmail: body.approverEmail },
     });
 
-    return NextResponse.json(customer);
-  } catch (error: any) {
-    return new NextResponse(error.message, { status: 400 });
+    return NextResponse.json(customer, { status: 201 });
+  } catch (error) {
+    return errorResponse(error);
   }
 }
