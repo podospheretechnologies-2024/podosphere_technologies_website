@@ -2,15 +2,13 @@ import type { NextRequest } from 'next/server';
 import { adAccountIdSchema, adsOverviewQuerySchema } from '@/modules/social/server/ads/ads.schema';
 import { adsService } from '@/modules/social/server/ads/ads.service';
 import { canUseAds } from '@/shared/config/organization';
-import { requireRole } from '@/shared/server/access';
 import { getClientScope } from '@/shared/server/client-scope';
 import { getCurrentOrganization } from '@/shared/server/current-organization';
 import { errorResponse, HttpError } from '@/shared/server/http-error';
 
-// Totals, daily spend and campaigns for one ad account (agency OWNER/ADMIN only).
+// Totals, daily spend and campaigns for one ad account (requires `ads_view` on its client).
 export async function GET(request: NextRequest, ctx: RouteContext<'/api/social/ads/accounts/[id]'>) {
   try {
-    await requireRole('ADMIN');
     const scope = await getClientScope('ads_view');
     const org = await getCurrentOrganization();
     if (!canUseAds(org)) {

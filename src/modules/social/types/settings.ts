@@ -27,9 +27,21 @@ export interface TemplateItem {
   createdAt: string;
 }
 
+export interface HashtagGroupItem {
+  id: string;
+  name: string;
+  /** Normalised, space-separated #hashtags. */
+  hashtags: string;
+}
+
 export interface SaveSignatureInput {
   content: string;
   autoAdd: boolean;
+}
+
+export interface SaveHashtagGroupInput {
+  name: string;
+  hashtags: string;
 }
 
 export interface SaveTagInput {

@@ -33,6 +33,11 @@ export const socialSections = {
     href: `${SOCIAL_BASE_PATH}/automation`,
     description: 'Auto-post from RSS feeds and send webhooks after publishing.',
   },
+  bio: {
+    label: 'Bio Link',
+    href: `${SOCIAL_BASE_PATH}/bio`,
+    description: 'Build a public link-in-bio page with click tracking.',
+  },
   analytics: {
     label: 'Analytics',
     href: `${SOCIAL_BASE_PATH}/analytics`,

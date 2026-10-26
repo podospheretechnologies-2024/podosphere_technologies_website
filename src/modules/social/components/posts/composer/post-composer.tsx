@@ -17,7 +17,7 @@ import { useAiStatus } from '../../../hooks/use-ai-status';
 import { useBestTimes } from '../../../hooks/use-best-times';
 import { useChannels } from '../../../hooks/use-channels';
 import { usePostGroup } from '../../../hooks/use-posts';
-import { useSignatures } from '../../../hooks/use-settings';
+import { useHashtagGroups, useSignatures } from '../../../hooks/use-settings';
 import { generatePosts, splitIntoThread } from '../../../lib/ai.client';
 import { fetchGoogleSheetsContent } from '../../../lib/google-sheets.client';
 import {
@@ -33,6 +33,7 @@ import type { SignatureItem, TemplateItem } from '../../../types/settings';
 import { CaptionTonePicker } from '../../ai/caption-tone-picker';
 import { ProviderMark } from '../../channels/provider-mark';
 import { ChannelSelector, relatedChannels } from './channel-selector';
+import { HashtagSelect } from './hashtag-select';
 import { PostPreview } from './post-preview';
 import {
   RecurrencePicker,
@@ -170,6 +171,8 @@ function ComposerForm({
     return [autoSignature ? withSignature(first, autoSignature.content) : first, ...rest];
   });
   const [tagIds, setTagIds] = useState<string[]>(() => initial?.tags.map((tag) => tag.id) ?? []);
+  // Optional: if hashtag groups fail to load the composer still works.
+  const { data: hashtagGroups } = useHashtagGroups();
   const [firstComment, setFirstComment] = useState(() => initialFirstComment(initial?.posts));
   const [recurrence, setRecurrence] = useState<RecurrenceDraft>(() =>
     toRecurrenceDraft(initial?.recurrence)
@@ -299,6 +302,16 @@ function ComposerForm({
 
   function insertSignature(signature: string) {
     setItems(([first, ...rest]) => [withSignature(first, signature), ...rest]);
+  }
+
+  function insertHashtags(hashtags: string) {
+    setItems(([first, ...rest]) => {
+      if (!first) return [{ ...emptyItem(), content: hashtags }, ...rest];
+      const content = first.content.trim()
+        ? `${first.content.trimEnd()}\n\n${hashtags}`
+        : hashtags;
+      return [{ ...first, content }, ...rest];
+    });
   }
 
   function insertShortLink(shortUrl: string) {
@@ -528,6 +541,11 @@ function ComposerForm({
                 </Button>
               )}
               <SignatureSelect signatures={signatures} disabled={busy} onInsert={insertSignature} />
+              <HashtagSelect
+                groups={hashtagGroups ?? []}
+                disabled={busy}
+                onInsert={insertHashtags}
+              />
               <UtmShortLink
                 channels={selectedChannels}
                 disabled={busy}

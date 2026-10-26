@@ -2,7 +2,6 @@ import type { NextRequest } from 'next/server';
 import { CSV_IMPORT_MAX_BYTES } from '@/modules/social/config/csv-import';
 import { csvImportPreviewSchema } from '@/modules/social/server/posts/csv-import.schema';
 import { csvImportService } from '@/modules/social/server/posts/csv-import.service';
-import { requireRole } from '@/shared/server/access';
 import { getClientScope } from '@/shared/server/client-scope';
 import { errorResponse, HttpError } from '@/shared/server/http-error';
 
@@ -35,7 +34,6 @@ async function readCsvFromRequest(request: NextRequest): Promise<{ csv: string; 
 
 export async function POST(request: NextRequest) {
   try {
-    await requireRole('ADMIN');
     const scope = await getClientScope('publish');
     const raw = await readCsvFromRequest(request);
     const body = csvImportPreviewSchema.parse(raw);

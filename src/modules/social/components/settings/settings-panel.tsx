@@ -4,11 +4,12 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { cn } from '@/shared/lib/cn';
 import { SOCIAL_BASE_PATH } from '../../config/navigation';
+import { HashtagGroupsCard } from './hashtag-groups-card';
 import { SignaturesCard } from './signatures-card';
 import { TagsCard } from './tags-card';
 import { TemplatesCard } from './templates-card';
 
-type SettingsTab = 'sets' | 'signatures' | 'tags';
+type SettingsTab = 'sets' | 'signatures' | 'tags' | 'hashtags';
 
 const tabs: { id: SettingsTab; label: string; description: string }[] = [
   {
@@ -22,6 +23,11 @@ const tabs: { id: SettingsTab; label: string; description: string }[] = [
     description: 'Reusable text blocks appended to your posts.',
   },
   { id: 'tags', label: 'Tags', description: 'Organize posts with colored tags.' },
+  {
+    id: 'hashtags',
+    label: 'Hashtags',
+    description: 'Saved hashtag groups to drop into posts from the composer.',
+  },
 ];
 
 const externalLinks = [
@@ -75,6 +81,7 @@ export function SettingsPanel() {
         {tab === 'sets' && <TemplatesCard />}
         {tab === 'signatures' && <SignaturesCard />}
         {tab === 'tags' && <TagsCard />}
+        {tab === 'hashtags' && <HashtagGroupsCard />}
       </div>
     </div>
   );

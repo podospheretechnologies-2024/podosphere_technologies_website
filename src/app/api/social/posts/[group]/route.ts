@@ -1,7 +1,6 @@
 import type { NextRequest } from 'next/server';
 import { reschedulePostSchema, savePostSchema } from '@/modules/social/server/posts/post.schema';
 import { postService } from '@/modules/social/server/posts/post.service';
-import { requireRole } from '@/shared/server/access';
 import { getClientScope } from '@/shared/server/client-scope';
 import { errorResponse } from '@/shared/server/http-error';
 
@@ -19,7 +18,6 @@ export async function GET(_request: NextRequest, ctx: Context) {
 
 export async function PUT(request: NextRequest, ctx: Context) {
   try {
-    await requireRole('ADMIN');
     const { group } = await ctx.params;
     const body = savePostSchema.parse(await request.json());
     const scope = await getClientScope(body.type === 'draft' ? 'draft' : 'publish');
@@ -32,7 +30,6 @@ export async function PUT(request: NextRequest, ctx: Context) {
 // Partial update: only moves the post to a new date (calendar drag and drop).
 export async function PATCH(request: NextRequest, ctx: Context) {
   try {
-    await requireRole('ADMIN');
     const { group } = await ctx.params;
     const scope = await getClientScope('publish');
     const body = reschedulePostSchema.parse(await request.json());
@@ -45,7 +42,6 @@ export async function PATCH(request: NextRequest, ctx: Context) {
 
 export async function DELETE(_request: NextRequest, ctx: Context) {
   try {
-    await requireRole('ADMIN');
     const { group } = await ctx.params;
     const scope = await getClientScope('draft');
     await postService.remove(scope, group);

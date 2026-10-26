@@ -34,7 +34,7 @@ Legend: ✅ done in working tree · 🟡 partial / needs ops · ❌ not started 
 | Automation: RSS, webhooks, Google Sheets | ✅ |
 | Client scope + switcher, overview, templates, onboarding | ✅ |
 | Approvals + client portal | ✅ |
-| Agency OWNER/ADMIN-only channel connect + post/ads mutations (members read calendar) | ✅ |
+| Per-client member permissions on data routes (posts/inbox/ads/reports honor `requireClient`/scope); OWNER/ADMIN-only kept for agency settings, billing, team, API keys, connectors + channel connect | ✅ |
 | Reports PDF + Resend + AI narrative | ✅ |
 | Inbox (assign/SLA) + **reply / hide / triage / saved replies** | ✅ |
 | Leads pipeline + **score + PodoCRM push** | ✅ |

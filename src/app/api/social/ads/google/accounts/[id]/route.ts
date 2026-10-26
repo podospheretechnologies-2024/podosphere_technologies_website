@@ -14,7 +14,6 @@ import { errorResponse, HttpError } from '@/shared/server/http-error';
 // Totals, daily spend, campaigns, ad groups and ads for one Google Ads account (read-only).
 export async function GET(request: NextRequest, ctx: RouteContext<'/api/social/ads/google/accounts/[id]'>) {
   try {
-    await requireRole('ADMIN');
     const scope = await getClientScope('ads_view');
     const org = await getCurrentOrganization();
     if (!canUseAds(org)) throw new HttpError(404, 'Not found');

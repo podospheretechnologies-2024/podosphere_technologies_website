@@ -130,6 +130,8 @@ model SocialCustomer {
   aiThreads             SocialAiThread[]
   aiActions             SocialAiAction[]
   shortLinks            SocialShortLink[]
+  hashtagGroups         SocialHashtagGroup[]
+  bioPages              SocialBioPage[]
 
   @@index([organizationId])
   @@map("social_customers")
@@ -335,6 +337,70 @@ model SocialShortLink {
   @@index([organizationId])
   @@index([organizationId, customerId])
   @@map("social_short_links")
+}
+
+// A reusable set of hashtags (agency-wide when customerId is null, or per client).
+// Inserted into the composer caption with one click.
+model SocialHashtagGroup {
+  id             String    @id @default(uuid())
+  organizationId String
+  customerId     String?
+  name           String    @db.VarChar(80)
+  // Hashtags as entered; normalised to space-separated #tags on save.
+  hashtags       String    @db.Text
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+
+  organization Organization    @relation(fields: [organizationId], references: [id])
+  customer     SocialCustomer? @relation(fields: [customerId], references: [id])
+
+  @@index([organizationId])
+  @@index([organizationId, customerId])
+  @@map("social_hashtag_groups")
+}
+
+// Link-in-bio landing page, served publicly at /b/[slug].
+model SocialBioPage {
+  id             String    @id @default(uuid())
+  organizationId String
+  customerId     String?
+  slug           String    @unique @db.VarChar(60)
+  title          String    @db.VarChar(120)
+  headline       String?   @db.VarChar(200)
+  avatarUrl      String?   @db.VarChar(2048)
+  // Theme token rendered by the public page: light | dark | brand
+  theme          String    @default("light") @db.VarChar(20)
+  published      Boolean   @default(false)
+  views          Int       @default(0)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+
+  organization Organization    @relation(fields: [organizationId], references: [id])
+  customer     SocialCustomer? @relation(fields: [customerId], references: [id])
+  links        SocialBioLink[]
+
+  @@index([organizationId])
+  @@index([organizationId, customerId])
+  @@map("social_bio_pages")
+}
+
+// One button on a link-in-bio page. Clicks are tracked via /bl/[id].
+model SocialBioLink {
+  id        String   @id @default(uuid())
+  bioPageId String
+  label     String   @db.VarChar(120)
+  url       String   @db.VarChar(2048)
+  position  Int      @default(0)
+  clicks    Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  bioPage SocialBioPage @relation(fields: [bioPageId], references: [id], onDelete: Cascade)
+
+  @@index([bioPageId])
+  @@map("social_bio_links")
 }
 
 // Canned inbox replies (agency-wide when customerId is null, or per client).

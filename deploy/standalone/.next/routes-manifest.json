@@ -152,6 +152,14 @@
       "namedRegex": "^/api/social/billing/invoices/(?<nxtPid>[^/]+?)/pdf(?:/)?$"
     },
     {
+      "page": "/api/social/bio-pages/[id]",
+      "regex": "^/api/social/bio\\-pages/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/social/bio\\-pages/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
       "page": "/api/social/clients/[id]/magic-link",
       "regex": "^/api/social/clients/([^/]+?)/magic\\-link(?:/)?$",
       "routeKeys": {
@@ -182,6 +190,14 @@
         "nxtPid": "nxtPid"
       },
       "namedRegex": "^/api/social/google\\-sheets/spreadsheets/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/api/social/hashtag-groups/[id]",
+      "regex": "^/api/social/hashtag\\-groups/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/social/hashtag\\-groups/(?<nxtPid>[^/]+?)(?:/)?$"
     },
     {
       "page": "/api/social/inbox/[id]",
@@ -374,6 +390,22 @@
         "nxtPid": "nxtPid"
       },
       "namedRegex": "^/api/social/whatsapp/conversations/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/b/[slug]",
+      "regex": "^/b/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPslug": "nxtPslug"
+      },
+      "namedRegex": "^/b/(?<nxtPslug>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/bl/[id]",
+      "regex": "^/bl/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/bl/(?<nxtPid>[^/]+?)(?:/)?$"
     },
     {
       "page": "/dashboard/social/clients/[id]/onboarding",
@@ -658,6 +690,12 @@
       "namedRegex": "^/api/social/billing(?:/)?$"
     },
     {
+      "page": "/api/social/bio-pages",
+      "regex": "^/api/social/bio\\-pages(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/social/bio\\-pages(?:/)?$"
+    },
+    {
       "page": "/api/social/client-scope",
       "regex": "^/api/social/client\\-scope(?:/)?$",
       "routeKeys": {},
@@ -710,6 +748,12 @@
       "regex": "^/api/social/google\\-sheets/refresh(?:/)?$",
       "routeKeys": {},
       "namedRegex": "^/api/social/google\\-sheets/refresh(?:/)?$"
+    },
+    {
+      "page": "/api/social/hashtag-groups",
+      "regex": "^/api/social/hashtag\\-groups(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/social/hashtag\\-groups(?:/)?$"
     },
     {
       "page": "/api/social/inbox",
@@ -986,6 +1030,12 @@
       "regex": "^/dashboard/social/billing(?:/)?$",
       "routeKeys": {},
       "namedRegex": "^/dashboard/social/billing(?:/)?$"
+    },
+    {
+      "page": "/dashboard/social/bio",
+      "regex": "^/dashboard/social/bio(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/dashboard/social/bio(?:/)?$"
     },
     {
       "page": "/dashboard/social/calendar",

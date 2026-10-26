@@ -12,6 +12,14 @@
   --ai: #d82d7e;
   --danger: #dc2626;
   --success: #16a34a;
+  /* WhatsApp chat surfaces (light). */
+  --wa-accent: #008069;
+  --wa-accent-foreground: #ffffff;
+  --wa-wallpaper: #efeae2;
+  --wa-bubble-in: #ffffff;
+  --wa-bubble-out: #d9fdd3;
+  --wa-bubble-out-foreground: #111b21;
+  --wa-tick-read: #027eb5;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -22,6 +30,13 @@
     --border: #252525;
     --foreground: #ffffff;
     --muted-foreground: #a1a1aa;
+    --wa-accent: #00a884;
+    --wa-accent-foreground: #0b141a;
+    --wa-wallpaper: #0b141a;
+    --wa-bubble-in: #202c33;
+    --wa-bubble-out: #005c4b;
+    --wa-bubble-out-foreground: #e9edef;
+    --wa-tick-read: #53bdeb;
   }
 }
 
@@ -37,6 +52,13 @@
   --color-ai: var(--ai);
   --color-danger: var(--danger);
   --color-success: var(--success);
+  --color-wa-accent: var(--wa-accent);
+  --color-wa-accent-foreground: var(--wa-accent-foreground);
+  --color-wa-wallpaper: var(--wa-wallpaper);
+  --color-wa-bubble-in: var(--wa-bubble-in);
+  --color-wa-bubble-out: var(--wa-bubble-out);
+  --color-wa-bubble-out-foreground: var(--wa-bubble-out-foreground);
+  --color-wa-tick-read: var(--wa-tick-read);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
@@ -59,6 +81,13 @@ body {
   --ai: #d82d7e;
   --danger: #dc2626;
   --success: #16a34a;
+  --wa-accent: #00a884;
+  --wa-accent-foreground: #0b141a;
+  --wa-wallpaper: #0b141a;
+  --wa-bubble-in: #202c33;
+  --wa-bubble-out: #005c4b;
+  --wa-bubble-out-foreground: #e9edef;
+  --wa-tick-read: #53bdeb;
   color-scheme: dark;
   background: var(--background);
   color: var(--foreground);
@@ -71,5 +100,12 @@ body {
   --border: #eaecee;
   --foreground: #0e0e0e;
   --muted-foreground: #5f6368;
+  --wa-accent: #008069;
+  --wa-accent-foreground: #ffffff;
+  --wa-wallpaper: #efeae2;
+  --wa-bubble-in: #ffffff;
+  --wa-bubble-out: #d9fdd3;
+  --wa-bubble-out-foreground: #111b21;
+  --wa-tick-read: #027eb5;
   color-scheme: light;
 }

@@ -8,7 +8,6 @@ import { errorResponse, HttpError } from '@/shared/server/http-error';
 // Connection status plus the Google Ads accounts visible in the current client scope.
 export async function GET() {
   try {
-    await requireRole('ADMIN');
     const scope = await getClientScope('ads_view');
     const org = await getCurrentOrganization();
     if (!canUseAds(org)) throw new HttpError(404, 'Not found');

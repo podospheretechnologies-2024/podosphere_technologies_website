@@ -41,6 +41,8 @@ model Organization {
   socialSignatures    SocialSignature[]
   socialSavedReplies  SocialSavedReply[]
   socialShortLinks    SocialShortLink[]
+  socialHashtagGroups SocialHashtagGroup[]
+  socialBioPages      SocialBioPage[]
   socialSets          SocialSet[]
   socialAutoPosts     SocialAutoPost[]
   socialWebhooks      SocialWebhook[]

@@ -1,7 +1,14 @@
 import { apiFetch } from '@/shared/lib/fetcher';
-import { SIGNATURES_API_ROUTE, TAGS_API_ROUTE, TEMPLATES_API_ROUTE } from '../hooks/use-settings';
+import {
+  HASHTAG_GROUPS_API_ROUTE,
+  SIGNATURES_API_ROUTE,
+  TAGS_API_ROUTE,
+  TEMPLATES_API_ROUTE,
+} from '../hooks/use-settings';
 import type {
   CreateTemplateInput,
+  HashtagGroupItem,
+  SaveHashtagGroupInput,
   SaveSignatureInput,
   SaveTagInput,
   SignatureItem,
@@ -49,4 +56,18 @@ export function renameTemplate(id: string, name: string): Promise<TemplateItem> 
 
 export function deleteTemplate(id: string): Promise<void> {
   return apiFetch<void>(`${TEMPLATES_API_ROUTE}/${id}`, { method: 'DELETE' });
+}
+
+/** Creates a hashtag group, or updates it when `id` is given. */
+export function saveHashtagGroup(
+  input: SaveHashtagGroupInput,
+  id?: string
+): Promise<HashtagGroupItem> {
+  return id
+    ? sendJson(`${HASHTAG_GROUPS_API_ROUTE}/${id}`, 'PUT', input)
+    : sendJson(HASHTAG_GROUPS_API_ROUTE, 'POST', input);
+}
+
+export function deleteHashtagGroup(id: string): Promise<void> {
+  return apiFetch<void>(`${HASHTAG_GROUPS_API_ROUTE}/${id}`, { method: 'DELETE' });
 }

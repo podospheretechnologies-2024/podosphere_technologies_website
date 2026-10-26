@@ -1,6 +1,14 @@
 'use client';
 
-import { MessageCircle, Phone, RefreshCw, Send, Trash2 } from 'lucide-react';
+import {
+  BadgeCheck,
+  CheckCheck,
+  MessageCircle,
+  Phone,
+  RefreshCw,
+  Send,
+  Trash2,
+} from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '@/shared/components/ui/button';
 import { EmptyState } from '@/shared/components/ui/empty-state';
@@ -108,16 +116,22 @@ const qualityTone = { GREEN: 'success', YELLOW: 'warning', RED: 'danger' } as co
 
 function NumberStrip({ number }: { number: WhatsAppNumber }) {
   return (
-    <div className="border-border from-surface via-surface to-success/5 flex flex-wrap items-center justify-between gap-4 rounded-2xl border bg-gradient-to-r px-4 py-3.5">
-      <div className="flex min-w-0 items-center gap-3">
-        <span className="bg-success/15 text-success flex size-11 shrink-0 items-center justify-center rounded-2xl">
+    <div className="border-border from-wa-accent/15 via-surface to-surface relative flex flex-wrap items-center justify-between gap-4 overflow-hidden rounded-2xl border bg-gradient-to-r px-5 py-4 shadow-sm">
+      <div className="flex min-w-0 items-center gap-4">
+        <span className="bg-wa-accent text-wa-accent-foreground relative flex size-12 shrink-0 items-center justify-center rounded-2xl shadow-md">
           <Phone className="size-5" />
+          {number.status === 'CONNECTED' && (
+            <span className="border-surface bg-wa-accent absolute -right-1 -bottom-1 size-3.5 rounded-full border-2" />
+          )}
         </span>
         <div className="min-w-0">
-          <p className="truncate text-base font-semibold tracking-tight">
+          <p className="truncate text-lg font-semibold tracking-tight tabular-nums">
             {number.displayPhoneNumber}
           </p>
-          <p className="text-muted-foreground truncate text-sm">{number.verifiedName}</p>
+          <p className="text-muted-foreground flex items-center gap-1.5 truncate text-sm">
+            {number.verifiedName}
+            <BadgeCheck className="text-wa-accent size-4 shrink-0" aria-label="Verified name" />
+          </p>
         </div>
       </div>
       <div className="flex flex-wrap items-center gap-2">
@@ -317,13 +331,36 @@ function SendCard({ data }: { data: WhatsAppOverview }) {
         </div>
 
         <div className="flex flex-col gap-4 p-4">
-          <div className="bg-surface-muted/50 flex min-h-[220px] flex-1 flex-col rounded-2xl p-4">
-            <p className="text-muted-foreground mb-3 text-[11px] font-semibold tracking-wide uppercase">
-              Preview
-            </p>
-            <div className="flex flex-1 items-end justify-end">
-              <div className="bg-success max-w-[90%] rounded-2xl rounded-br-md px-3.5 py-2.5 text-sm leading-relaxed whitespace-pre-wrap text-white shadow-sm">
-                {previewText}
+          <div className="border-border flex min-h-[240px] flex-1 flex-col overflow-hidden rounded-2xl border">
+            <div className="bg-surface border-border flex items-center gap-2.5 border-b px-3 py-2">
+              <span className="bg-surface-muted text-muted-foreground flex size-7 items-center justify-center rounded-full text-[10px] font-semibold">
+                {recipient.slice(-2) || '··'}
+              </span>
+              <div className="min-w-0">
+                <p className="truncate text-xs font-semibold">
+                  {validRecipient ? `+${recipient}` : 'Recipient'}
+                </p>
+                <p className="text-muted-foreground text-[10px]">Preview</p>
+              </div>
+            </div>
+            <div
+              className="bg-wa-wallpaper flex flex-1 items-end justify-end p-4"
+              style={{
+                backgroundImage:
+                  'radial-gradient(color-mix(in oklab, var(--foreground) 7%, transparent) 1px, transparent 1px)',
+                backgroundSize: '18px 18px',
+              }}
+            >
+              <div className="bg-wa-bubble-out text-wa-bubble-out-foreground relative max-w-[90%] rounded-xl rounded-tr-none px-2.5 pt-1.5 pb-1 text-sm leading-relaxed shadow-[0_1px_0.5px_rgb(0_0_0/0.13)]">
+                <span
+                  aria-hidden
+                  className="bg-wa-bubble-out absolute top-0 -right-2 size-2 [clip-path:polygon(0_0,100%_0,0_100%)]"
+                />
+                <p className="break-words whitespace-pre-wrap">{previewText}</p>
+                <p className="mt-0.5 flex items-center justify-end gap-1 text-[10px] opacity-70">
+                  now
+                  <CheckCheck className="text-wa-tick-read size-3.5" />
+                </p>
               </div>
             </div>
           </div>
@@ -342,7 +379,11 @@ function SendCard({ data }: { data: WhatsAppOverview }) {
             </div>
           )}
 
-          <Button type="submit" disabled={!ready || sending} className="w-full sm:w-auto sm:self-end">
+          <Button
+            type="submit"
+            disabled={!ready || sending}
+            className="w-full sm:w-auto sm:self-end"
+          >
             <Send className="size-4" />
             {sending ? 'Sending…' : 'Send on WhatsApp'}
           </Button>
@@ -414,12 +455,14 @@ function TemplatesCard({ data, onRefresh }: { data: WhatsAppOverview; onRefresh:
                 <p className="text-danger mt-2 text-xs">{template.unsupportedReason}</p>
               )}
               <div className="mt-3 flex justify-end">
-                <Button 
-                  variant="danger-ghost" 
-                  size="sm" 
+                <Button
+                  variant="danger-ghost"
+                  size="sm"
                   onClick={async () => {
                     if (!window.confirm(`Delete template "${template.name}" from Meta?`)) return;
-                    await fetch(`/api/social/whatsapp/templates?name=${template.name}`, { method: 'DELETE' });
+                    await fetch(`/api/social/whatsapp/templates?name=${template.name}`, {
+                      method: 'DELETE',
+                    });
                     onRefresh();
                   }}
                 >
