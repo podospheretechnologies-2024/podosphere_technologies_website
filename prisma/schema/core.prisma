@@ -49,6 +49,7 @@ model Organization {
   socialNotifications SocialNotification[]
   socialPostErrors    SocialPostError[]
   socialBrandKits     SocialBrandKit[]
+  socialAiSettings    SocialAiSettings[]
   socialAiUsages      SocialAiUsage[]
   socialAiThreads     SocialAiThread[]
   socialAiActions     SocialAiAction[]

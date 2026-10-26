@@ -1,10 +1,15 @@
 import 'server-only';
 import OpenAI from 'openai';
 import { z } from 'zod';
-import { getServerEnv } from '@/shared/lib/env';
 import type { ClientScope } from '@/shared/server/client-scope';
 import { HttpError } from '@/shared/server/http-error';
-import { AI_POST_VARIATIONS, type AiImageOrientation, type AiPostFormat } from '../../config/ai';
+import {
+  AI_POST_VARIATIONS,
+  AI_REEL_PLATFORM_LABELS,
+  type AiImageOrientation,
+  type AiPostFormat,
+  type AiReelPlatform,
+} from '../../config/ai';
 import type { BrandKit } from '../../config/brand-kit';
 import {
   imagePlatformSizePreset,
@@ -13,17 +18,27 @@ import {
   type ImageStyle,
 } from '../../config/image-presets';
 import { POST_MAX_THREAD_ITEMS } from '../../config/posts';
-import type { AiPostVariations, AiStatus, AiThread } from '../../types/ai';
+import type {
+  AiCompetitorResult,
+  AiPostVariations,
+  AiReelScript,
+  AiStatus,
+  AiThread,
+} from '../../types/ai';
 import type { MediaItem } from '../../types/media';
 import { mediaService } from '../media/media.service';
 import type {
+  CompetitorContentBody,
   GenerateImageBody,
   GeneratePostsBody,
+  GenerateReelBody,
   SplitThreadBody,
   UrlPostsBody,
 } from './ai.schema';
 import { brandKitService } from './brand-kit.service';
-import { askClaude, isClaudeConfigured } from './claude.client';
+import { askClaude } from './claude.client';
+import { aiSettingsService } from './ai-settings.service';
+import { geminiGenerateImage } from './providers/gemini-image';
 import { captionTonePromptRule } from './presets';
 import { fetchWebPage } from './web-page';
 
@@ -89,15 +104,119 @@ const ThreadFormat = z.object({ posts: z.array(z.string()) });
 const ShrinkFormat = z.object({ post: z.string() });
 const ImagePromptFormat = z.object({ prompt: z.string() });
 
-let imageClient: OpenAI | undefined;
+const ReelFormat = z.object({
+  concept: z.string(),
+  hook: z.string(),
+  scenes: z.array(
+    z.object({
+      timecode: z.string(),
+      visual: z.string(),
+      onScreenText: z.string(),
+    })
+  ),
+  voiceover: z.string(),
+  caption: z.string(),
+  hashtags: z.array(z.string()),
+  audioIdea: z.string(),
+  cta: z.string(),
+});
+const CompetitorPostFormat = VariationsFormat.extend({ analysis: z.string() });
+const CompetitorReelFormat = z.object({ analysis: z.string(), reel: ReelFormat });
 
-function getImageClient(): OpenAI {
-  const apiKey = getServerEnv().OPENAI_API_KEY;
-  if (!apiKey) {
-    throw new HttpError(503, 'Image generation needs OPENAI_API_KEY in .env (Claude writes text only).');
+function cleanHashtags(tags: string[]): string[] {
+  const seen = new Set<string>();
+  const cleaned: string[] = [];
+  for (const raw of tags) {
+    const tag = raw.trim().replace(/^#+/, '').replace(/\s+/g, '');
+    if (!tag) continue;
+    const key = tag.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    cleaned.push(`#${tag}`);
   }
-  imageClient ??= new OpenAI({ apiKey, timeout: IMAGE_REQUEST_TIMEOUT_MS, maxRetries: 1 });
-  return imageClient;
+  return cleaned.slice(0, 20);
+}
+
+function normalizeReel(reel: z.infer<typeof ReelFormat>): AiReelScript {
+  return {
+    concept: reel.concept.trim(),
+    hook: reel.hook.trim(),
+    scenes: reel.scenes
+      .map((scene) => ({
+        timecode: scene.timecode.trim(),
+        visual: scene.visual.trim(),
+        onScreenText: scene.onScreenText.trim(),
+      }))
+      .filter((scene) => scene.visual || scene.onScreenText),
+    voiceover: reel.voiceover.trim(),
+    caption: reel.caption.trim(),
+    hashtags: cleanHashtags(reel.hashtags),
+    audioIdea: reel.audioIdea.trim(),
+    cta: reel.cta.trim(),
+  };
+}
+
+function reelTask(platform: AiReelPlatform, lengthSeconds: number, toneRule: string | null): string {
+  return [
+    `Write a short-form video (Reel) script for ${AI_REEL_PLATFORM_LABELS[platform]}, about ${lengthSeconds} seconds long.`,
+    'Return all of these fields:',
+    '- concept: one line summarising the idea.',
+    '- hook: a scroll-stopping opening line for the first ~2 seconds.',
+    '- scenes: an ordered shot list; each scene has a timecode (e.g. "0–3s"), a visual (what to film or show) and short on-screen text (a few words). Size the scenes so they fit the total length.',
+    '- voiceover: what to say out loud (or the narration), matching the length.',
+    '- caption: a ready-to-post caption for the feed.',
+    '- hashtags: 8–15 relevant hashtags, no spaces inside a tag.',
+    '- audioIdea: describe the vibe of trending audio to use; do not name specific copyrighted tracks.',
+    '- cta: a clear call to action.',
+    'Write in the language of the input.',
+    toneRule,
+  ]
+    .filter(Boolean)
+    .join('\n');
+}
+
+type ImageSize = (typeof IMAGE_SIZES)[AiImageOrientation];
+type ImageProviderConfig = { apiKey: string; model: string };
+
+/** gpt-image bills per image; one call with `n`, falling back to a single clearer image on 400. */
+async function generateOpenAiImages(
+  cfg: ImageProviderConfig,
+  prompt: string,
+  size: ImageSize,
+  requested: number
+): Promise<string[]> {
+  const client = new OpenAI({ apiKey: cfg.apiKey, timeout: IMAGE_REQUEST_TIMEOUT_MS, maxRetries: 1 });
+  try {
+    const result = await client.images.generate({ model: cfg.model, prompt, size, n: requested });
+    return (result.data ?? [])
+      .map((item) => item.b64_json)
+      .filter((value): value is string => Boolean(value));
+  } catch (error) {
+    if (requested > 1 && error instanceof OpenAI.APIError && error.status === 400) {
+      try {
+        const fallback = await client.images.generate({ model: cfg.model, prompt, size, n: 1 });
+        const only = fallback.data?.[0]?.b64_json;
+        return only ? [only] : [];
+      } catch (fallbackError) {
+        throw toImageHttpError(fallbackError);
+      }
+    }
+    throw toImageHttpError(error);
+  }
+}
+
+/** Gemini returns one image per call, so we fan out for the requested count. */
+async function generateGeminiImages(
+  cfg: ImageProviderConfig,
+  prompt: string,
+  requested: number
+): Promise<string[]> {
+  const results = await Promise.all(
+    Array.from({ length: requested }, () =>
+      geminiGenerateImage({ apiKey: cfg.apiKey, model: cfg.model, prompt })
+    )
+  );
+  return results.filter((image): image is { base64: string; mimeType: string } => image !== null).map((image) => image.base64);
 }
 
 function toImageHttpError(error: unknown): unknown {
@@ -181,8 +300,15 @@ async function shrink(scope: ClientScope, post: string, maxLength: number): Prom
 }
 
 export const aiService = {
-  status(): AiStatus {
-    return { configured: isClaudeConfigured(), imageConfigured: Boolean(getServerEnv().OPENAI_API_KEY) };
+  async status(scope: ClientScope): Promise<AiStatus> {
+    const [configured, imageConfigured] = await Promise.all([
+      aiSettingsService.isTextConfigured(scope),
+      aiSettingsService
+        .resolveImageConfig(scope)
+        .then(() => true)
+        .catch(() => false),
+    ]);
+    return { configured, imageConfigured };
   },
 
   async generatePosts(scope: ClientScope, body: GeneratePostsBody): Promise<AiPostVariations> {
@@ -200,9 +326,12 @@ export const aiService = {
   },
 
   async generatePostsFromUrl(scope: ClientScope, body: UrlPostsBody): Promise<AiPostVariations> {
-    if (!isClaudeConfigured()) {
+    if (!(await aiSettingsService.isTextConfigured(scope))) {
       // fail before loading the page when AI is switched off
-      throw new HttpError(503, 'AI is not configured. Set ANTHROPIC_API_KEY in .env.');
+      throw new HttpError(
+        503,
+        'AI is not configured. An admin can set a provider + API key on the Agent page.'
+      );
     }
     const page = await fetchWebPage(body.url);
     const source = [page.title ? `Title: ${page.title}` : '', page.text]
@@ -222,6 +351,71 @@ export const aiService = {
         body.tonePresetId
       ),
       source: { url: page.url, title: page.title },
+    };
+  },
+
+  async generateReel(scope: ClientScope, body: GenerateReelBody): Promise<AiReelScript> {
+    const reel = await askClaude({
+      scope,
+      feature: 'reel-script',
+      schema: ReelFormat,
+      task: reelTask(body.platform, body.lengthSeconds, captionTonePromptRule(body.tonePresetId)),
+      input: body.content,
+    });
+    return normalizeReel(reel);
+  },
+
+  // Studies pasted competitor content for its hook/structure/angle, then writes ORIGINAL content
+  // in our brand voice. The system prompt treats <input> as untrusted data, so the paste can't
+  // steer the model; the task also forbids copying any wording, claims, offers or names.
+  async generateFromCompetitor(
+    scope: ClientScope,
+    body: CompetitorContentBody
+  ): Promise<AiCompetitorResult> {
+    const toneRule = captionTonePromptRule(body.tonePresetId);
+    const guardrails = [
+      'The input contains example posts from a COMPETITOR, supplied for inspiration only.',
+      'First, study what makes them work: the hook style, structure, angle, length, and call to action.',
+      'Then write ORIGINAL content for our own brand in our brand voice. Never copy their wording, claims, offers, prices, product names or brand name, and never mention the competitor.',
+      body.notes ? `Extra direction from us: ${body.notes}` : '',
+      'Put a short, plain-language read of what works in their content in the "analysis" field (2–4 sentences).',
+    ].filter(Boolean);
+
+    if (body.format === 'reel') {
+      const { analysis, reel } = await askClaude({
+        scope,
+        feature: 'competitor-reel',
+        schema: CompetitorReelFormat,
+        task: [
+          ...guardrails,
+          'Then, in the "reel" field, write our own reel inspired by that style.',
+          reelTask(body.platform, body.lengthSeconds, toneRule),
+        ].join('\n'),
+        input: body.examples,
+      });
+      return { format: 'reel', analysis: analysis.trim(), reel: normalizeReel(reel) };
+    }
+
+    const { analysis, variations } = await askClaude({
+      scope,
+      feature: 'competitor-post',
+      schema: CompetitorPostFormat,
+      task: [
+        ...guardrails,
+        `Then, in the "variations" field, write ${AI_POST_VARIATIONS} clearly different single-post variations inspired by that style. Each variation's posts array has exactly one element.`,
+        toneRule,
+      ]
+        .filter(Boolean)
+        .join('\n'),
+      input: body.examples,
+    });
+
+    return {
+      format: 'post',
+      analysis: analysis.trim(),
+      variations: variations
+        .map((variation) => cleanPosts(variation.posts))
+        .filter((posts) => posts.length),
     };
   },
 
@@ -252,21 +446,14 @@ export const aiService = {
   // Idea → detailed prompt (Claude when available, else local engineering) → OpenAI image(s)
   // saved to the selected client's media library. Soft-fails with 503 when OPENAI_API_KEY is unset.
   async generateImage(scope: ClientScope, body: GenerateImageBody): Promise<MediaItem[]> {
-    if (!getServerEnv().OPENAI_API_KEY) {
-      throw new HttpError(
-        503,
-        'Image generation needs OPENAI_API_KEY in .env (Claude writes text only).'
-      );
-    }
-
-    const images = getImageClient();
+    const imageConfig = await aiSettingsService.resolveImageConfig(scope);
     const orientation = resolveOrientation(body);
     const brandKit = await brandKitService.get(scope);
     const brandNotes = brandVisualNotes(brandKit);
     const idea = composeImageIdea(body.prompt, body.style, body.platformSize, brandNotes);
 
     let prompt: string;
-    if (isClaudeConfigured()) {
+    if (await aiSettingsService.isTextConfigured(scope)) {
       const expanded = await askClaude({
         scope,
         feature: 'image-prompt',
@@ -285,38 +472,11 @@ export const aiService = {
       prompt = localImagePrompt(idea);
     }
 
-    // gpt-image-1 bills per image; keep a single call with n when count > 1.
-    // If the model rejects n > 1, fall back to one clearer image instead of looping.
     const requested = body.count ?? 1;
-    let payloads: string[] = [];
-    try {
-      const result = await images.images.generate({
-        model: getServerEnv().OPENAI_IMAGE_MODEL,
-        prompt,
-        size: IMAGE_SIZES[orientation],
-        n: requested,
-      });
-      payloads = (result.data ?? [])
-        .map((item) => item.b64_json)
-        .filter((value): value is string => Boolean(value));
-    } catch (error) {
-      if (requested > 1 && error instanceof OpenAI.APIError && error.status === 400) {
-        try {
-          const fallback = await images.images.generate({
-            model: getServerEnv().OPENAI_IMAGE_MODEL,
-            prompt,
-            size: IMAGE_SIZES[orientation],
-            n: 1,
-          });
-          const only = fallback.data?.[0]?.b64_json;
-          if (only) payloads = [only];
-        } catch (fallbackError) {
-          throw toImageHttpError(fallbackError);
-        }
-      } else {
-        throw toImageHttpError(error);
-      }
-    }
+    const payloads =
+      imageConfig.provider === 'gemini'
+        ? await generateGeminiImages(imageConfig, prompt, requested)
+        : await generateOpenAiImages(imageConfig, prompt, IMAGE_SIZES[orientation], requested);
 
     if (payloads.length === 0) {
       throw new HttpError(502, 'The AI did not return an image. Try again.');

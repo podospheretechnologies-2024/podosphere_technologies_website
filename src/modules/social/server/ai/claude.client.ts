@@ -1,10 +1,6 @@
 import 'server-only';
 import Anthropic from '@anthropic-ai/sdk';
-import { betaZodOutputFormat } from '@anthropic-ai/sdk/helpers/beta/zod';
-import type {
-  BetaContentBlockParam,
-  BetaTextBlockParam,
-} from '@anthropic-ai/sdk/resources/beta/messages/messages';
+import type { BetaTextBlockParam } from '@anthropic-ai/sdk/resources/beta/messages/messages';
 import type { z } from 'zod';
 import { getServerEnv } from '@/shared/lib/env';
 import { prisma } from '@/shared/lib/prisma';
@@ -12,6 +8,13 @@ import { HttpError } from '@/shared/server/http-error';
 import { BRAND_KIT_FIELDS, type BrandKit } from '../../config/brand-kit';
 import { organizationScope, type ClientScope } from '@/shared/server/client-scope';
 import { brandKitService } from './brand-kit.service';
+import { aiSettingsService } from './ai-settings.service';
+import { generateStructured, type AiProvider } from './providers';
+import type { AskImage, ClaudeVisionMime, HistoryTurn } from './providers/types';
+
+// Re-exported so existing callers keep importing these from the Claude client.
+export type { AskImage, ClaudeVisionMime };
+export type ClaudeHistoryTurn = HistoryTurn;
 
 function isBrandKitEmpty(kit: BrandKit): boolean {
   return BRAND_KIT_FIELDS.every((field) => !kit[field.key]?.trim());
@@ -56,6 +59,19 @@ const PRICING: Record<string, [number, number, number, number]> = {
   'claude-3-5-sonnet': [3, 15, 0.3, 3.75],
   'claude-3-opus': [15, 75, 1.5, 18.75],
   'claude-3-haiku': [0.25, 1.25, 0.03, 0.3],
+  // OpenAI (approx list prices; no separate cache-write charge). BYO-key spend is estimated here;
+  // the real bill lands on the client's own OpenAI account.
+  'gpt-4o': [2.5, 10, 1.25, 0],
+  'gpt-4o-mini': [0.15, 0.6, 0.075, 0],
+  'gpt-4.1': [2, 8, 0.5, 0],
+  'gpt-4.1-mini': [0.4, 1.6, 0.1, 0],
+  'gpt-4.1-nano': [0.1, 0.4, 0.025, 0],
+  // Gemini (approx list prices; estimate only — billed on the client's own Google account).
+  'gemini-3.8-flash': [0.3, 2.5, 0.075, 0],
+  'gemini-2.5-flash': [0.3, 2.5, 0.075, 0],
+  'gemini-2.5-pro': [1.25, 10, 0.31, 0],
+  'gemini-1.5-flash': [0.075, 0.3, 0.01875, 0],
+  'gemini-1.5-pro': [1.25, 5, 0.3125, 0],
 };
 
 /** Conservative fallback so unknown models are not under-counted. */
@@ -158,6 +174,8 @@ export async function recordClaudeUsage(input: {
   customerId: string | null;
   feature: string;
   model: string;
+  /** Defaults to 'anthropic' for the copilot agent runner, which stays on Claude. */
+  provider?: AiProvider;
   inputTokens: number;
   outputTokens: number;
   cacheReadTokens?: number;
@@ -168,6 +186,7 @@ export async function recordClaudeUsage(input: {
       organizationId: input.organizationId,
       customerId: input.customerId,
       feature: input.feature,
+      provider: input.provider ?? 'anthropic',
       model: input.model,
       inputTokens: input.inputTokens,
       outputTokens: input.outputTokens,
@@ -183,17 +202,23 @@ export { customerIdFromScope };
  * Stable system prompt (instructions + brand kit) with a cache breakpoint at the end.
  * It must not contain anything that changes per request, or the prompt cache is lost.
  */
-function systemPrompt(brandKit: BrandKit): BetaTextBlockParam[] {
+function systemParts(brandKit: BrandKit): string[] {
   const lines = BRAND_KIT_FIELDS.flatMap((field) => {
     const value = brandKit[field.key]?.trim();
     return value ? [`${field.label}: ${value}`] : [];
   });
   const kit = lines.length ? lines.join('\n') : '(No brand kit yet. Use a friendly, professional voice.)';
+  return [INSTRUCTIONS, `<brand_kit>\n${kit}\n</brand_kit>`];
+}
 
-  return [
-    { type: 'text', text: INSTRUCTIONS },
-    { type: 'text', text: `<brand_kit>\n${kit}\n</brand_kit>`, cache_control: { type: 'ephemeral' } },
-  ];
+/** Claude-native system blocks (used by the copilot agent runner via prepareClaudeSession). */
+function systemPrompt(brandKit: BrandKit): BetaTextBlockParam[] {
+  const parts = systemParts(brandKit);
+  return parts.map((text, index) =>
+    index === parts.length - 1
+      ? { type: 'text', text, cache_control: { type: 'ephemeral' } }
+      : { type: 'text', text }
+  );
 }
 
 async function monthToDateCostUsd(
@@ -345,19 +370,6 @@ async function ensureWithinBudget(scope: ClientScope) {
   }
 }
 
-export type ClaudeVisionMime = 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp';
-
-export interface AskImage {
-  mimeType: ClaudeVisionMime;
-  /** Raw image bytes (base64-encoded for the API). */
-  data: Buffer;
-}
-
-export type ClaudeHistoryTurn = {
-  role: 'user' | 'assistant';
-  content: string;
-};
-
 export interface AskOptions<Schema extends z.ZodType> {
   /** Client scope for brand kit, usage attribution, and optional per-client budget. */
   scope: ClientScope;
@@ -375,32 +387,13 @@ export interface AskOptions<Schema extends z.ZodType> {
   effort?: 'low' | 'medium' | 'high';
 }
 
-function buildUserContent(
-  task: string,
-  input: string,
-  images: AskImage[] | undefined
-): string | BetaContentBlockParam[] {
-  const text = `${task}\n\n<input>\n${input}\n</input>`;
-  if (!images?.length) {
-    return text;
-  }
-  const blocks: BetaContentBlockParam[] = images.map((image) => ({
-    type: 'image',
-    source: {
-      type: 'base64',
-      media_type: image.mimeType,
-      data: image.data.toString('base64'),
-    },
-  }));
-  blocks.push({ type: 'text', text });
-  return blocks;
-}
-
 /**
- * One Claude call whose answer must match `schema` (structured outputs). The only place the app
- * calls Claude: adds the brand kit, the monthly budget, refusal fallbacks and usage logging.
+ * One structured generation on the client's / workspace's configured provider (Claude, OpenAI or
+ * Gemini — resolved by ai-settings.service, with .env as the fallback). The single place the app
+ * runs structured AI: it adds the brand kit, enforces the monthly budget, logs usage and maps
+ * refusals. Per-provider transport and structured-output details live in `./providers`.
  */
-export async function askClaude<Schema extends z.ZodType>({
+export async function askAI<Schema extends z.ZodType>({
   scope,
   feature,
   schema,
@@ -412,57 +405,31 @@ export async function askClaude<Schema extends z.ZodType>({
 }: AskOptions<Schema>): Promise<z.infer<Schema>> {
   const organizationId = scope.organizationId;
   const customerId = customerIdFromScope(scope);
-  const anthropic = getClient();
+  const config = await aiSettingsService.resolveTextConfig(scope);
   await ensureWithinBudget(scope);
   const brandKit = await resolveBrandKit(scope);
 
-  const prior = history
-    .filter((turn) => turn.content.trim().length > 0)
-    .map((turn) => ({ role: turn.role, content: turn.content }));
+  const result = await generateStructured(config, {
+    system: systemParts(brandKit),
+    task,
+    input,
+    images,
+    history,
+    effort,
+    schema,
+    schemaName: feature,
+  });
 
-  let message;
-  try {
-    message = await anthropic.beta.messages.parse({
-      model: getServerEnv().ANTHROPIC_MODEL,
-      max_tokens: 16000,
-      system: systemPrompt(brandKit),
-      messages: [
-        ...prior,
-        { role: 'user', content: buildUserContent(task, input, images) },
-      ],
-      output_config: { effort, format: betaZodOutputFormat(schema) },
-      // If the model declines on policy grounds, the API retries on its default fallback model.
-      fallbacks: 'default',
-      betas: ['server-side-fallback-2026-07-01'],
-    });
-  } catch (error) {
-    if (error instanceof Anthropic.AuthenticationError) {
-      throw new HttpError(503, 'The Anthropic API key is invalid');
-    }
-    if (error instanceof Anthropic.RateLimitError) {
-      throw new HttpError(429, 'The AI is busy right now. Try again in a minute.');
-    }
-    if (error instanceof Anthropic.BadRequestError) {
-      throw new HttpError(400, error.message);
-    }
-    if (error instanceof Anthropic.APIError) {
-      console.error('Claude API error', error.status, error.message);
-      throw new HttpError(502, 'The AI service is not available right now. Try again.');
-    }
-    throw error;
-  }
-
-  await prisma.socialAiUsage.create({
-    data: {
-      organizationId,
-      customerId,
-      feature,
-      model: message.model,
-      inputTokens: message.usage.input_tokens,
-      outputTokens: message.usage.output_tokens,
-      cacheReadTokens: message.usage.cache_read_input_tokens ?? 0,
-      cacheWriteTokens: message.usage.cache_creation_input_tokens ?? 0,
-    },
+  await recordClaudeUsage({
+    organizationId,
+    customerId,
+    feature,
+    provider: config.provider,
+    model: result.model,
+    inputTokens: result.usage.inputTokens,
+    outputTokens: result.usage.outputTokens,
+    cacheReadTokens: result.usage.cacheReadTokens,
+    cacheWriteTokens: result.usage.cacheWriteTokens,
   });
 
   // Soft budget_80 alert once spend crosses 80% of the monthly AI cap.
@@ -470,11 +437,14 @@ export async function askClaude<Schema extends z.ZodType>({
     console.error('[ai] budget_80 notify failed', err)
   );
 
-  if (message.stop_reason === 'refusal') {
+  if (result.outcome.kind === 'refusal') {
     throw new HttpError(422, 'The AI could not help with this request. Try rephrasing it.');
   }
-  if (message.stop_reason === 'max_tokens' || !message.parsed_output) {
+  if (result.outcome.kind === 'empty') {
     throw new HttpError(502, 'The AI did not return a usable answer. Try again.');
   }
-  return message.parsed_output as z.infer<Schema>;
+  return result.outcome.parsed as z.infer<Schema>;
 }
+
+/** Back-compat alias: existing call sites import `askClaude`; it now honours the configured provider. */
+export const askClaude = askAI;

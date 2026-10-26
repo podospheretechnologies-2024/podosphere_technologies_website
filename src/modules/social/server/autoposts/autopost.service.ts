@@ -118,16 +118,17 @@ function autopostScope(autopost: SocialAutoPost): ClientScope {
 async function writeContent(autopost: SocialAutoPost, item: FeedItem, maxLength: number) {
   const template = autopost.content ?? AUTOPOST_DEFAULT_TEMPLATE;
   const aiLength = maxLength - item.url.length - 2;
+  const scope = autopostScope(autopost);
   if (
     !autopost.generateContent ||
-    !aiService.status().configured ||
-    aiLength < AI_MIN_POST_LENGTH
+    aiLength < AI_MIN_POST_LENGTH ||
+    !(await aiService.status(scope)).configured
   ) {
     return fillTemplate(template, item, maxLength);
   }
 
   try {
-    const { variations } = await aiService.generatePosts(autopostScope(autopost), {
+    const { variations } = await aiService.generatePosts(scope, {
       content: [`Title: ${item.title}`, item.description].filter(Boolean).join('\n\n'),
       format: 'post',
       maxLength: aiLength,
@@ -143,11 +144,12 @@ async function writeContent(autopost: SocialAutoPost, item: FeedItem, maxLength:
 }
 
 async function createPicture(autopost: SocialAutoPost, item: FeedItem): Promise<string[]> {
-  if (!autopost.addPicture || !aiService.status().configured) {
+  const scope = autopostScope(autopost);
+  if (!autopost.addPicture || !(await aiService.status(scope)).configured) {
     return [];
   }
   try {
-    const images = await aiService.generateImage(autopostScope(autopost), {
+    const images = await aiService.generateImage(scope, {
       prompt: [item.title, item.description].filter(Boolean).join('\n\n').slice(0, 1000),
       orientation: 'landscape',
       platformSize: 'fb-landscape',

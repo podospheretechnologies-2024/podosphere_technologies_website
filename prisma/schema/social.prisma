@@ -113,6 +113,7 @@ model SocialCustomer {
   posts                 SocialPost[]
   media                 SocialMedia[]
   brandKits             SocialBrandKit[]
+  aiSettings            SocialAiSettings[]
   inboxThreads          SocialInboxThread[]
   leads                 SocialLead[]
   reports               SocialClientReport[]
@@ -551,13 +552,37 @@ model SocialBrandKit {
   @@map("social_brand_kits")
 }
 
-// Tokens used per Claude call; drives the monthly AI budget.
+// Per-client (or workspace default when customerId is null) AI provider + encrypted key.
+// Resolution order is client row -> workspace row -> .env; see ai-settings.service.ts.
+model SocialAiSettings {
+  id              String   @id @default(uuid())
+  organizationId  String
+  customerId      String?
+  // 'anthropic' | 'openai' | 'gemini' (see config/ai.ts AI_PROVIDERS).
+  provider        String   @db.VarChar(16)
+  // null = use the provider's default model (env ANTHROPIC_MODEL / OPENAI_MODEL / GEMINI_MODEL).
+  model           String?  @db.VarChar(64)
+  // AES-GCM encrypted API key for this provider (see @/shared/lib/crypto). null = inherit.
+  apiKeyEncrypted String?  @db.Text
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  organization Organization    @relation(fields: [organizationId], references: [id])
+  customer     SocialCustomer? @relation(fields: [customerId], references: [id])
+
+  @@unique([organizationId, customerId])
+  @@map("social_ai_settings")
+}
+
+// Tokens used per AI call; drives the monthly AI budget.
 model SocialAiUsage {
   id               String   @id @default(uuid())
   organizationId   String
   // Client that triggered the call when scope is a single customer; null = agency / all-clients.
   customerId       String?
   feature          String
+  // Which provider served the call: 'anthropic' | 'openai' | 'gemini'. Null on pre-BYO rows.
+  provider         String?  @db.VarChar(16)
   model            String
   inputTokens      Int      @default(0)
   outputTokens     Int      @default(0)

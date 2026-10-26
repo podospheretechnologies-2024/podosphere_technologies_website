@@ -1,10 +1,13 @@
 import 'server-only';
 import { z } from 'zod';
 import {
+  AI_CONTENT_FORMATS,
   AI_IMAGE_ORIENTATIONS,
   AI_MIN_POST_LENGTH,
   AI_POST_FORMATS,
   AI_PROMPT_MAX_LENGTH,
+  AI_REEL_LENGTH_DEFAULT,
+  AI_REEL_PLATFORMS,
 } from '../../config/ai';
 import {
   AI_IMAGE_COUNT_DEFAULT,
@@ -43,6 +46,38 @@ export const splitThreadSchema = z.object({
   maxLength: maxLengthSchema,
 });
 
+const reelPlatformSchema = z.enum(AI_REEL_PLATFORMS).default('instagram');
+const reelLengthSchema = z
+  .union([z.literal(15), z.literal(30), z.literal(60)])
+  .default(AI_REEL_LENGTH_DEFAULT);
+
+export const generateReelSchema = z.object({
+  content: z
+    .string()
+    .trim()
+    .min(1, 'Describe what the reel should be about')
+    .max(AI_PROMPT_MAX_LENGTH),
+  platform: reelPlatformSchema,
+  lengthSeconds: reelLengthSchema,
+  tonePresetId: tonePresetIdSchema,
+});
+
+export const competitorContentSchema = z.object({
+  /** Pasted competitor captions / notes — inspiration only, never copied. */
+  examples: z
+    .string()
+    .trim()
+    .min(1, 'Paste at least one competitor caption or a short note about their content')
+    .max(AI_PROMPT_MAX_LENGTH),
+  format: z.enum(AI_CONTENT_FORMATS).default('post'),
+  /** Optional extra direction (what we want to say differently). */
+  notes: z.string().trim().max(1000).optional(),
+  /** Used when format is "reel". */
+  platform: reelPlatformSchema,
+  lengthSeconds: reelLengthSchema,
+  tonePresetId: tonePresetIdSchema,
+});
+
 export const generateImageSchema = z.object({
   prompt: z.string().trim().min(3, 'Describe the image').max(AI_PROMPT_MAX_LENGTH),
   /** Preferred over bare orientation when set; maps to the closest OpenAI size. */
@@ -57,3 +92,5 @@ export type GeneratePostsBody = z.infer<typeof generatePostsSchema>;
 export type UrlPostsBody = z.infer<typeof urlPostsSchema>;
 export type SplitThreadBody = z.infer<typeof splitThreadSchema>;
 export type GenerateImageBody = z.infer<typeof generateImageSchema>;
+export type GenerateReelBody = z.infer<typeof generateReelSchema>;
+export type CompetitorContentBody = z.infer<typeof competitorContentSchema>;

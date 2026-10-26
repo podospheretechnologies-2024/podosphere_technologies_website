@@ -12,13 +12,20 @@ const serverEnvSchema = z.object({
   ENCRYPTION_KEY: z.string().min(32, 'must be at least 32 characters'),
   // Signs the login session cookie (HS256).
   SESSION_SECRET: z.string().min(32, 'must be at least 32 characters'),
-  // Podo AI (text) runs on Claude and is switched off while no key is set.
+  // Podo AI default text provider is Claude; switched off while no key is set. Admins can
+  // override the provider + key per client / workspace in the UI (SocialAiSettings); these env
+  // values are the final fallback and the defaults used when a stored config omits a model.
   ANTHROPIC_API_KEY: z.string().optional(),
   ANTHROPIC_MODEL: z.string().min(1).default('claude-opus-5'),
   AI_DEFAULT_MONTHLY_BUDGET_USD: z.coerce.number().positive().default(50),
-  // Image generation only (Claude doesn't generate images). Optional.
+  // OpenAI: image generation (always) + optional text provider. Optional.
   OPENAI_API_KEY: z.string().optional(),
+  OPENAI_MODEL: z.string().min(1).default('gpt-4o'),
   OPENAI_IMAGE_MODEL: z.string().min(1).default('gpt-image-1'),
+  // Gemini (Google Generative Language): optional text + image provider.
+  GEMINI_API_KEY: z.string().optional(),
+  GEMINI_MODEL: z.string().min(1).default('gemini-flash-latest'),
+  GEMINI_IMAGE_MODEL: z.string().min(1).default('gemini-2.5-flash-image'),
   // F13: vision alt + caption ideas on media upload. Soft-fails when off or when keys fail.
   // unset = on when ANTHROPIC_API_KEY or OPENAI_API_KEY is set.
   MEDIA_VISION_ENABLED: z.enum(['true', 'false']).optional(),
