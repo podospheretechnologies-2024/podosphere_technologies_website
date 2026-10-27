@@ -9,5 +9,5 @@ R.c("server/chunks/1q8-_next_dist_0pvdlbw._.js")
 R.c("server/chunks/_1ssqwfv._.js")
 R.c("server/chunks/src_shared_server_mailer_ts_1rzxtp2._.js")
 R.c("server/chunks/_next-internal_server_app_api_social_notifications_route_actions_04vz5df.js")
-R.m(87054)
-module.exports=R.m(87054).exports
+R.m(587054)
+module.exports=R.m(587054).exports

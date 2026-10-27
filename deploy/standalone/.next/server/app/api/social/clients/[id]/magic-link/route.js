@@ -12,5 +12,5 @@ R.c("server/chunks/_0d0zqf6._.js")
 R.c("server/chunks/_0kmq-9k._.js")
 R.c("server/chunks/_1ssqwfv._.js")
 R.c("server/chunks/1oeh_server_app_api_social_clients_[id]_magic-link_route_actions_19v47tn.js")
-R.m(68396)
-module.exports=R.m(68396).exports
+R.m(568396)
+module.exports=R.m(568396).exports

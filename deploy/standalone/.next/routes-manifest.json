@@ -64,6 +64,22 @@
       "namedRegex": "^/api/social/ads/accounts/(?<nxtPid>[^/]+?)/entities/(?<nxtPentityId>[^/]+?)(?:/)?$"
     },
     {
+      "page": "/api/social/ads/accounts/[id]/report",
+      "regex": "^/api/social/ads/accounts/([^/]+?)/report(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/social/ads/accounts/(?<nxtPid>[^/]+?)/report(?:/)?$"
+    },
+    {
+      "page": "/api/social/ads/accounts/[id]/status",
+      "regex": "^/api/social/ads/accounts/([^/]+?)/status(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/social/ads/accounts/(?<nxtPid>[^/]+?)/status(?:/)?$"
+    },
+    {
       "page": "/api/social/ads/accounts/[id]/token",
       "regex": "^/api/social/ads/accounts/([^/]+?)/token(?:/)?$",
       "routeKeys": {
@@ -158,6 +174,14 @@
         "nxtPid": "nxtPid"
       },
       "namedRegex": "^/api/social/bio\\-pages/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/api/social/clients/[id]",
+      "regex": "^/api/social/clients/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/social/clients/(?<nxtPid>[^/]+?)(?:/)?$"
     },
     {
       "page": "/api/social/clients/[id]/magic-link",
@@ -392,6 +416,14 @@
       "namedRegex": "^/api/social/whatsapp/conversations/(?<nxtPid>[^/]+?)(?:/)?$"
     },
     {
+      "page": "/api/team/invitations/[id]",
+      "regex": "^/api/team/invitations/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/team/invitations/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
       "page": "/b/[slug]",
       "regex": "^/b/([^/]+?)(?:/)?$",
       "routeKeys": {
@@ -478,6 +510,12 @@
       "regex": "^/api/approver/verify(?:/)?$",
       "routeKeys": {},
       "namedRegex": "^/api/approver/verify(?:/)?$"
+    },
+    {
+      "page": "/api/auth/invite",
+      "regex": "^/api/auth/invite(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/auth/invite(?:/)?$"
     },
     {
       "page": "/api/auth/login",
@@ -600,6 +638,12 @@
       "namedRegex": "^/api/social/ai/branded\\-template(?:/)?$"
     },
     {
+      "page": "/api/social/ai/competitor",
+      "regex": "^/api/social/ai/competitor(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/social/ai/competitor(?:/)?$"
+    },
+    {
       "page": "/api/social/ai/copilot",
       "regex": "^/api/social/ai/copilot(?:/)?$",
       "routeKeys": {},
@@ -616,6 +660,24 @@
       "regex": "^/api/social/ai/posts(?:/)?$",
       "routeKeys": {},
       "namedRegex": "^/api/social/ai/posts(?:/)?$"
+    },
+    {
+      "page": "/api/social/ai/provider",
+      "regex": "^/api/social/ai/provider(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/social/ai/provider(?:/)?$"
+    },
+    {
+      "page": "/api/social/ai/provider/test",
+      "regex": "^/api/social/ai/provider/test(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/social/ai/provider/test(?:/)?$"
+    },
+    {
+      "page": "/api/social/ai/reels",
+      "regex": "^/api/social/ai/reels(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/social/ai/reels(?:/)?$"
     },
     {
       "page": "/api/social/ai/thread",
@@ -718,6 +780,12 @@
       "regex": "^/api/social/clients(?:/)?$",
       "routeKeys": {},
       "namedRegex": "^/api/social/clients(?:/)?$"
+    },
+    {
+      "page": "/api/social/clients/assignable",
+      "regex": "^/api/social/clients/assignable(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/social/clients/assignable(?:/)?$"
     },
     {
       "page": "/api/social/google-sheets",
@@ -936,6 +1004,18 @@
       "namedRegex": "^/api/sync/whatsapp/echo(?:/)?$"
     },
     {
+      "page": "/api/team/invitations",
+      "regex": "^/api/team/invitations(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/team/invitations(?:/)?$"
+    },
+    {
+      "page": "/api/team/members",
+      "regex": "^/api/team/members(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/team/members(?:/)?$"
+    },
+    {
       "page": "/api/v1/analytics",
       "regex": "^/api/v1/analytics(?:/)?$",
       "routeKeys": {},
@@ -1120,6 +1200,12 @@
       "regex": "^/favicon\\.ico(?:/)?$",
       "routeKeys": {},
       "namedRegex": "^/favicon\\.ico(?:/)?$"
+    },
+    {
+      "page": "/invite",
+      "regex": "^/invite(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/invite(?:/)?$"
     },
     {
       "page": "/login",

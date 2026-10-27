@@ -7,5 +7,5 @@ R.c("server/chunks/_0d0zqf6._.js")
 R.c("server/chunks/1q8-_next_dist_0pvdlbw._.js")
 R.c("server/chunks/_1jettlw._.js")
 R.c("server/chunks/_next-internal_server_app_api_social_sets_route_actions_08fw97-.js")
-R.m(7020)
-module.exports=R.m(7020).exports
+R.m(907020)
+module.exports=R.m(907020).exports

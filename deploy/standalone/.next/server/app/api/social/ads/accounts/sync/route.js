@@ -1,11 +1,12 @@
 var R=require("../../../../../../chunks/[turbopack]_runtime.js")("server/app/api/social/ads/accounts/sync/route.js")
-R.c("server/chunks/[root-of-the-server]__0q8187m._.js")
-R.c("server/chunks/1q8-_next_dist_0pvdlbw._.js")
-R.c("server/chunks/[root-of-the-server]__0iwu40v._.js")
+R.c("server/chunks/[externals]__1xpr8kf._.js")
+R.c("server/chunks/src_modules_social_server_ads_ads_service_ts_1yp59wc._.js")
+R.c("server/chunks/[root-of-the-server]__1xgbtf8._.js")
+R.c("server/chunks/_1jettlw._.js")
 R.c("server/chunks/_1ssqwfv._.js")
 R.c("server/chunks/_0d0zqf6._.js")
+R.c("server/chunks/1q8-_next_dist_0pvdlbw._.js")
 R.c("server/chunks/[root-of-the-server]__0em76xv._.js")
-R.c("server/chunks/_1jettlw._.js")
 R.c("server/chunks/_next-internal_server_app_api_social_ads_accounts_sync_route_actions_1q0aekp.js")
-R.m(30302)
-module.exports=R.m(30302).exports
+R.m(830302)
+module.exports=R.m(830302).exports

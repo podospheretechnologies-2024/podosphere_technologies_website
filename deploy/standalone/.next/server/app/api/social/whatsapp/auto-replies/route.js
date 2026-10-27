@@ -8,5 +8,5 @@ R.c("server/chunks/_1ssqwfv._.js")
 R.c("server/chunks/_1jettlw._.js")
 R.c("server/chunks/_0d0zqf6._.js")
 R.c("server/chunks/_next-internal_server_app_api_social_whatsapp_auto-replies_route_actions_0i7wwo-.js")
-R.m(40727)
-module.exports=R.m(40727).exports
+R.m(140727)
+module.exports=R.m(140727).exports

@@ -1,3 +1,0 @@
-module.exports=[35842,a=>{"use strict";var b=a.i(98606);let c={name:"link",size:24,node:[["path",{d:"M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71",key:"1cjeqo"}],["path",{d:"M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71",key:"19qd67"}]]};c.node;let d=(0,b.default)(c);a.s(["Link",0,d],35842)}];
-
-//# sourceMappingURL=0pmj_lucide-react_dist_esm_icons_link_mjs_10--ctz._.js.map
