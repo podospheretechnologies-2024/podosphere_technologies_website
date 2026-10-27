@@ -13,6 +13,7 @@ import {
   WHATSAPP_AUTO_REPLY_PATTERN_MAX,
 } from '../../config/whatsapp-auto-reply';
 import { WHATSAPP_TEXT_MAX_LENGTH } from '../../config/whatsapp';
+import { useWhatsApp } from '../../hooks/use-whatsapp';
 import { useWhatsAppAutoReplies } from '../../hooks/use-whatsapp-auto-replies';
 import {
   deleteWhatsAppAutoReply,
@@ -59,6 +60,7 @@ function summarize(rule: WhatsAppAutoReplyItem): string {
 
 export function AutoRepliesCard() {
   const { data, error, mutate } = useWhatsAppAutoReplies();
+  const whatsapp = useWhatsApp();
   const [dialog, setDialog] = useState<DialogState>({ open: false });
   const [busyId, setBusyId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -75,6 +77,10 @@ export function AutoRepliesCard() {
     } finally {
       setBusyId(null);
     }
+  }
+
+  if (!whatsapp.data?.configured) {
+    return null;
   }
 
   return (

@@ -4,7 +4,6 @@ import { CircleDollarSign, Handshake, Settings } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/shared/lib/cn';
-import { canUseAds } from '@/shared/config/organization';
 import { socialAppHome, socialAppNav } from '../../config/app-nav';
 import { SOCIAL_BASE_PATH } from '../../config/navigation';
 
@@ -30,18 +29,14 @@ const bottomItems = [
 ] as const;
 
 export function IconRail({
-  organizationName,
-  organizationSlug,
+  organizationName: _organizationName,
+  organizationSlug: _organizationSlug,
 }: {
   organizationName?: string;
   organizationSlug?: string;
 }) {
   const pathname = usePathname();
-  const mainItems = socialAppNav.filter((item) => {
-    if (item.key === 'settings') return false;
-    if (item.key === 'ads' && !canUseAds({ name: organizationName, slug: organizationSlug })) return false;
-    return true;
-  });
+  const mainItems = socialAppNav.filter((item) => item.key !== 'settings');
 
   function renderItem(item: {
     key: string;

@@ -1,6 +1,8 @@
 import 'server-only';
+import { decrypt } from '@/shared/lib/crypto';
+import { prisma } from '@/shared/lib/prisma';
 import { getServerEnv } from '@/shared/lib/env';
-import type { ClientScope } from '@/shared/server/client-scope';
+import { scopeWhere, type ClientScope } from '@/shared/server/client-scope';
 import { HttpError } from '@/shared/server/http-error';
 import type {
   SendWhatsAppInput,
@@ -22,7 +24,8 @@ import {
   type GraphList,
 } from '../integrations/providers/meta/graph-client';
 
-// WhatsApp Cloud API with the Business Manager system user token (WHATSAPP_ACCESS_TOKEN).
+// Prefer a per-workspace Embedded Signup connection; fall back to the agency
+// WHATSAPP_* env token only when no connection row exists.
 // Free-form text only reaches people who messaged the number in the last 24 hours;
 // everyone else needs an approved template.
 
@@ -64,13 +67,10 @@ interface Credentials {
   wabaId: string | undefined;
 }
 
-function credentials(): Credentials {
+function envCredentials(): Credentials | null {
   const env = getServerEnv();
   if (!env.WHATSAPP_ACCESS_TOKEN || !env.WHATSAPP_PHONE_NUMBER_ID) {
-    throw new HttpError(
-      503,
-      'WhatsApp is not configured. Set WHATSAPP_ACCESS_TOKEN and WHATSAPP_PHONE_NUMBER_ID in .env.'
-    );
+    return null;
   }
   return {
     graph: { version: env.META_GRAPH_VERSION, appSecret: env.META_APP_SECRET || undefined },
@@ -78,6 +78,26 @@ function credentials(): Credentials {
     phoneNumberId: env.WHATSAPP_PHONE_NUMBER_ID,
     wabaId: env.WHATSAPP_WABA_ID || undefined,
   };
+}
+
+async function resolveCredentials(scope?: ClientScope): Promise<Credentials | null> {
+  if (scope) {
+    const connection = await prisma.socialWhatsAppConnection.findFirst({
+      where: scopeWhere(scope),
+    });
+    if (connection) {
+      const env = getServerEnv();
+      return {
+        graph: { version: env.META_GRAPH_VERSION, appSecret: env.META_APP_SECRET || undefined },
+        token: decrypt(connection.accessToken),
+        phoneNumberId: connection.phoneNumberId,
+        wabaId: connection.wabaId,
+      };
+    }
+    // Inbox / send stay locked until Embedded Signup — do not leak the agency env number.
+    return null;
+  }
+  return envCredentials();
 }
 
 // Cloud API error codes: https://developers.facebook.com/docs/whatsapp/cloud-api/support/error-codes
@@ -280,12 +300,27 @@ async function recordOutbound(
 
 export const whatsappService = {
   isConfigured(): boolean {
-    const env = getServerEnv();
-    return Boolean(env.WHATSAPP_ACCESS_TOKEN && env.WHATSAPP_PHONE_NUMBER_ID);
+    return Boolean(envCredentials());
   },
 
-  async overview(): Promise<WhatsAppOverview> {
-    const creds = credentials();
+  async isConfiguredForScope(scope: ClientScope): Promise<boolean> {
+    const connection = await prisma.socialWhatsAppConnection.findFirst({
+      where: scopeWhere(scope),
+      select: { id: true },
+    });
+    return Boolean(connection);
+  },
+
+  async overview(scope: ClientScope): Promise<WhatsAppOverview> {
+    const creds = await resolveCredentials(scope);
+    if (!creds) {
+      return {
+        configured: false,
+        number: null,
+        templates: [],
+        templatesAvailable: false,
+      };
+    }
     const [number, templates] = await Promise.all([
       call(() =>
         graphGet<GraphPhoneNumber>(creds.graph, creds.phoneNumberId, creds.token, {
@@ -331,7 +366,10 @@ export const whatsappService = {
     input: SendWhatsAppInput,
     options?: { senderName?: string | null }
   ): Promise<SendWhatsAppResult> {
-    const creds = credentials();
+    const creds = await resolveCredentials(scope);
+    if (!creds) {
+      throw new HttpError(400, 'Connect WhatsApp first before sending messages.');
+    }
     const message =
       input.type === 'text'
         ? { type: 'text', text: { body: input.text, preview_url: true } }

@@ -5,8 +5,8 @@ import { errorResponse } from '@/shared/server/http-error';
 // The business number's status and its message templates.
 export async function GET() {
   try {
-    await getClientScope('inbox');
-    if (!whatsappService.isConfigured()) {
+    const scope = await getClientScope('inbox');
+    if (!(await whatsappService.isConfiguredForScope(scope))) {
       return Response.json({
         configured: false,
         number: null,
@@ -14,7 +14,7 @@ export async function GET() {
         templatesAvailable: false,
       });
     }
-    return Response.json(await whatsappService.overview());
+    return Response.json(await whatsappService.overview(scope));
   } catch (error) {
     return errorResponse(error);
   }

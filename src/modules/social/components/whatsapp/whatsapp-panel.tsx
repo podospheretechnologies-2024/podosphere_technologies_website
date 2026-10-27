@@ -11,7 +11,6 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '@/shared/components/ui/button';
-import { EmptyState } from '@/shared/components/ui/empty-state';
 import { Input } from '@/shared/components/ui/input';
 import { cn } from '@/shared/lib/cn';
 import {
@@ -61,12 +60,7 @@ export function WhatsAppPanel() {
     );
   }
   if (!data?.configured || !data.number) {
-    return (
-      <EmptyState
-        title="WhatsApp is not connected yet"
-        description="Generate a system user token with whatsapp_business_messaging and whatsapp_business_management, then set WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID and WHATSAPP_WABA_ID on the server."
-      />
-    );
+    return null;
   }
 
   return (
