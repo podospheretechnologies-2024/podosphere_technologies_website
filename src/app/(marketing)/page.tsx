@@ -55,10 +55,10 @@ export default function LandingPage() {
             </Reveal>
             <Reveal delay={0.3} className="mt-8 flex flex-wrap gap-3">
               <Link
-                href="/login"
+                href="/register"
                 className="bg-primary text-primary-foreground rounded-xl px-6 py-3 font-medium shadow-lg shadow-primary/30 hover:opacity-90"
               >
-                Log in
+                Get started free
               </Link>
               <Link href="#agent" className="border-border bg-surface hover:bg-surface-muted rounded-xl border px-6 py-3 font-medium">
                 See how it works
@@ -139,7 +139,7 @@ export default function LandingPage() {
       </section>
 
       {/* Trust */}
-      <section className="mx-auto max-w-6xl px-6 pb-28">
+      <section className="mx-auto max-w-6xl px-6 pb-16">
         <Stagger className="grid gap-5 md:grid-cols-3">
           {[
             { icon: ShieldCheck, title: 'You stay in control', text: 'Approval queue for anything public or paid. Full audit log.' },
@@ -153,6 +153,27 @@ export default function LandingPage() {
             </StaggerItem>
           ))}
         </Stagger>
+      </section>
+
+      {/* Bottom CTA */}
+      <section className="mx-auto max-w-6xl px-6 pb-28">
+        <Reveal className="border-border from-primary/10 to-ai/10 relative overflow-hidden rounded-3xl border bg-gradient-to-br px-8 py-14 text-center md:px-16">
+          <h2 className="text-3xl font-semibold tracking-tight md:text-4xl">Ready to try Podo Social?</h2>
+          <p className="text-muted-foreground mx-auto mt-3 max-w-lg">
+            Create a workspace in a minute. Connect your channels and let Podo AI draft the next week of content.
+          </p>
+          <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+            <Link
+              href="/register"
+              className="bg-primary text-primary-foreground rounded-xl px-6 py-3 font-medium shadow-lg shadow-primary/30 hover:opacity-90"
+            >
+              Create free account
+            </Link>
+            <Link href="/login" className="border-border bg-surface hover:bg-surface-muted rounded-xl border px-6 py-3 font-medium">
+              Log in
+            </Link>
+          </div>
+        </Reveal>
       </section>
     </>
   );

@@ -27,9 +27,15 @@ export default function MarketingLayout({ children }: LayoutProps<'/'>) {
             </Link>
             <Link
               href="/login"
-              className="bg-primary text-primary-foreground rounded-lg px-4 py-2 font-medium hover:opacity-90"
+              className="text-muted-foreground hover:text-foreground rounded-lg px-3 py-2"
             >
               Log in
+            </Link>
+            <Link
+              href="/register"
+              className="bg-primary text-primary-foreground rounded-lg px-4 py-2 font-medium hover:opacity-90"
+            >
+              Get started
             </Link>
           </div>
         </nav>
