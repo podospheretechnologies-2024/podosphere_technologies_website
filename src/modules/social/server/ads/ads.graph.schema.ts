@@ -44,12 +44,16 @@ const adInsightActionSchema = z
 export const adInsightRowSchema = z
   .object({
     campaign_id: z.string().optional().catch(undefined),
+    adset_id: z.string().optional().catch(undefined),
+    ad_id: z.string().optional().catch(undefined),
+    date_start: z.string().optional().catch(undefined),
     spend: optionalGraphString,
     impressions: optionalGraphString,
     reach: optionalGraphString,
     clicks: optionalGraphString,
     cpc: optionalGraphString,
     ctr: optionalGraphString,
+    frequency: optionalGraphString,
     actions: z.array(adInsightActionSchema).optional().catch(undefined),
   })
   .passthrough();

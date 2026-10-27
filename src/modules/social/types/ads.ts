@@ -50,6 +50,15 @@ export interface AdsCampaignItem {
   leads: number;
   costPerLead: number | null;
   landingPageViews: number;
+  reach: number | null;
+  frequency: number | null;
+  cpm: number | null;
+  linkClicks: number | null;
+  startsAt: string | null;
+  endsAt: string | null;
+  attributionLabel: string | null;
+  bidStrategyLabel: string | null;
+  recommendations: number;
 }
 
 export interface AdsAdSetTargeting {
@@ -68,8 +77,20 @@ export interface AdsAdSetItem {
   campaignName: string | null;
   targeting: AdsAdSetTargeting;
   spend: number;
+  impressions: number | null;
+  clicks: number | null;
+  reach: number | null;
+  frequency: number | null;
+  cpm: number | null;
+  ctr: number | null;
+  cpc: number | null;
   leads: number;
   costPerLead: number | null;
+  startsAt: string | null;
+  endsAt: string | null;
+  attributionLabel: string | null;
+  bidStrategyLabel: string | null;
+  recommendations: number;
 }
 
 export interface AdsAdItem {
@@ -92,6 +113,68 @@ export interface AdsAdItem {
   cpc: number;
   leads: number;
   costPerLead: number | null;
+  reach: number | null;
+  frequency: number | null;
+  cpm: number | null;
+  linkClicks: number | null;
+  startsAt: string | null;
+  endsAt: string | null;
+  attributionLabel: string | null;
+  bidStrategyLabel: string | null;
+  recommendations: number;
+}
+
+export const ADS_REPORT_BREAKDOWNS = [
+  { value: 'none', label: 'No breakdown', graph: [] as const },
+  { value: 'age', label: 'Age', graph: ['age'] as const },
+  { value: 'gender', label: 'Gender', graph: ['gender'] as const },
+  { value: 'age_gender', label: 'Age and gender', graph: ['age', 'gender'] as const },
+  { value: 'country', label: 'Country', graph: ['country'] as const },
+  {
+    value: 'placement',
+    label: 'Placement',
+    graph: ['publisher_platform', 'platform_position'] as const,
+  },
+  { value: 'device', label: 'Device', graph: ['impression_device'] as const },
+] as const;
+
+export type AdsReportBreakdown = (typeof ADS_REPORT_BREAKDOWNS)[number]['value'];
+export type AdsReportLevel = 'campaign' | 'adset' | 'ad';
+
+export interface AdsReportRow {
+  entityId: string;
+  entityName: string;
+  breakdownLabel: string;
+  age: string | null;
+  gender: string | null;
+  country: string | null;
+  publisherPlatform: string | null;
+  platformPosition: string | null;
+  device: string | null;
+  spend: number;
+  impressions: number;
+  reach: number;
+  clicks: number;
+  leads: number;
+  ctr: number;
+  cpc: number;
+  previous: {
+    spend: number;
+    impressions: number;
+    clicks: number;
+    leads: number;
+  } | null;
+}
+
+export interface AdsReportResult {
+  level: AdsReportLevel;
+  breakdown: AdsReportBreakdown;
+  since: string | null;
+  until: string | null;
+  datePreset: string | null;
+  compareSince: string | null;
+  compareUntil: string | null;
+  rows: AdsReportRow[];
 }
 
 export type AdsEntityKind = 'ad' | 'campaign' | 'adset' | 'lead';

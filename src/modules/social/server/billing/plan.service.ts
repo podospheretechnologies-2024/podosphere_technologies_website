@@ -33,6 +33,17 @@ export const planService = {
     }
   },
 
+  /** Enforce plan maxUsers before minting a staff invite (counts active logins). */
+  async assertUserCapacity(organizationId: string): Promise<void> {
+    const current = await this.get(organizationId);
+    const used = await prisma.user.count({
+      where: { organizationId, deletedAt: null },
+    });
+    if (used >= current.maxUsers) {
+      throw new HttpError(402, `User limit reached (${current.maxUsers} on ${current.label})`);
+    }
+  },
+
   /** Enforce plan maxClients before creating a SocialCustomer (client slot). */
   async assertClientCapacity(organizationId: string): Promise<void> {
     const current = await this.get(organizationId);

@@ -249,6 +249,75 @@ async function syncStructure() {
   }
 }
 
+const INSIGHT_LOOKBACK_DAYS = 14;
+const INSIGHT_LEVELS = [
+  { level: 'campaign', idField: 'campaign_id' },
+  { level: 'adset', idField: 'adset_id' },
+  { level: 'ad', idField: 'ad_id' },
+] as const;
+
+function ymd(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
+
+function parseInsightDate(raw: string | undefined, fallback: Date): Date {
+  if (raw && /^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    return new Date(`${raw}T00:00:00.000Z`);
+  }
+  return fallback;
+}
+
+async function upsertInsightDaily(input: {
+  adAccountId: string;
+  level: string;
+  entityId: string;
+  date: Date;
+  spend: string | undefined;
+  impressions: string | undefined;
+  reach: string | undefined;
+  clicks: string | undefined;
+  leads: number;
+  cpc: string | null;
+  ctr: string | null;
+  frequency: string | null;
+}) {
+  const impressions = BigInt(parseInt(input.impressions || '0', 10) || 0);
+  const reach = BigInt(parseInt(input.reach || '0', 10) || 0);
+  await prisma.adInsightDaily.upsert({
+    where: {
+      level_entityId_date: {
+        level: input.level,
+        entityId: input.entityId,
+        date: input.date,
+      },
+    },
+    update: {
+      spend: input.spend,
+      impressions,
+      reach,
+      clicks: parseInt(input.clicks || '0', 10) || 0,
+      leads: input.leads,
+      cpc: input.cpc,
+      ctr: input.ctr,
+      frequency: input.frequency,
+    },
+    create: {
+      adAccountId: input.adAccountId,
+      level: input.level,
+      entityId: input.entityId,
+      date: input.date,
+      spend: input.spend || '0',
+      impressions,
+      reach,
+      clicks: parseInt(input.clicks || '0', 10) || 0,
+      leads: input.leads,
+      cpc: input.cpc,
+      ctr: input.ctr,
+      frequency: input.frequency,
+    },
+  });
+}
+
 async function syncInsights() {
   console.log('[ads-worker] Syncing ad insights...');
   const accounts = await prisma.adAccount.findMany({
@@ -268,62 +337,54 @@ async function syncInsights() {
     if (!token) continue;
 
     try {
-      const insights = softParseGraphList(
-        adInsightRowSchema,
-        await graphGetAll(config, `${account.externalId}/insights`, token, {
-          level: 'campaign',
-          date_preset: 'today',
-          fields: 'campaign_id,spend,impressions,reach,clicks,cpc,ctr,actions',
-          limit: STRUCTURE_PAGE_LIMIT,
-        }),
-        `ads.insights:${account.externalId}`
-      );
+      const until = accountDateOnly(account.timezoneName);
+      const since = new Date(until);
+      since.setUTCDate(since.getUTCDate() - (INSIGHT_LOOKBACK_DAYS - 1));
+      const timeRange = JSON.stringify({ since: ymd(since), until: ymd(until) });
 
-      const today = accountDateOnly(account.timezoneName);
+      for (const { level, idField } of INSIGHT_LEVELS) {
+        const insights = softParseGraphList(
+          adInsightRowSchema,
+          await graphGetAll(config, `${account.externalId}/insights`, token, {
+            level,
+            time_range: timeRange,
+            time_increment: 1,
+            fields: `${idField},date_start,spend,impressions,reach,clicks,cpc,ctr,frequency,actions`,
+            limit: STRUCTURE_PAGE_LIMIT,
+          }),
+          `ads.insights:${account.externalId}:${level}`
+        );
 
-      for (const insight of insights) {
-        if (!insight.campaign_id) continue;
+        for (const insight of insights) {
+          const entityId =
+            idField === 'campaign_id'
+              ? insight.campaign_id
+              : idField === 'adset_id'
+                ? insight.adset_id
+                : insight.ad_id;
+          if (!entityId) continue;
 
-        let leads = 0;
-        if (insight.actions) {
-          const leadAction = insight.actions.find((a) => a.action_type === 'lead');
-          leads = leadAction ? parseInt(leadAction.value, 10) || 0 : 0;
-        }
+          let leads = 0;
+          if (insight.actions) {
+            const leadAction = insight.actions.find((a) => a.action_type === 'lead');
+            leads = leadAction ? parseInt(leadAction.value, 10) || 0 : 0;
+          }
 
-        const impressions = BigInt(parseInt(insight.impressions || '0', 10) || 0);
-        const reach = BigInt(parseInt(insight.reach || '0', 10) || 0);
-
-        await prisma.adInsightDaily.upsert({
-          where: {
-            level_entityId_date: {
-              level: 'campaign',
-              entityId: insight.campaign_id,
-              date: today,
-            },
-          },
-          update: {
-            spend: insight.spend,
-            impressions,
-            reach,
-            clicks: parseInt(insight.clicks || '0', 10) || 0,
-            leads,
-            cpc: insight.cpc || null,
-            ctr: insight.ctr || null,
-          },
-          create: {
+          await upsertInsightDaily({
             adAccountId: account.id,
-            level: 'campaign',
-            entityId: insight.campaign_id,
-            date: today,
-            spend: insight.spend || '0',
-            impressions,
-            reach,
-            clicks: parseInt(insight.clicks || '0', 10) || 0,
+            level,
+            entityId,
+            date: parseInsightDate(insight.date_start, until),
+            spend: insight.spend,
+            impressions: insight.impressions,
+            reach: insight.reach,
+            clicks: insight.clicks,
             leads,
             cpc: insight.cpc || null,
             ctr: insight.ctr || null,
-          },
-        });
+            frequency: insight.frequency || null,
+          });
+        }
       }
 
       if (account.refreshNeeded) {

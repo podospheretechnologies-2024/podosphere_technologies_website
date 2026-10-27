@@ -1,8 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import { MarketplaceOverviewPanel, MarketplaceSamplePanel } from '@/modules/admin/components/marketplace-ads-dashboard';
-import { marketplaceClientsFor, type MarketplaceId } from '@/modules/admin/data/marketplace-ads.sample';
+import { useEffect, useState } from 'react';
 import { EmptyState } from '@/shared/components/ui/empty-state';
 import {
   ADS_DEFAULT_DATE_PRESET,
@@ -173,41 +171,16 @@ function MetaAdsDashboard() {
   );
 }
 
-type SampleMarketplace = Exclude<MarketplaceId, 'meta'>;
-type AdsPlatform = 'dashboard' | 'meta' | 'google' | SampleMarketplace;
+type AdsPlatform = 'meta' | 'google';
 
 const BASE_PLATFORMS: { value: AdsPlatform; label: string }[] = [
   { value: 'meta', label: 'Meta Ads' },
   { value: 'google', label: 'Google Ads' },
 ];
 
-// Sample-data tabs, shown to platform admins only.
-const ADMIN_DASHBOARD_TAB: { value: AdsPlatform; label: string } = { value: 'dashboard', label: 'Dashboard' };
-
-const ADMIN_SAMPLE_PLATFORMS: { value: AdsPlatform; label: string }[] = [
-  { value: 'blinkit', label: 'Blinkit' },
-  { value: 'meesho', label: 'Meesho' },
-  { value: 'flipkart', label: 'Flipkart' },
-  { value: 'amazon', label: 'Amazon' },
-];
-
-export function AdsDashboard({ isPlatformAdmin = false }: { isPlatformAdmin?: boolean }) {
+export function AdsDashboard() {
   const [platform, setPlatform] = useState<AdsPlatform>('meta');
-  const accountsQuery = useAdAccounts();
-  // Each platform lists its own clients; names come from the connected Meta ad accounts when they match.
-  const accountRows = useMemo(
-    () =>
-      (accountsQuery.data?.accounts ?? []).map((account) => ({
-        id: account.id,
-        name: account.name,
-        organizationName: 'Meta ad account',
-        isDemo: false,
-      })),
-    [accountsQuery.data],
-  );
-  const platforms = isPlatformAdmin
-    ? [ADMIN_DASHBOARD_TAB, ...BASE_PLATFORMS, ...ADMIN_SAMPLE_PLATFORMS]
-    : BASE_PLATFORMS;
+  const platforms = BASE_PLATFORMS;
 
   // The Google OAuth callback returns to ?platform=google.
   useEffect(() => {
@@ -241,19 +214,7 @@ export function AdsDashboard({ isPlatformAdmin = false }: { isPlatformAdmin?: bo
         ))}
       </div>
       <div className="p-5">
-        {platform === 'dashboard' ? (
-          <MarketplaceOverviewPanel onSelectPlatform={setPlatform} />
-        ) : platform === 'meta' ? (
-          <MetaAdsDashboard />
-        ) : platform === 'google' ? (
-          <GoogleAdsPanel />
-        ) : (
-          <MarketplaceSamplePanel
-            key={platform}
-            marketplace={platform}
-            clients={marketplaceClientsFor(platform, accountRows)}
-          />
-        )}
+        {platform === 'meta' ? <MetaAdsDashboard /> : <GoogleAdsPanel />}
       </div>
     </div>
   );

@@ -146,7 +146,7 @@ the UI is the message Google returned.
 - [x] OAuth client `Podo Social — Google Ads` created with both redirect URIs (§3)
 - [ ] Add scope `https://www.googleapis.com/auth/adwords` under **Data Access** (§3)
 - [ ] Apply for **Explorer** access: Google Ads API → Access levels → Manage (§2)
-- [ ] Put the client id + secret in `.env` as `GOOGLE_ADS_CLIENT_ID` / `GOOGLE_ADS_CLIENT_SECRET` (§4)
+- [x] Put the client id + secret in `.env` as `GOOGLE_ADS_CLIENT_ID` / `GOOGLE_ADS_CLIENT_SECRET` (§4) — dedicated client, distinct from the shared `GOOGLE_CLIENT_*`
 - [ ] Link the 4 client ad accounts into MCC `987-922-1937` — it currently has none
 - [ ] Set `GOOGLE_ADS_LOGIN_CUSTOMER_ID=9879221937` once they are linked (§4)
 - [ ] Connect once in prod and assign ad accounts to clients (§5)

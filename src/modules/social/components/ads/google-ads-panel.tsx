@@ -5,7 +5,9 @@ import { useContext, useEffect, useState } from 'react';
 import { Button } from '@/shared/components/ui/button';
 import { Card } from '@/shared/components/ui/card';
 import { ADS_DATE_PRESETS, ADS_DEFAULT_DATE_PRESET, type AdsDatePreset } from '../../config/ads';
+import { downloadAdsCsv } from '../../lib/ads-csv';
 import { ClientScopeContext } from '../../hooks/use-client-scope';
+import type { AdsAdItem, AdsAdSetItem, AdsCampaignItem } from '../../types/ads';
 import {
   assignGoogleAdsAccount,
   disconnectGoogleAds,
@@ -109,10 +111,12 @@ function EntityTable({
   title,
   rows,
   currency,
+  onSelect,
 }: {
   title: string;
   rows: TableRow[];
   currency: string;
+  onSelect?: (id: string) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const visible = expanded ? rows : rows.slice(0, TABLE_PREVIEW);
@@ -140,7 +144,15 @@ function EntityTable({
               {visible.map((row) => (
                 <tr key={row.id} className="border-t border-[#F0F2F5]">
                   <td className="max-w-[280px] py-2 pr-3">
-                    <p className="truncate font-medium text-[#1C1E21]">{row.name}</p>
+                    <p className="truncate font-medium text-[#1C1E21]">
+                      {onSelect ? (
+                        <button type="button" className="text-left text-[#1877F2] hover:underline" onClick={() => onSelect(row.id)}>
+                          {row.name}
+                        </button>
+                      ) : (
+                        row.name
+                      )}
+                    </p>
                     {row.sub ? (
                       <p className="text-muted-foreground truncate text-xs">{row.sub}</p>
                     ) : null}
@@ -184,11 +196,91 @@ function EntityTable({
   );
 }
 
+function GoogleOverviewBody({
+  data,
+  onSelectCampaign,
+  onSelectAdGroup,
+  onSelectAd,
+}: {
+  data: GoogleAdsOverview;
+  onSelectCampaign: (campaign: AdsCampaignItem) => void;
+  onSelectAdGroup: (adset: AdsAdSetItem) => void;
+  onSelectAd: (ad: AdsAdItem) => void;
+}) {
+  return (
+    <>
+      <Totals totals={data.totals} currency={data.account.currency} />
+      <DailySpend daily={data.daily} currency={data.account.currency} />
+      <EntityTable
+        title="Campaigns"
+        currency={data.account.currency}
+        onSelect={(id) => {
+          const campaign = data.campaigns.find((item) => item.id === id);
+          if (campaign) onSelectCampaign(campaign);
+        }}
+        rows={data.campaigns.map((campaign) => ({
+          id: campaign.id,
+          name: campaign.name,
+          sub: [campaign.objective, campaign.budgetLabel].filter(Boolean).join(' · '),
+          status: campaign.status,
+          spend: campaign.spend,
+          clicks: campaign.clicks,
+          leads: campaign.leads,
+          costPerLead: campaign.costPerLead,
+        }))}
+      />
+      <EntityTable
+        title="Ad groups"
+        currency={data.account.currency}
+        onSelect={(id) => {
+          const adset = data.adGroups.find((item) => item.id === id);
+          if (adset) onSelectAdGroup(adset);
+        }}
+        rows={data.adGroups.map((group) => ({
+          id: group.id,
+          name: group.name,
+          sub: group.campaignName,
+          status: group.status,
+          spend: group.spend,
+          leads: group.leads,
+          costPerLead: group.costPerLead,
+        }))}
+      />
+      <EntityTable
+        title="Ads"
+        currency={data.account.currency}
+        onSelect={(id) => {
+          const ad = data.ads.find((item) => item.id === id);
+          if (ad) onSelectAd(ad);
+        }}
+        rows={data.ads.map((ad) => ({
+          id: ad.id,
+          name: ad.name,
+          sub: ad.adsetName,
+          status: ad.status,
+          spend: ad.spend,
+          clicks: ad.clicks,
+          leads: ad.leads,
+          costPerLead: ad.costPerLead,
+        }))}
+      />
+    </>
+  );
+}
+
 export function GoogleAdsPanel() {
   const status = useGoogleAdsStatus();
   const clientScope = useContext(ClientScopeContext);
   const [selected, setSelected] = useState<string | null>(null);
   const [datePreset, setDatePreset] = useState<AdsDatePreset>(ADS_DEFAULT_DATE_PRESET);
+  const [since, setSince] = useState('');
+  const [until, setUntil] = useState('');
+  const [detail, setDetail] = useState<
+    | { kind: 'campaign'; campaign: AdsCampaignItem }
+    | { kind: 'adset'; adset: AdsAdSetItem }
+    | { kind: 'ad'; ad: AdsAdItem }
+    | null
+  >(null);
   const [busy, setBusy] = useState<'connect' | 'sync' | 'disconnect' | null>(null);
   const [message, setMessage] = useState<{ kind: 'error' | 'ok'; text: string } | null>(null);
 
@@ -207,7 +299,11 @@ export function GoogleAdsPanel() {
     selected && accounts.some((account) => account.id === selected)
       ? selected
       : (accounts[0]?.id ?? null);
-  const overview = useGoogleAdsOverview(accountId, { mode: 'preset', datePreset });
+  const customRangeReady = Boolean(since && until && since <= until);
+  const dateQuery = customRangeReady
+    ? { mode: 'range' as const, since, until }
+    : { mode: 'preset' as const, datePreset };
+  const overview = useGoogleAdsOverview(accountId, dateQuery);
   const connection = status.data?.connection;
 
   async function run(kind: 'connect' | 'sync' | 'disconnect', action: () => Promise<void>) {
@@ -361,17 +457,79 @@ export function GoogleAdsPanel() {
                 </option>
               ))}
             </select>
-            <div className="flex gap-1">
+            <div className="flex flex-wrap items-center gap-1">
               {ADS_DATE_PRESETS.map((preset) => (
                 <Button
                   key={preset.value}
                   size="sm"
-                  variant={datePreset === preset.value ? 'primary' : 'secondary'}
-                  onClick={() => setDatePreset(preset.value)}
+                  variant={!customRangeReady && datePreset === preset.value ? 'primary' : 'secondary'}
+                  onClick={() => {
+                    setDatePreset(preset.value);
+                    setSince('');
+                    setUntil('');
+                  }}
                 >
                   {preset.label}
                 </Button>
               ))}
+              <input
+                type="date"
+                value={since}
+                max={until || undefined}
+                onChange={(event) => setSince(event.target.value)}
+                className="h-8 rounded-lg border border-[#DADCE0] px-2 text-xs"
+                aria-label="From"
+              />
+              <input
+                type="date"
+                value={until}
+                min={since || undefined}
+                onChange={(event) => setUntil(event.target.value)}
+                className="h-8 rounded-lg border border-[#DADCE0] px-2 text-xs"
+                aria-label="To"
+              />
+              {overview.data && (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => {
+                    const snapshot = overview.data;
+                    if (!snapshot) return;
+                    downloadAdsCsv(
+                      `google-ads-${accountId}.csv`,
+                      ['Type', 'Name', 'Status', 'Spend', 'Clicks', 'Conversions'],
+                      [
+                        ...snapshot.campaigns.map((row) => [
+                          'Campaign',
+                          row.name,
+                          row.status,
+                          row.spend,
+                          row.clicks,
+                          row.leads,
+                        ]),
+                        ...snapshot.adGroups.map((row) => [
+                          'Ad group',
+                          row.name,
+                          row.status,
+                          row.spend,
+                          row.clicks ?? '',
+                          row.leads,
+                        ]),
+                        ...snapshot.ads.map((row) => [
+                          'Ad',
+                          row.name,
+                          row.status,
+                          row.spend,
+                          row.clicks,
+                          row.leads,
+                        ]),
+                      ]
+                    );
+                  }}
+                >
+                  Export CSV
+                </Button>
+              )}
             </div>
             {clientScope && clientScope.clients.length > 0 && current && (
               <select
@@ -408,53 +566,91 @@ export function GoogleAdsPanel() {
             <p className="text-muted-foreground text-sm">Loading live data from Google Ads…</p>
           )}
           {overview.data && (
-            <>
-              <Totals totals={overview.data.totals} currency={overview.data.account.currency} />
-              <DailySpend daily={overview.data.daily} currency={overview.data.account.currency} />
-              <EntityTable
-                title="Campaigns"
-                currency={overview.data.account.currency}
-                rows={overview.data.campaigns.map((campaign) => ({
-                  id: campaign.id,
-                  name: campaign.name,
-                  sub: [campaign.objective, campaign.budgetLabel].filter(Boolean).join(' · '),
-                  status: campaign.status,
-                  spend: campaign.spend,
-                  clicks: campaign.clicks,
-                  leads: campaign.leads,
-                  costPerLead: campaign.costPerLead,
-                }))}
-              />
-              <EntityTable
-                title="Ad groups"
-                currency={overview.data.account.currency}
-                rows={overview.data.adGroups.map((group) => ({
-                  id: group.id,
-                  name: group.name,
-                  sub: group.campaignName,
-                  status: group.status,
-                  spend: group.spend,
-                  leads: group.leads,
-                  costPerLead: group.costPerLead,
-                }))}
-              />
-              <EntityTable
-                title="Ads"
-                currency={overview.data.account.currency}
-                rows={overview.data.ads.map((ad) => ({
-                  id: ad.id,
-                  name: ad.name,
-                  sub: ad.adsetName,
-                  status: ad.status,
-                  spend: ad.spend,
-                  clicks: ad.clicks,
-                  leads: ad.leads,
-                  costPerLead: ad.costPerLead,
-                }))}
-              />
-            </>
+            <GoogleOverviewBody
+              data={overview.data}
+              onSelectCampaign={(campaign) => setDetail({ kind: 'campaign', campaign })}
+              onSelectAdGroup={(adset) => setDetail({ kind: 'adset', adset })}
+              onSelectAd={(ad) => setDetail({ kind: 'ad', ad })}
+            />
           )}
         </>
+      )}
+      {detail && overview.data && (
+        <div className="fixed inset-0 z-50 flex justify-end bg-black/40 p-4">
+          <button type="button" className="absolute inset-0 cursor-default" aria-label="Close" onClick={() => setDetail(null)} />
+          <aside className="relative w-full max-w-md space-y-3 rounded-2xl border border-[#DADCE0] bg-white p-5 shadow-2xl">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold tracking-wide text-[#65676B] uppercase">
+                  {detail.kind === 'campaign' ? 'Campaign' : detail.kind === 'adset' ? 'Ad group' : 'Ad'}
+                </p>
+                <h3 className="mt-1 text-lg font-semibold">
+                  {detail.kind === 'campaign'
+                    ? detail.campaign.name
+                    : detail.kind === 'adset'
+                      ? detail.adset.name
+                      : detail.ad.name}
+                </h3>
+              </div>
+              <Button size="sm" variant="secondary" onClick={() => setDetail(null)}>
+                Close
+              </Button>
+            </div>
+            <Totals
+              currency={overview.data.account.currency}
+              totals={{
+                spend:
+                  detail.kind === 'campaign'
+                    ? detail.campaign.spend
+                    : detail.kind === 'adset'
+                      ? detail.adset.spend
+                      : detail.ad.spend,
+                impressions:
+                  detail.kind === 'campaign'
+                    ? detail.campaign.impressions
+                    : detail.kind === 'adset'
+                      ? detail.adset.impressions ?? 0
+                      : detail.ad.impressions,
+                reach:
+                  detail.kind === 'campaign'
+                    ? detail.campaign.reach ?? 0
+                    : detail.kind === 'adset'
+                      ? detail.adset.reach ?? 0
+                      : detail.ad.reach ?? 0,
+                clicks:
+                  detail.kind === 'campaign'
+                    ? detail.campaign.clicks
+                    : detail.kind === 'adset'
+                      ? detail.adset.clicks ?? 0
+                      : detail.ad.clicks,
+                ctr:
+                  detail.kind === 'campaign'
+                    ? detail.campaign.ctr
+                    : detail.kind === 'adset'
+                      ? detail.adset.ctr ?? 0
+                      : detail.ad.ctr,
+                cpc:
+                  detail.kind === 'campaign'
+                    ? detail.campaign.cpc
+                    : detail.kind === 'adset'
+                      ? detail.adset.cpc ?? 0
+                      : detail.ad.cpc,
+                leads:
+                  detail.kind === 'campaign'
+                    ? detail.campaign.leads
+                    : detail.kind === 'adset'
+                      ? detail.adset.leads
+                      : detail.ad.leads,
+                costPerLead:
+                  detail.kind === 'campaign'
+                    ? detail.campaign.costPerLead
+                    : detail.kind === 'adset'
+                      ? detail.adset.costPerLead
+                      : detail.ad.costPerLead,
+              }}
+            />
+          </aside>
+        </div>
       )}
     </div>
   );

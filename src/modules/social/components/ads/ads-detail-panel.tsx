@@ -139,6 +139,15 @@ function asAdItem(ad: AdsAdItem | AdsLiveAd): AdsAdItem {
     cpc: 0,
     leads: ad.leads,
     costPerLead: ad.costPerLead,
+    reach: null,
+    frequency: null,
+    cpm: null,
+    linkClicks: ad.clicks,
+    startsAt: null,
+    endsAt: null,
+    attributionLabel: null,
+    bidStrategyLabel: null,
+    recommendations: 0,
   };
 }
 
@@ -546,6 +555,10 @@ function CampaignDetails({
         />
         <Field label="Clicks" value={count.format(campaign.clicks)} />
         <Field label="Landing page views" value={count.format(campaign.landingPageViews)} />
+        <Field label="Reach" value={campaign.reach == null ? '—' : count.format(campaign.reach)} />
+        <Field label="Attribution" value={campaign.attributionLabel ?? '—'} />
+        <Field label="Bid strategy" value={campaign.bidStrategyLabel ?? '—'} />
+        <Field label="Ends" value={campaign.endsAt ?? 'Ongoing'} />
         <Field label="Campaign ID" value={<span className="font-mono text-xs">{campaign.id}</span>} />
       </div>
     </section>

@@ -46,7 +46,8 @@ import {
   type AdsDatePreset,
   type AdsStatusFilter,
 } from '../../config/ads';
-import { useAdAudiences, useAdCatalogs } from '../../hooks/use-ads';
+import { setAdsEntityStatus, useAdAudiences, useAdCatalogs } from '../../hooks/use-ads';
+import { downloadAdsCsv } from '../../lib/ads-csv';
 import type {
   AdAccountItem,
   AdsAdItem,
@@ -55,6 +56,7 @@ import type {
   AdsOverview,
 } from '../../types/ads';
 import type { AdsDetailSelection } from './ads-detail-panel';
+import { AdsReportingPanel } from './ads-reporting-panel';
 
 const META_BLUE = '#1877F2';
 const META_GREEN = '#42B72A';
@@ -87,6 +89,7 @@ function openMetaTool(tool: MetaNavKey | 'home' | 'help' | 'create', accountId: 
     campaigns: `https://adsmanager.facebook.com/adsmanager/manage/campaigns?act=${act}`,
     reporting: `https://adsmanager.facebook.com/adsmanager/reporting/guide?act=${act}`,
     audiences: `https://adsmanager.facebook.com/adsmanager/audiences?act=${act}`,
+    catalogs: 'https://business.facebook.com/commerce',
     settings: `https://business.facebook.com/settings/ad-accounts/${accountId}`,
     billing: `https://business.facebook.com/billing_hub/payment_activity?asset_id=${act}`,
     events: 'https://business.facebook.com/events_manager2/list/pixel/',
@@ -105,7 +108,7 @@ const META_NAV: {
 }[] = [
   { key: 'overview', label: 'Account overview', inApp: true },
   { key: 'campaigns', label: 'Campaigns', inApp: true },
-  { key: 'reporting', label: 'Ads Reporting', inApp: false },
+  { key: 'reporting', label: 'Ads Reporting', inApp: true },
   { key: 'audiences', label: 'Audiences', inApp: true },
   { key: 'catalogs', label: 'Catalogs', inApp: true },
   { key: 'settings', label: 'Advertising settings', inApp: false },
@@ -139,7 +142,13 @@ type ManagerRow = {
   spend: number;
   impressions: number | null;
   reach: number | null;
+  frequency: number | null;
+  cpm: number | null;
+  linkClicks: number | null;
   endsLabel: string;
+  scheduleLabel: string;
+  attributionLabel: string | null;
+  bidStrategyLabel: string | null;
   thumbnailUrl: string | null;
   campaignId: string | null;
   adsetId: string | null;
@@ -181,7 +190,7 @@ const METRIC_COLUMNS: {
   levelHint?: string;
 }[] = [
   { id: 'delivery', label: 'Delivery', category: 'Ad settings', section: 'Ad settings', defaultVisible: true },
-  { id: 'actions', label: 'Actions', category: 'Ad settings', section: 'Ad settings', defaultVisible: true },
+  { id: 'actions', label: 'Actions', category: 'Ad settings', section: 'Ad settings', defaultVisible: false },
   { id: 'results', label: 'Results', category: 'Key metrics', section: 'Results and spend', defaultVisible: true },
   {
     id: 'costPerResult',
@@ -287,11 +296,11 @@ function deliveryFromStatus(status: string): string {
   return status.toLowerCase().replace(/_/g, ' ');
 }
 
-function recommendationCount(id: string, spend: number): number {
-  let hash = 0;
-  for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) % 17;
-  if (spend <= 0) return 0;
-  return Math.max(1, (hash % 12) + 1);
+function scheduleLabel(start: string | null | undefined, end: string | null | undefined): string {
+  if (start && end) return `${start} – ${end}`;
+  if (start) return `From ${start}`;
+  if (end) return `Until ${end}`;
+  return 'Ongoing';
 }
 
 function campaignToRow(campaign: AdsCampaignItem): ManagerRow {
@@ -301,15 +310,21 @@ function campaignToRow(campaign: AdsCampaignItem): ManagerRow {
     name: campaign.name,
     status: campaign.status,
     deliveryLabel: deliveryFromStatus(campaign.status),
-    recommendations: recommendationCount(campaign.id, campaign.spend),
+    recommendations: campaign.recommendations,
     results: campaign.leads,
     resultsLabel: 'Leads (Form)',
     costPerResult: campaign.costPerLead,
     budgetLabel: campaign.budgetLabel,
     spend: campaign.spend,
     impressions: campaign.impressions,
-    reach: null,
-    endsLabel: 'Ongoing',
+    reach: campaign.reach,
+    frequency: campaign.frequency,
+    cpm: campaign.cpm,
+    linkClicks: campaign.linkClicks,
+    endsLabel: campaign.endsAt ?? 'Ongoing',
+    scheduleLabel: scheduleLabel(campaign.startsAt, campaign.endsAt),
+    attributionLabel: campaign.attributionLabel,
+    bidStrategyLabel: campaign.bidStrategyLabel,
     thumbnailUrl: null,
     campaignId: campaign.id,
     adsetId: null,
@@ -324,16 +339,22 @@ function adsetToRow(adset: AdsAdSetItem): ManagerRow {
     level: 'adsets',
     name: adset.name,
     status: adset.status,
-    deliveryLabel: isActiveStatus(adset.status) ? 'Learning' : deliveryFromStatus(adset.status),
-    recommendations: recommendationCount(adset.id, adset.spend),
+    deliveryLabel: deliveryFromStatus(adset.status),
+    recommendations: adset.recommendations,
     results: adset.leads,
     resultsLabel: 'Leads (Form)',
     costPerResult: adset.costPerLead,
     budgetLabel: null,
     spend: adset.spend,
-    impressions: null,
-    reach: null,
-    endsLabel: 'Ongoing',
+    impressions: adset.impressions,
+    reach: adset.reach,
+    frequency: adset.frequency,
+    cpm: adset.cpm,
+    linkClicks: null,
+    endsLabel: adset.endsAt ?? 'Ongoing',
+    scheduleLabel: scheduleLabel(adset.startsAt, adset.endsAt),
+    attributionLabel: adset.attributionLabel,
+    bidStrategyLabel: adset.bidStrategyLabel,
     thumbnailUrl: null,
     campaignId: adset.campaignId,
     adsetId: adset.id,
@@ -348,16 +369,22 @@ function adToRow(ad: AdsAdItem): ManagerRow {
     level: 'ads',
     name: ad.name,
     status: ad.status,
-    deliveryLabel: isActiveStatus(ad.status) ? 'Learning' : deliveryFromStatus(ad.status),
-    recommendations: recommendationCount(ad.id, ad.spend),
+    deliveryLabel: deliveryFromStatus(ad.status),
+    recommendations: ad.recommendations,
     results: ad.leads,
     resultsLabel: 'Leads (Form)',
     costPerResult: ad.costPerLead,
     budgetLabel: null,
     spend: ad.spend,
     impressions: ad.impressions,
-    reach: null,
-    endsLabel: 'Ongoing',
+    reach: ad.reach,
+    frequency: ad.frequency,
+    cpm: ad.cpm,
+    linkClicks: ad.linkClicks,
+    endsLabel: ad.endsAt ?? 'Ongoing',
+    scheduleLabel: scheduleLabel(ad.startsAt, ad.endsAt),
+    attributionLabel: ad.attributionLabel,
+    bidStrategyLabel: ad.bidStrategyLabel,
     thumbnailUrl: ad.thumbnailUrl,
     campaignId: ad.campaignId,
     adsetId: ad.adsetId,
@@ -378,14 +405,29 @@ function SortHeader({ label, sorted }: { label: string; sorted: false | 'asc' | 
   );
 }
 
-function ToggleSwitch({ on, disabled }: { on: boolean; disabled?: boolean }) {
+function ToggleSwitch({
+  on,
+  disabled,
+  onToggle,
+}: {
+  on: boolean;
+  disabled?: boolean;
+  onToggle?: () => void;
+}) {
   return (
-    <span
-      aria-hidden
+    <button
+      type="button"
+      role="switch"
+      aria-checked={on}
+      disabled={disabled}
+      onClick={(event) => {
+        event.stopPropagation();
+        onToggle?.();
+      }}
       className={cn(
         'relative inline-flex h-[18px] w-[34px] shrink-0 items-center rounded-full transition',
         on ? 'bg-[#1877F2]' : 'bg-[#CCD0D5]',
-        disabled && 'opacity-80'
+        disabled && 'cursor-not-allowed opacity-50'
       )}
     >
       <span
@@ -394,7 +436,7 @@ function ToggleSwitch({ on, disabled }: { on: boolean; disabled?: boolean }) {
           on ? 'left-[16px]' : 'left-[2px]'
         )}
       />
-    </span>
+    </button>
   );
 }
 
@@ -919,7 +961,12 @@ function CatalogsPanel({
         title="Catalogs"
         description={`Product catalogs owned by ${data?.businessName ?? accountName}'s business, with product sets and basic health.`}
         onBack={onBack}
-        onOpenInMeta={() => openMetaTool('audiences', accountId)}
+        onOpenInMeta={() => {
+          const url = data?.businessId
+            ? `https://business.facebook.com/latest/product_catalogs?business_id=${data.businessId}`
+            : 'https://business.facebook.com/commerce';
+          window.open(url, '_blank', 'noopener,noreferrer');
+        }}
       />
       {isLoading && (
         <div className="rounded-lg border border-[#DADDE1] bg-white p-6 text-[13px] text-[#65676B]">
@@ -1041,9 +1088,10 @@ export function AdsManager({
 }) {
   const currency = data.account.currency;
   const [level, setLevel] = useState<ManagerLevel>('campaigns');
-  const [shellView, setShellView] = useState<'campaigns' | 'overview' | 'audiences' | 'catalogs'>(
-    'campaigns'
-  );
+  const [shellView, setShellView] = useState<
+    'campaigns' | 'overview' | 'audiences' | 'catalogs' | 'reporting'
+  >('campaigns');
+  const [statusBusy, setStatusBusy] = useState(false);
   const [search, setSearch] = useState('');
   const [extraFilter, setExtraFilter] = useState<ExtraFilter>('none');
   const [seeMoreOpen, setSeeMoreOpen] = useState(false);
@@ -1123,6 +1171,41 @@ export function AdsManager({
     setShellView('catalogs');
   }
 
+  function goReporting() {
+    setShellView('reporting');
+  }
+
+  function entityKind(): 'campaign' | 'adset' | 'ad' {
+    return level === 'campaigns' ? 'campaign' : level === 'adsets' ? 'adset' : 'ad';
+  }
+
+  function selectedIds() {
+    return level === 'campaigns'
+      ? selectedCampaignIds
+      : level === 'adsets'
+        ? selectedAdSetIds
+        : selectedAdIds;
+  }
+
+  async function applyStatus(ids: string[], status: 'ACTIVE' | 'PAUSED') {
+    if (ids.length === 0 || statusBusy) return;
+    setStatusBusy(true);
+    try {
+      const result = await setAdsEntityStatus(accountId, entityKind(), ids, status);
+      const failed = result.failed[0]?.error;
+      setViewNotice(
+        failed
+          ? `Updated ${result.updated.length}. ${failed}`
+          : `${status === 'PAUSED' ? 'Paused' : 'Turned on'} ${result.updated.length} item${result.updated.length === 1 ? '' : 's'}.`
+      );
+      onRefresh?.();
+    } catch (error) {
+      setViewNotice(error instanceof Error ? error.message : 'Could not update status');
+    } finally {
+      setStatusBusy(false);
+    }
+  }
+
   function handleNav(key: MetaNavKey) {
     if (key === 'campaigns') {
       goCampaigns();
@@ -1140,6 +1223,10 @@ export function AdsManager({
       goCatalogs();
       return;
     }
+    if (key === 'reporting') {
+      goReporting();
+      return;
+    }
     openMetaTool(key, accountId);
   }
 
@@ -1154,7 +1241,7 @@ export function AdsManager({
       if (!matchesAdsStatusFilter(c.status, statusFilter)) return false;
       if (hadDeliveryOnly && c.impressions <= 0 && c.spend <= 0) return false;
       if (search && !c.name.toLowerCase().includes(search.toLowerCase())) return false;
-      if (extraFilter === 'actions' && recommendationCount(c.id, c.spend) <= 0) return false;
+      if (extraFilter === 'actions' && c.recommendations <= 0) return false;
       if (extraFilter === 'with_issues' && c.status !== 'WITH_ISSUES') return false;
       if (extraFilter === 'learning') {
         const learning =
@@ -1175,7 +1262,7 @@ export function AdsManager({
       }
       if (hadDeliveryOnly && a.spend <= 0) return false;
       if (search && !a.name.toLowerCase().includes(search.toLowerCase())) return false;
-      if (extraFilter === 'actions' && recommendationCount(a.id, a.spend) <= 0) return false;
+      if (extraFilter === 'actions' && a.recommendations <= 0) return false;
       if (extraFilter === 'with_issues' && a.status !== 'WITH_ISSUES') return false;
       if (extraFilter === 'zero_results' && a.leads > 0) return false;
       return true;
@@ -1192,7 +1279,7 @@ export function AdsManager({
       }
       if (hadDeliveryOnly && ad.impressions <= 0 && ad.spend <= 0) return false;
       if (search && !ad.name.toLowerCase().includes(search.toLowerCase())) return false;
-      if (extraFilter === 'actions' && recommendationCount(ad.id, ad.spend) <= 0) return false;
+      if (extraFilter === 'actions' && ad.recommendations <= 0) return false;
       if (extraFilter === 'with_issues' && ad.status !== 'WITH_ISSUES') return false;
       if (extraFilter === 'zero_results' && ad.leads > 0) return false;
       return true;
@@ -1274,7 +1361,16 @@ export function AdsManager({
         id: 'toggle',
         header: () => <span className="text-[11px]">Off/On</span>,
         cell: ({ row }) => (
-          <ToggleSwitch on={isActiveStatus(row.original.status)} disabled />
+          <ToggleSwitch
+            on={isActiveStatus(row.original.status)}
+            disabled={statusBusy}
+            onToggle={() =>
+              void applyStatus(
+                [row.original.id],
+                isActiveStatus(row.original.status) ? 'PAUSED' : 'ACTIVE'
+              )
+            }
+          />
         ),
         enableSorting: false,
         enableHiding: false,
@@ -1416,7 +1512,14 @@ export function AdsManager({
       helper.accessor('reach', {
         id: 'reach',
         header: ({ column }) => <SortHeader label="Reach" sorted={column.getIsSorted()} />,
-        cell: () => <span className="block text-right text-[13px] text-[#8A8D91]">—</span>,
+        cell: ({ getValue }) => {
+          const value = getValue();
+          return (
+            <span className="block text-right text-[13px] tabular-nums text-[#050505]">
+              {value == null ? '—' : numberFmt.format(value)}
+            </span>
+          );
+        },
       }),
       helper.accessor('endsLabel', {
         id: 'ends',
@@ -1465,24 +1568,25 @@ export function AdsManager({
         },
         enableSorting: false,
       }),
-      helper.display({
+      helper.accessor('scheduleLabel', {
         id: 'schedule',
         header: ({ column }) => <SortHeader label="Schedule" sorted={column.getIsSorted()} />,
-        cell: () => <span className="text-[13px] text-[#050505]">Ongoing</span>,
-        enableSorting: false,
+        cell: ({ getValue }) => <span className="text-[13px] text-[#050505]">{getValue()}</span>,
       }),
-      helper.display({
+      helper.accessor('attributionLabel', {
         id: 'attribution',
         header: () => <SortHeader label="Attribution setting" sorted={false} />,
-        cell: () => (
-          <span className="text-[13px] text-[#050505]">7-day click or 1-day view</span>
+        cell: ({ getValue }) => (
+          <span className="text-[13px] text-[#050505]">{getValue() ?? '—'}</span>
         ),
         enableSorting: false,
       }),
-      helper.display({
+      helper.accessor('bidStrategyLabel', {
         id: 'bidStrategy',
         header: () => <SortHeader label="Bid strategy" sorted={false} />,
-        cell: () => <span className="text-[13px] text-[#050505]">Highest volume</span>,
+        cell: ({ getValue }) => (
+          <span className="text-[13px] text-[#050505]">{getValue() ?? '—'}</span>
+        ),
         enableSorting: false,
       }),
       helper.display({
@@ -1491,11 +1595,11 @@ export function AdsManager({
         cell: () => <span className="block text-right text-[13px] text-[#8A8D91]">—</span>,
         enableSorting: false,
       }),
-      helper.display({
+      helper.accessor('linkClicks', {
         id: 'linkClicks',
         header: () => <SortHeader label="Link clicks" sorted={false} />,
-        cell: ({ row }) => {
-          const clicks = row.original.campaign?.clicks ?? row.original.ad?.clicks ?? null;
+        cell: ({ getValue }) => {
+          const clicks = getValue();
           return (
             <span className="block text-right text-[13px] tabular-nums">
               {clicks == null ? '—' : numberFmt.format(clicks)}
@@ -1504,16 +1608,30 @@ export function AdsManager({
         },
         enableSorting: false,
       }),
-      helper.display({
+      helper.accessor('cpm', {
         id: 'cpm',
         header: () => <SortHeader label="CPM" sorted={false} />,
-        cell: () => <span className="block text-right text-[13px] text-[#8A8D91]">—</span>,
+        cell: ({ getValue }) => {
+          const value = getValue();
+          return (
+            <span className="block text-right text-[13px] tabular-nums">
+              {value == null ? '—' : money(value, currency)}
+            </span>
+          );
+        },
         enableSorting: false,
       }),
-      helper.display({
+      helper.accessor('frequency', {
         id: 'frequency',
         header: () => <SortHeader label="Frequency" sorted={false} />,
-        cell: () => <span className="block text-right text-[13px] text-[#8A8D91]">—</span>,
+        cell: ({ getValue }) => {
+          const value = getValue();
+          return (
+            <span className="block text-right text-[13px] tabular-nums">
+              {value == null ? '—' : value.toFixed(2)}
+            </span>
+          );
+        },
         enableSorting: false,
       }),
       helper.display({
@@ -1532,7 +1650,7 @@ export function AdsManager({
     ]);
     // openDetail is stable enough via closure; recreate when level/currency change
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [level, currency]);
+  }, [level, currency, statusBusy]);
 
   function openDetail(row: ManagerRow) {
     if (row.campaign) onSelectDetail({ kind: 'campaign', campaign: row.campaign });
@@ -1610,7 +1728,37 @@ export function AdsManager({
   }
 
   function openSelectedInMeta() {
-    openMetaTool('campaigns', accountId);
+    const act = actNumber(accountId);
+    const ids = selectedIds();
+    const tool = level === 'campaigns' ? 'campaigns' : level === 'adsets' ? 'adsets' : 'ads';
+    const param =
+      level === 'campaigns'
+        ? 'selected_campaign_ids'
+        : level === 'adsets'
+          ? 'selected_adset_ids'
+          : 'selected_ad_ids';
+    const qs = ids.length ? `&${param}=${ids.join(',')}` : '';
+    window.open(
+      `https://adsmanager.facebook.com/adsmanager/manage/${tool}?act=${act}${qs}`,
+      '_blank',
+      'noopener,noreferrer'
+    );
+  }
+
+  function exportGridCsv() {
+    downloadAdsCsv(
+      `ads-${level}-${accountId}.csv`,
+      ['Name', 'Status', 'Results', 'Spend', 'Impressions', 'Reach', 'Clicks'],
+      rows.map((row) => [
+        row.name,
+        row.status,
+        row.results,
+        row.spend,
+        row.impressions ?? '',
+        row.reach ?? '',
+        row.campaign?.clicks ?? row.ad?.clicks ?? '',
+      ])
+    );
   }
 
   function editSelected() {
@@ -1688,7 +1836,8 @@ export function AdsManager({
               (item.key === 'campaigns' && shellView === 'campaigns') ||
               (item.key === 'overview' && shellView === 'overview') ||
               (item.key === 'audiences' && shellView === 'audiences') ||
-              (item.key === 'catalogs' && shellView === 'catalogs');
+              (item.key === 'catalogs' && shellView === 'catalogs') ||
+              (item.key === 'reporting' && shellView === 'reporting');
             return (
               <button
                 key={item.key}
@@ -2037,6 +2186,29 @@ export function AdsManager({
         <AudiencesPanel accountId={accountId} accountName={data.account.name} onBack={goCampaigns} />
       ) : shellView === 'catalogs' ? (
         <CatalogsPanel accountId={accountId} accountName={data.account.name} onBack={goCampaigns} />
+      ) : shellView === 'reporting' ? (
+        <div className="flex min-h-0 flex-1 flex-col">
+          <div className="flex justify-end border-b border-[#DADDE1] px-4 py-2">
+            <DateRangeMenu
+              datePreset={datePreset}
+              since={since}
+              until={until}
+              onSelectPreset={onSelectPreset}
+              onSince={onSince}
+              onUntil={onUntil}
+            />
+          </div>
+          <AdsReportingPanel
+            accountId={accountId}
+            currency={currency}
+            date={
+              since && until && since <= until
+                ? { mode: 'range', since, until }
+                : { mode: 'preset', datePreset }
+            }
+            onBack={goCampaigns}
+          />
+        </div>
       ) : shellView === 'overview' ? (
         <div className="flex-1 overflow-auto bg-[#F0F2F5] p-4">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
@@ -2096,9 +2268,8 @@ export function AdsManager({
               <span className="font-semibold text-[#050505]">Currency:</span> {data.account.currency}
             </p>
             <p className="mt-2">
-              Connected with <code className="rounded bg-[#F5F6F7] px-1">META_SYSTEM_USER_TOKEN</code>{' '}
-              (read-only). Reporting, Audiences, Billing and other tools open in Meta for this ad
-              account.
+              Connected with a per-account Meta token. Pause/resume works in-app. Billing and Events
+              still open in Meta.
             </p>
           </div>
         </div>
@@ -2215,6 +2386,20 @@ export function AdsManager({
             <ChevronDown className="size-3" />
           </ToolbarBtn>
           <ToolbarBtn
+            title="Pause selected in Podo"
+            disabled={!hasSelection || statusBusy}
+            onClick={() => void applyStatus(selectedIds(), 'PAUSED')}
+          >
+            Pause
+          </ToolbarBtn>
+          <ToolbarBtn
+            title="Turn on selected in Podo"
+            disabled={!hasSelection || statusBusy}
+            onClick={() => void applyStatus(selectedIds(), 'ACTIVE')}
+          >
+            Turn on
+          </ToolbarBtn>
+          <ToolbarBtn
             title="Delete / archive in Meta Ads Manager"
             onClick={openSelectedInMeta}
           >
@@ -2288,10 +2473,20 @@ export function AdsManager({
                     className="block w-full px-3 py-2 text-left text-[13px] hover:bg-[#F5F6F7]"
                     onClick={() => {
                       setMoreOpen(false);
-                      openMetaTool('reporting', accountId);
+                      exportGridCsv();
                     }}
                   >
-                    Ads reporting ↗
+                    Export table CSV
+                  </button>
+                  <button
+                    type="button"
+                    className="block w-full px-3 py-2 text-left text-[13px] hover:bg-[#F5F6F7]"
+                    onClick={() => {
+                      setMoreOpen(false);
+                      goReporting();
+                    }}
+                  >
+                    Ads reporting
                   </button>
                 </div>
               </>
@@ -2305,14 +2500,14 @@ export function AdsManager({
           </ToolbarBtn>
           <div className="relative">
             <ToolbarBtn
-              title="Breakdown"
+              title="Sort rows"
               onClick={() => {
                 setBreakdownOpen((v) => !v);
                 setGroupingOpen(false);
                 setMoreOpen(false);
               }}
             >
-              Breakdown{breakdown !== 'none' ? `: ${breakdown}` : ''}
+              Sort{breakdown !== 'none' ? `: ${breakdown}` : ''}
               <ChevronDown className="size-3" />
             </ToolbarBtn>
             {breakdownOpen && (

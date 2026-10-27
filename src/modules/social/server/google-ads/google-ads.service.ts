@@ -604,6 +604,15 @@ export const googleAdsService = {
           leads: stats.leads,
           costPerLead: stats.costPerLead,
           landingPageViews: 0,
+          reach: stats.reach || null,
+          frequency: null,
+          cpm: null,
+          linkClicks: stats.clicks || null,
+          startsAt: null,
+          endsAt: null,
+          attributionLabel: null,
+          bidStrategyLabel: null,
+          recommendations: 0,
         };
       })
       .sort(byActiveThenSpend);
@@ -619,8 +628,20 @@ export const googleAdsService = {
           campaignName: r.campaign?.name ?? null,
           targeting: { ageMin: null, ageMax: null, locations: [], interests: [], behaviors: [] },
           spend: stats.spend,
+          impressions: stats.impressions,
+          clicks: stats.clicks,
+          reach: stats.reach || null,
+          frequency: null,
+          cpm: null,
+          ctr: stats.ctr,
+          cpc: stats.cpc,
           leads: stats.leads,
           costPerLead: stats.costPerLead,
+          startsAt: null,
+          endsAt: null,
+          attributionLabel: null,
+          bidStrategyLabel: null,
+          recommendations: 0,
         };
       })
       .sort(byActiveThenSpend);
@@ -650,6 +671,15 @@ export const googleAdsService = {
           cpc: stats.cpc,
           leads: stats.leads,
           costPerLead: stats.costPerLead,
+          reach: stats.reach || null,
+          frequency: null,
+          cpm: null,
+          linkClicks: stats.clicks || null,
+          startsAt: null,
+          endsAt: null,
+          attributionLabel: null,
+          bidStrategyLabel: null,
+          recommendations: 0,
         };
       })
       .sort(byActiveThenSpend);

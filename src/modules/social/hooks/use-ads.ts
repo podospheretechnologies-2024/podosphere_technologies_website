@@ -7,6 +7,9 @@ import type {
   AdsCatalogsResult,
   AdsEntityHistory,
   AdsOverview,
+  AdsReportBreakdown,
+  AdsReportLevel,
+  AdsReportResult,
 } from '../types/ads';
 import { useClientScopeKey } from './use-client-scope';
 
@@ -65,6 +68,45 @@ export function useAdCatalogs(accountId: string | null) {
   return useSWR<AdsCatalogsResult>(url ? [url, scopeKey] : null, ([path]) => fetcher(path), {
     revalidateOnFocus: false,
   });
+}
+
+export function useAdsReport(
+  accountId: string | null,
+  date: AdsOverviewDateInput,
+  level: AdsReportLevel,
+  breakdown: AdsReportBreakdown,
+  compare: boolean
+) {
+  const scopeKey = useClientScopeKey();
+  const url = accountId
+    ? `${ADS_ACCOUNTS_API_ROUTE}/${accountId}/report?${dateQueryString(date)}&level=${level}&breakdown=${breakdown}&compare=${compare ? '1' : '0'}`
+    : null;
+  return useSWR<AdsReportResult>(url ? [url, scopeKey] : null, ([path]) => fetcher(path), {
+    revalidateOnFocus: false,
+    keepPreviousData: true,
+  });
+}
+
+export async function setAdsEntityStatus(
+  accountId: string,
+  kind: 'ad' | 'campaign' | 'adset',
+  ids: string[],
+  status: 'ACTIVE' | 'PAUSED'
+) {
+  const res = await fetch(`${ADS_ACCOUNTS_API_ROUTE}/${accountId}/status`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ kind, ids, status }),
+  });
+  const json = (await res.json().catch(() => ({}))) as {
+    error?: string;
+    updated?: string[];
+    failed?: { id: string; error: string }[];
+  };
+  if (!res.ok) {
+    throw new Error(json.error ?? 'Could not update ad status');
+  }
+  return { updated: json.updated ?? [], failed: json.failed ?? [] };
 }
 
 export function useAdsEntityHistory(

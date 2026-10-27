@@ -14,6 +14,32 @@ export const adAccountTokenBodySchema = z.object({
 
 export const adsEntityKindSchema = z.enum(['ad', 'campaign', 'adset']);
 export const adsEntityIdSchema = z.string().min(1).max(64);
+export const adsEntityStatusSchema = z.enum(['ACTIVE', 'PAUSED']);
+export const adsReportBreakdownSchema = z.enum([
+  'none',
+  'age',
+  'gender',
+  'age_gender',
+  'country',
+  'placement',
+  'device',
+]);
+export const adsReportLevelSchema = z.enum(['campaign', 'adset', 'ad']);
+
+export const adsEntityStatusBodySchema = z.object({
+  kind: adsEntityKindSchema,
+  ids: z.array(adsEntityIdSchema).min(1).max(50),
+  status: adsEntityStatusSchema,
+});
+
+export const adsReportExtrasSchema = z.object({
+  level: adsReportLevelSchema.default('campaign'),
+  breakdown: adsReportBreakdownSchema.default('none'),
+  compare: z
+    .enum(['1', 'true', '0', 'false'])
+    .optional()
+    .transform((value) => value === '1' || value === 'true'),
+});
 
 /** F14: generate draft ad creatives from brand kit (+ optional ad set context). Never publishes. */
 export const adsCreativeHelperBodySchema = z.object({

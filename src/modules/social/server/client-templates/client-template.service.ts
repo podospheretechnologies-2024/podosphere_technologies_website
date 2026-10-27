@@ -9,7 +9,7 @@ import type {
   SaveTemplateBody,
 } from './client-template.schema';
 import type { OnboardingStep } from '../../config/client-onboarding';
-import { isOnboardingStep } from '../../config/client-onboarding';
+import { ONBOARDING_STEPS, isOnboardingStep } from '../../config/client-onboarding';
 import type {
   ClientTemplateBootstrap,
   ClientTemplateData,
@@ -312,7 +312,20 @@ export const clientTemplateService = {
       },
     });
     if (!customer) throw new HttpError(404, 'Not found');
-    return customer;
+
+    // If the agency already connected channels for this client, the "connect link" and
+    // "channels" steps are redundant — the client was never going to connect something that is
+    // already connected. Jump the wizard straight to the brand kit. `channelsConnected` lets the
+    // UI (and the client portal) decide whether to show a connect prompt at all.
+    const channelsConnected = customer.integrations.length > 0;
+    const stepRank = (step: string) =>
+      Math.max(0, (ONBOARDING_STEPS as readonly string[]).indexOf(step));
+    const onboardingStep =
+      channelsConnected && stepRank(customer.onboardingStep) < stepRank('brand_kit')
+        ? 'brand_kit'
+        : customer.onboardingStep;
+
+    return { ...customer, onboardingStep, channelsConnected };
   },
 
   async setOnboardingStep(organizationId: string, customerId: string, step: OnboardingStep) {

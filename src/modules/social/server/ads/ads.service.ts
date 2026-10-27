@@ -4,26 +4,33 @@ import { getServerEnv } from '@/shared/lib/env';
 import { HttpError } from '@/shared/server/http-error';
 import { prisma } from '@/shared/lib/prisma';
 import { ADS_LEAD_ACTION_TYPES } from '../../config/ads';
-import type {
-  AdAccountItem,
-  AdsAdItem,
-  AdsAdSetItem,
-  AdsAdSetTargeting,
-  AdsAudienceItem,
-  AdsCampaignItem,
-  AdsCatalogItem,
-  AdsCatalogsResult,
-  AdsDailyPoint,
-  AdsEntityHistory,
-  AdsHistoryPoint,
-  AdsLeadItem,
-  AdsLiveAd,
-  AdsOverview,
-  AdsTotals,
+import { previousAdsRange } from '../../config/ads';
+import {
+  ADS_REPORT_BREAKDOWNS,
+  type AdAccountItem,
+  type AdsAdItem,
+  type AdsAdSetItem,
+  type AdsAdSetTargeting,
+  type AdsAudienceItem,
+  type AdsCampaignItem,
+  type AdsCatalogItem,
+  type AdsCatalogsResult,
+  type AdsDailyPoint,
+  type AdsEntityHistory,
+  type AdsHistoryPoint,
+  type AdsLeadItem,
+  type AdsLiveAd,
+  type AdsOverview,
+  type AdsReportBreakdown,
+  type AdsReportLevel,
+  type AdsReportResult,
+  type AdsReportRow,
+  type AdsTotals,
 } from '../../types/ads';
 import {
   GraphApiError,
   graphGet,
+  graphPost,
   type GraphConfig,
   type GraphList,
 } from '../integrations/providers/meta/graph-client';
@@ -33,7 +40,7 @@ type GraphPagedList<T> = GraphList<T> & {
   paging?: { cursors?: { after?: string }; next?: string };
 };
 
-// Read-only: nothing here pauses, edits or creates ads. See PODO_SOCIAL.md section 8 (safety rules).
+// Reads are live from Graph. The only write is pause/resume (`status`) — never create, duplicate, or change spend.
 
 interface GraphAction {
   action_type: string;
@@ -54,6 +61,15 @@ interface GraphInsight {
   clicks?: string;
   ctr?: string;
   cpc?: string;
+  cpm?: string;
+  frequency?: string;
+  inline_link_clicks?: string;
+  age?: string;
+  gender?: string;
+  country?: string;
+  publisher_platform?: string;
+  platform_position?: string;
+  impression_device?: string;
   actions?: GraphAction[];
 }
 
@@ -72,6 +88,9 @@ interface GraphCampaign {
   objective: string;
   daily_budget?: string;
   lifetime_budget?: string;
+  start_time?: string;
+  stop_time?: string;
+  bid_strategy?: string;
 }
 
 interface GraphTargetingInterest {
@@ -105,6 +124,17 @@ interface GraphAdSet {
   campaign_id?: string;
   campaign?: { id: string; name: string };
   targeting?: GraphTargeting;
+  start_time?: string;
+  end_time?: string;
+  daily_budget?: string;
+  lifetime_budget?: string;
+  bid_strategy?: string;
+  attribution_spec?: { event_type?: string; window_days?: number }[];
+}
+
+interface GraphRecommendation {
+  object_ids?: string[];
+  recommendation_type?: string;
 }
 
 interface GraphLinkData {
@@ -238,6 +268,80 @@ async function markAccountRefreshNeeded(externalId: string): Promise<void> {
   });
 }
 
+function formatBidStrategy(raw: string | undefined): string | null {
+  if (!raw) return null;
+  const labels: Record<string, string> = {
+    LOWEST_COST_WITHOUT_CAP: 'Highest volume',
+    LOWEST_COST_WITH_BID_CAP: 'Bid cap',
+    COST_CAP: 'Cost cap',
+    LOWEST_COST_WITH_MIN_ROAS: 'Minimum ROAS',
+    LOWEST_COST_WITH_MIN_ROAS_GOAL: 'Minimum ROAS',
+  };
+  return labels[raw] ?? raw.replace(/_/g, ' ').toLowerCase().replace(/^\w/, (c) => c.toUpperCase());
+}
+
+function formatAttribution(spec: GraphAdSet['attribution_spec']): string | null {
+  if (!spec?.length) return null;
+  const parts = spec
+    .map((item) => {
+      const days = item.window_days;
+      if (!days) return null;
+      if (item.event_type === 'CLICK_THROUGH') return `${days}-day click`;
+      if (item.event_type === 'VIEW_THROUGH' || item.event_type === 'ENGAGED_VIDEO_VIEW') {
+        return `${days}-day view`;
+      }
+      return `${days}-day`;
+    })
+    .filter((part): part is string => Boolean(part));
+  if (parts.length === 0) return null;
+  return parts.join(' or ');
+}
+
+function formatEnds(iso: string | undefined): string | null {
+  if (!iso) return null;
+  const date = iso.slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : null;
+}
+
+function recommendationCounts(rows: GraphRecommendation[]): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const row of rows) {
+    for (const id of row.object_ids ?? []) {
+      counts.set(id, (counts.get(id) ?? 0) + 1);
+    }
+  }
+  return counts;
+}
+
+function insightExtras(row: GraphInsight | undefined) {
+  const linkClicks = row?.inline_link_clicks ? num(row.inline_link_clicks) : null;
+  return {
+    reach: row?.reach != null ? num(row.reach) : null,
+    frequency: row?.frequency != null ? num(row.frequency) : null,
+    cpm: row?.cpm != null ? num(row.cpm) : null,
+    linkClicks,
+  };
+}
+
+function breakdownLabel(row: GraphInsight): string {
+  return (
+    [
+      row.age,
+      row.gender,
+      row.country,
+      row.publisher_platform,
+      row.platform_position,
+      row.impression_device,
+    ]
+      .filter(Boolean)
+      .join(' · ') || 'All'
+  );
+}
+
+function graphBreakdowns(breakdown: AdsReportBreakdown): string[] {
+  return [...(ADS_REPORT_BREAKDOWNS.find((item) => item.value === breakdown)?.graph ?? [])];
+}
+
 async function get<T>(
   token: string,
   path: string,
@@ -257,6 +361,35 @@ async function get<T>(
       }
       if (error.code === 10 || error.code === 200 || error.code === 294) {
         throw new HttpError(403, 'This token has no access to this ad account (needs ads_read).');
+      }
+      if (error.code === 17 || error.code === 80004) {
+        throw new HttpError(429, 'Meta rate limit reached for this ad account. Try again in a few minutes.');
+      }
+      throw new HttpError(502, `Meta: ${error.message}`);
+    }
+    throw error;
+  }
+}
+
+async function post<T>(
+  token: string,
+  path: string,
+  body: unknown,
+  accountExternalId?: string
+): Promise<T> {
+  try {
+    return await graphPost<T>(graphConfig(), path, token, body);
+  } catch (error) {
+    if (error instanceof GraphApiError) {
+      if (error.isAuthError) {
+        if (accountExternalId) await markAccountRefreshNeeded(accountExternalId);
+        throw new HttpError(
+          503,
+          'The Meta ad account token is expired or revoked. Set a new token for this account.'
+        );
+      }
+      if (error.code === 10 || error.code === 200 || error.code === 294) {
+        throw new HttpError(403, 'This token cannot change ads (needs ads_management).');
       }
       if (error.code === 17 || error.code === 80004) {
         throw new HttpError(429, 'Meta rate limit reached for this ad account. Try again in a few minutes.');
@@ -744,7 +877,8 @@ export const adsService = {
         token,
         `${accountId}/insights`,
         {
-          fields: 'campaign_id,campaign_name,spend,impressions,clicks,ctr,cpc,actions',
+          fields:
+            'campaign_id,campaign_name,spend,impressions,reach,clicks,ctr,cpc,cpm,frequency,inline_link_clicks,actions',
           level: 'campaign',
           ...dateParams,
           limit: PAGE_SIZE,
@@ -756,7 +890,8 @@ export const adsService = {
         token,
         `${accountId}/insights`,
         {
-          fields: 'adset_id,adset_name,spend,actions',
+          fields:
+            'adset_id,adset_name,spend,impressions,reach,clicks,ctr,cpc,cpm,frequency,inline_link_clicks,actions',
           level: 'adset',
           ...dateParams,
           limit: PAGE_SIZE,
@@ -770,7 +905,8 @@ export const adsService = {
         token,
         `${accountId}/insights`,
         {
-          fields: 'ad_id,ad_name,spend,impressions,clicks,ctr,cpc,actions',
+          fields:
+            'ad_id,ad_name,spend,impressions,reach,clicks,ctr,cpc,cpm,frequency,inline_link_clicks,actions',
           level: 'ad',
           ...dateParams,
           limit: PAGE_SIZE,
@@ -784,7 +920,8 @@ export const adsService = {
         token,
         `${accountId}/campaigns`,
         {
-          fields: 'name,effective_status,objective,daily_budget,lifetime_budget',
+          fields:
+            'name,effective_status,objective,daily_budget,lifetime_budget,start_time,stop_time,bid_strategy',
           limit: PAGE_SIZE,
         },
         MAX_PAGES,
@@ -794,7 +931,8 @@ export const adsService = {
         token,
         `${accountId}/adsets`,
         {
-          fields: 'name,effective_status,campaign_id,campaign{name},targeting',
+          fields:
+            'name,effective_status,campaign_id,campaign{name},targeting,start_time,end_time,daily_budget,lifetime_budget,bid_strategy,attribution_spec',
           limit: PAGE_SIZE,
         },
         MAX_PAGES,
@@ -820,11 +958,27 @@ export const adsService = {
         .filter((row): row is GraphInsight & { ad_id: string } => Boolean(row.ad_id))
         .map((row) => [row.ad_id, row])
     );
+    const recCounts = recommendationCounts(
+      await getPaged<GraphRecommendation>(
+        token,
+        `${accountId}/recommendations`,
+        { fields: 'object_ids,recommendation_type', limit: PAGE_SIZE },
+        3,
+        accountId
+      ).catch(() => [] as GraphRecommendation[])
+    );
+    const attributionByCampaign = new Map<string, string | null>();
+    for (const adset of adSets) {
+      const campaignId = adset.campaign_id ?? adset.campaign?.id;
+      if (!campaignId || attributionByCampaign.has(campaignId)) continue;
+      attributionByCampaign.set(campaignId, formatAttribution(adset.attribution_spec));
+    }
 
     const campaignItems: AdsCampaignItem[] = campaigns.map((campaign) => {
-      const stats = toTotals(insightByCampaign.get(campaign.id));
+      const insight = insightByCampaign.get(campaign.id);
+      const stats = toTotals(insight);
+      const extras = insightExtras(insight);
       const budget = budgetFromCampaign(campaign, account.currency);
-      const actions = insightByCampaign.get(campaign.id)?.actions;
       return {
         id: campaign.id,
         name: campaign.name,
@@ -838,7 +992,13 @@ export const adsService = {
         cpc: stats.cpc,
         leads: stats.leads,
         costPerLead: stats.costPerLead,
-        landingPageViews: landingPageViewsOf(actions),
+        landingPageViews: landingPageViewsOf(insight?.actions),
+        ...extras,
+        startsAt: formatEnds(campaign.start_time),
+        endsAt: formatEnds(campaign.stop_time),
+        attributionLabel: attributionByCampaign.get(campaign.id) ?? null,
+        bidStrategyLabel: formatBidStrategy(campaign.bid_strategy),
+        recommendations: recCounts.get(campaign.id) ?? 0,
       };
     });
     campaignItems.sort(
@@ -846,7 +1006,9 @@ export const adsService = {
     );
 
     const adSetItems: AdsAdSetItem[] = adSets.map((adset) => {
-      const stats = toTotals(insightByAdSet.get(adset.id));
+      const insight = insightByAdSet.get(adset.id);
+      const stats = toTotals(insight);
+      const extras = insightExtras(insight);
       return {
         id: adset.id,
         name: adset.name,
@@ -855,8 +1017,20 @@ export const adsService = {
         campaignName: adset.campaign?.name ?? null,
         targeting: parseTargeting(adset.targeting),
         spend: stats.spend,
+        impressions: extras.reach != null || stats.impressions ? stats.impressions : null,
+        clicks: insight ? stats.clicks : null,
+        reach: extras.reach,
+        frequency: extras.frequency,
+        cpm: extras.cpm,
+        ctr: insight ? stats.ctr : null,
+        cpc: insight ? stats.cpc : null,
         leads: stats.leads,
         costPerLead: stats.costPerLead,
+        startsAt: formatEnds(adset.start_time),
+        endsAt: formatEnds(adset.end_time),
+        attributionLabel: formatAttribution(adset.attribution_spec),
+        bidStrategyLabel: formatBidStrategy(adset.bid_strategy),
+        recommendations: recCounts.get(adset.id) ?? 0,
       };
     });
     adSetItems.sort(
@@ -864,8 +1038,11 @@ export const adsService = {
     );
 
     const adItems: AdsAdItem[] = adsRaw.map((ad) => {
-      const stats = toTotals(insightByAd.get(ad.id));
+      const insight = insightByAd.get(ad.id);
+      const stats = toTotals(insight);
+      const extras = insightExtras(insight);
       const creative = creativeFields(ad.creative);
+      const parent = adSets.find((item) => item.id === (ad.adset_id ?? ad.adset?.id));
       return {
         id: ad.id,
         name: ad.name,
@@ -885,6 +1062,12 @@ export const adsService = {
         cpc: stats.cpc,
         leads: stats.leads,
         costPerLead: stats.costPerLead,
+        ...extras,
+        startsAt: formatEnds(parent?.start_time),
+        endsAt: formatEnds(parent?.end_time),
+        attributionLabel: formatAttribution(parent?.attribution_spec),
+        bidStrategyLabel: formatBidStrategy(parent?.bid_strategy),
+        recommendations: recCounts.get(ad.id) ?? 0,
       };
     });
     adItems.sort(
@@ -1081,4 +1264,139 @@ export const adsService = {
       history,
     };
   },
+
+  /** Breakdown report for one ad account (age / gender / placement / device). */
+  async report(
+    scope: ClientScope,
+    accountId: string,
+    date: AdsOverviewDateQuery,
+    level: AdsReportLevel,
+    breakdown: AdsReportBreakdown,
+    compare: boolean
+  ): Promise<AdsReportResult> {
+    await this.requireAccount(scope, accountId);
+    const token = await this.requireAccountToken(scope, accountId);
+    const dateParams = insightDateParams(date);
+    const dims = graphBreakdowns(breakdown);
+    const fields =
+      level === 'adset'
+        ? 'adset_id,adset_name,spend,impressions,reach,clicks,ctr,cpc,actions'
+        : level === 'ad'
+          ? 'ad_id,ad_name,spend,impressions,reach,clicks,ctr,cpc,actions'
+          : 'campaign_id,campaign_name,spend,impressions,reach,clicks,ctr,cpc,actions';
+
+    const fetchRows = (params: Record<string, string | number>) =>
+      getPaged<GraphInsight>(
+        token,
+        `${accountId}/insights`,
+        {
+          fields,
+          level,
+          ...params,
+          ...(dims.length ? { breakdowns: dims.join(',') } : {}),
+          limit: PAGE_SIZE,
+        },
+        MAX_PAGES,
+        accountId
+      );
+
+    const current = await fetchRows(dateParams);
+    const previousRange = compare ? previousAdsRange(date) : null;
+    const previous = previousRange
+      ? await fetchRows({
+          time_range: JSON.stringify({ since: previousRange.since, until: previousRange.until }),
+        }).catch(() => [] as GraphInsight[])
+      : [];
+
+    const previousByKey = new Map<string, GraphInsight>();
+    for (const row of previous) {
+      previousByKey.set(reportRowKey(row, level), row);
+    }
+
+    const rows: AdsReportRow[] = current.map((row) => {
+      const stats = toTotals(row);
+      const prev = previousByKey.get(reportRowKey(row, level));
+      const prevStats = prev ? toTotals(prev) : null;
+      return {
+        entityId:
+          (level === 'ad' ? row.ad_id : level === 'adset' ? row.adset_id : row.campaign_id) ?? '',
+        entityName:
+          (level === 'ad' ? row.ad_name : level === 'adset' ? row.adset_name : row.campaign_name) ??
+          '(unnamed)',
+        breakdownLabel: breakdown === 'none' ? 'All' : breakdownLabel(row),
+        age: row.age ?? null,
+        gender: row.gender ?? null,
+        country: row.country ?? null,
+        publisherPlatform: row.publisher_platform ?? null,
+        platformPosition: row.platform_position ?? null,
+        device: row.impression_device ?? null,
+        spend: stats.spend,
+        impressions: stats.impressions,
+        reach: stats.reach,
+        clicks: stats.clicks,
+        leads: stats.leads,
+        ctr: stats.ctr,
+        cpc: stats.cpc,
+        previous: prevStats
+          ? {
+              spend: prevStats.spend,
+              impressions: prevStats.impressions,
+              clicks: prevStats.clicks,
+              leads: prevStats.leads,
+            }
+          : null,
+      };
+    });
+    rows.sort((a, b) => b.spend - a.spend);
+
+    return {
+      level,
+      breakdown,
+      since: date.mode === 'range' ? date.since : null,
+      until: date.mode === 'range' ? date.until : null,
+      datePreset: date.mode === 'preset' ? date.datePreset : null,
+      compareSince: previousRange?.since ?? null,
+      compareUntil: previousRange?.until ?? null,
+      rows,
+    };
+  },
+
+  /** Pause or resume campaigns / ad sets / ads. Does not create, duplicate, or change budgets. */
+  async setEntityStatus(
+    scope: ClientScope,
+    accountId: string,
+    _kind: 'ad' | 'campaign' | 'adset',
+    ids: string[],
+    status: 'ACTIVE' | 'PAUSED'
+  ): Promise<{ updated: string[]; failed: { id: string; error: string }[] }> {
+    await this.requireAccount(scope, accountId);
+    const token = await this.requireAccountToken(scope, accountId);
+    const updated: string[] = [];
+    const failed: { id: string; error: string }[] = [];
+    for (const id of ids) {
+      try {
+        await post<{ success?: boolean }>(token, id, { status }, accountId);
+        updated.push(id);
+      } catch (error) {
+        failed.push({
+          id,
+          error: error instanceof HttpError ? error.message : 'Could not update status',
+        });
+      }
+    }
+    return { updated, failed };
+  },
 };
+
+function reportRowKey(row: GraphInsight, level: AdsReportLevel): string {
+  const id = level === 'ad' ? row.ad_id : level === 'adset' ? row.adset_id : row.campaign_id;
+  return [
+    id ?? '',
+    row.age ?? '',
+    row.gender ?? '',
+    row.country ?? '',
+    row.publisher_platform ?? '',
+    row.platform_position ?? '',
+    row.impression_device ?? '',
+  ].join('|');
+}

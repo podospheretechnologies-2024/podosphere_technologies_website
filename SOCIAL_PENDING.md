@@ -140,7 +140,7 @@ Legend: ✅ done in working tree · 🟡 partial / needs ops · ❌ not started 
 | 🟠 | Env: `RESEND_API_KEY`, Razorpay + `RAZORPAY_PLAN_*`, AI keys, Pinterest, Threads | Dev |
 | 🟠 | **Google Ads: apply for Explorer access** — Cloud Console → `podo-social-ads` → Google Ads API → **Access levels** → Manage. Developer tokens were sunset 9 Sep 2026; no token needed. | Founder / Dev |
 | 🟠 | **Google Ads: add the `adwords` scope** under Google Auth Platform → Data Access in `podo-social-ads` (consent screen is **Internal**, so no verification and no test-user list) | Dev |
-| 🟠 | **Google Ads: set `GOOGLE_ADS_CLIENT_ID` / `GOOGLE_ADS_CLIENT_SECRET`** from the `Podo Social — Google Ads` OAuth client. Do **not** overwrite `GOOGLE_CLIENT_*` — four integrations share it. | Dev |
+| ✅ | **Google Ads: `GOOGLE_ADS_CLIENT_ID` / `GOOGLE_ADS_CLIENT_SECRET` set in `.env`** — dedicated `Podo Social — Google Ads` client, distinct from the shared `GOOGLE_CLIENT_*` (which four integrations share). | Dev |
 | 🟠 | **Google Ads: link the 4 client ad accounts into MCC `987-922-1937`** (it currently has none), then set `GOOGLE_ADS_LOGIN_CUSTOMER_ID=9879221937` | Founder |
 | 🟡 | **Google Ads: migrate the personal-account Cloud project** that owns `GOOGLE_CLIENT_ID` into the org, so YouTube / GBP / Sheets stop depending on a personal Gmail | Founder / Dev |
 | 🟠 | Reconnect integrations marked `refreshNeeded` (~75 live); the analytics worker now **skips** them, so their stats stay frozen until someone reconnects. Also fix the Siyara Beauty Meta ad account. | Founder / Dev |
