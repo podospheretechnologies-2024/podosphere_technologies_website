@@ -50,3 +50,8 @@ export const scoreLeadSchema = z.object({
   /** When true, also push the scored lead to PodoCRM if linked. Default false. */
   pushToCrm: z.boolean().optional().default(false),
 });
+
+export const assignLeadsSchema = z.object({
+  leadIds: z.array(z.string().uuid()).min(1).max(200),
+  assigneeId: z.string().uuid().nullable(),
+});

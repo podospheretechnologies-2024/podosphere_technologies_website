@@ -9,7 +9,7 @@ services:
       MYSQL_PASSWORD: podo
       MYSQL_ROOT_PASSWORD: root
     ports:
-      - '3307:3306'
+      - '3407:3306'
     volumes:
       - podosphere_mysql_data:/var/lib/mysql
     healthcheck:

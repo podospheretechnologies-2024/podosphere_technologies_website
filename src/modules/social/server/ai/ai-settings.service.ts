@@ -69,10 +69,20 @@ function activeConfig(row: SettingsRow | undefined | null): ResolvedAiConfig | n
   };
 }
 
+/**
+ * Server-wide fallback used by every client without its own key: Claude first, then OpenAI, then
+ * Gemini. A single GEMINI_API_KEY (or OPENAI_API_KEY) in .env is enough to turn text + image AI on.
+ */
 function envTextConfig(): ResolvedAiConfig | null {
   const env = getServerEnv();
   if (env.ANTHROPIC_API_KEY) {
     return { provider: 'anthropic', apiKey: env.ANTHROPIC_API_KEY, model: env.ANTHROPIC_MODEL };
+  }
+  if (env.OPENAI_API_KEY) {
+    return { provider: 'openai', apiKey: env.OPENAI_API_KEY, model: env.OPENAI_MODEL };
+  }
+  if (env.GEMINI_API_KEY) {
+    return { provider: 'gemini', apiKey: env.GEMINI_API_KEY, model: env.GEMINI_MODEL };
   }
   return null;
 }

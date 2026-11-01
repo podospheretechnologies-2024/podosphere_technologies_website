@@ -1129,11 +1129,13 @@ model SocialLead {
   // Set when successfully pushed to PodoCRM via /sync/leads.
   crmSyncedAt    DateTime? @map("crm_synced_at")
   crmExternalId  String?   @map("crm_external_id") @db.VarChar(128)
+  assigneeId     String?   @map("assignee_id")
   payload        Json
   createdAt      DateTime  @default(now())
 
   organization Organization    @relation(fields: [organizationId], references: [id])
   customer     SocialCustomer? @relation(fields: [customerId], references: [id])
+  assignee     User?           @relation(fields: [assigneeId], references: [id], onDelete: SetNull)
 
   @@unique([organizationId, source, externalId])
   @@index([organizationId, createdAt])
@@ -1141,6 +1143,7 @@ model SocialLead {
   @@index([organizationId, stage])
   @@index([organizationId, score])
   @@index([organizationId, crmSyncedAt])
+  @@index([organizationId, assigneeId])
   @@map("social_leads")
 }
 

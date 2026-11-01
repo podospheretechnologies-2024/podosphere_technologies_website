@@ -97,6 +97,7 @@ model User {
 
   clientMemberships     SocialClientMember[]
   assignedInboxThreads  SocialInboxThread[]
+  assignedLeads         SocialLead[]
   aiThreads             SocialAiThread[]
 
   organization Organization @relation(fields: [organizationId], references: [id])

@@ -177,6 +177,8 @@ function mapLead(row: {
   scoredAt?: Date | null;
   crmSyncedAt?: Date | null;
   crmExternalId?: string | null;
+  assigneeId?: string | null;
+  assignee?: { id: string; name: string } | null;
   createdAt: Date;
 }) {
   return {
@@ -191,6 +193,8 @@ function mapLead(row: {
     scoredAt: row.scoredAt?.toISOString() ?? null,
     crmSyncedAt: row.crmSyncedAt?.toISOString() ?? null,
     crmExternalId: row.crmExternalId ?? null,
+    assigneeId: row.assigneeId ?? null,
+    assigneeName: row.assignee?.name ?? null,
     createdAt: row.createdAt.toISOString(),
   };
 }
@@ -520,16 +524,50 @@ export const inboxService = {
     return mapThread(updated);
   },
 
-  async listLeads(scope: ClientScope, options?: { stage?: string }) {
+  async listLeads(scope: ClientScope, options?: { stage?: string; assigneeId?: string | null }) {
     const rows = await prisma.socialLead.findMany({
       where: {
         ...scopeWhere(scope),
         ...(options?.stage ? { stage: options.stage } : {}),
+        ...(options?.assigneeId !== undefined ? { assigneeId: options.assigneeId } : {}),
       },
       orderBy: { createdAt: 'desc' },
       take: 200,
+      include: { assignee: { select: { id: true, name: true } } },
     });
     return rows.map(mapLead);
+  },
+
+  async assignLeads(
+    scope: ClientScope,
+    leadIds: string[],
+    assigneeId: string | null
+  ) {
+    if (assigneeId) {
+      const member = await prisma.user.findFirst({
+        where: { id: assigneeId, organizationId: scope.organizationId, deletedAt: null },
+        select: { id: true },
+      });
+      if (!member) throw new HttpError(400, 'Assignee is not a member of this organization');
+    }
+
+    const leads = await prisma.socialLead.findMany({
+      where: { id: { in: leadIds }, ...scopeWhere(scope) },
+      select: { id: true },
+    });
+    const validIds = leads.map((l) => l.id);
+    if (validIds.length === 0) throw new HttpError(404, 'No matching leads found');
+
+    await prisma.socialLead.updateMany({
+      where: { id: { in: validIds } },
+      data: { assigneeId },
+    });
+
+    const updated = await prisma.socialLead.findMany({
+      where: { id: { in: validIds } },
+      include: { assignee: { select: { id: true, name: true } } },
+    });
+    return updated.map(mapLead);
   },
 
   async updateLeadStage(scope: ClientScope, id: string, stage: LeadStage) {
