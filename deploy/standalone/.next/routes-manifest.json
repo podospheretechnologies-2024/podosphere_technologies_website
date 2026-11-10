@@ -216,6 +216,94 @@
       "namedRegex": "^/api/social/google\\-sheets/spreadsheets/(?<nxtPid>[^/]+?)(?:/)?$"
     },
     {
+      "page": "/api/social/growth/ad-plan/[id]",
+      "regex": "^/api/social/growth/ad\\-plan/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/social/growth/ad\\-plan/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/api/social/growth/blogs/[id]",
+      "regex": "^/api/social/growth/blogs/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/social/growth/blogs/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/api/social/growth/blogs/[id]/publish",
+      "regex": "^/api/social/growth/blogs/([^/]+?)/publish(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/social/growth/blogs/(?<nxtPid>[^/]+?)/publish(?:/)?$"
+    },
+    {
+      "page": "/api/social/growth/blogs/[id]/write",
+      "regex": "^/api/social/growth/blogs/([^/]+?)/write(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/social/growth/blogs/(?<nxtPid>[^/]+?)/write(?:/)?$"
+    },
+    {
+      "page": "/api/social/growth/briefs/[id]",
+      "regex": "^/api/social/growth/briefs/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/social/growth/briefs/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/api/social/growth/briefs/[id]/tasks",
+      "regex": "^/api/social/growth/briefs/([^/]+?)/tasks(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/social/growth/briefs/(?<nxtPid>[^/]+?)/tasks(?:/)?$"
+    },
+    {
+      "page": "/api/social/growth/changes/[id]",
+      "regex": "^/api/social/growth/changes/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/social/growth/changes/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/api/social/growth/content/[postId]/boost",
+      "regex": "^/api/social/growth/content/([^/]+?)/boost(?:/)?$",
+      "routeKeys": {
+        "nxtPpostId": "nxtPpostId"
+      },
+      "namedRegex": "^/api/social/growth/content/(?<nxtPpostId>[^/]+?)/boost(?:/)?$"
+    },
+    {
+      "page": "/api/social/growth/reports/[id]",
+      "regex": "^/api/social/growth/reports/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/social/growth/reports/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/api/social/growth/tasks/[id]",
+      "regex": "^/api/social/growth/tasks/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/social/growth/tasks/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/api/social/growth/videos/[id]",
+      "regex": "^/api/social/growth/videos/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/social/growth/videos/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
       "page": "/api/social/hashtag-groups/[id]",
       "regex": "^/api/social/hashtag\\-groups/([^/]+?)(?:/)?$",
       "routeKeys": {
@@ -818,6 +906,102 @@
       "namedRegex": "^/api/social/google\\-sheets/refresh(?:/)?$"
     },
     {
+      "page": "/api/social/growth/ad-plan",
+      "regex": "^/api/social/growth/ad\\-plan(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/social/growth/ad\\-plan(?:/)?$"
+    },
+    {
+      "page": "/api/social/growth/blogs",
+      "regex": "^/api/social/growth/blogs(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/social/growth/blogs(?:/)?$"
+    },
+    {
+      "page": "/api/social/growth/briefs",
+      "regex": "^/api/social/growth/briefs(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/social/growth/briefs(?:/)?$"
+    },
+    {
+      "page": "/api/social/growth/changes",
+      "regex": "^/api/social/growth/changes(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/social/growth/changes(?:/)?$"
+    },
+    {
+      "page": "/api/social/growth/content",
+      "regex": "^/api/social/growth/content(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/social/growth/content(?:/)?$"
+    },
+    {
+      "page": "/api/social/growth/content/ideas",
+      "regex": "^/api/social/growth/content/ideas(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/social/growth/content/ideas(?:/)?$"
+    },
+    {
+      "page": "/api/social/growth/insights",
+      "regex": "^/api/social/growth/insights(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/social/growth/insights(?:/)?$"
+    },
+    {
+      "page": "/api/social/growth/overview",
+      "regex": "^/api/social/growth/overview(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/social/growth/overview(?:/)?$"
+    },
+    {
+      "page": "/api/social/growth/reports",
+      "regex": "^/api/social/growth/reports(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/social/growth/reports(?:/)?$"
+    },
+    {
+      "page": "/api/social/growth/settings",
+      "regex": "^/api/social/growth/settings(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/social/growth/settings(?:/)?$"
+    },
+    {
+      "page": "/api/social/growth/shopify",
+      "regex": "^/api/social/growth/shopify(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/social/growth/shopify(?:/)?$"
+    },
+    {
+      "page": "/api/social/growth/shopify/sync",
+      "regex": "^/api/social/growth/shopify/sync(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/social/growth/shopify/sync(?:/)?$"
+    },
+    {
+      "page": "/api/social/growth/summary",
+      "regex": "^/api/social/growth/summary(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/social/growth/summary(?:/)?$"
+    },
+    {
+      "page": "/api/social/growth/tasks",
+      "regex": "^/api/social/growth/tasks(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/social/growth/tasks(?:/)?$"
+    },
+    {
+      "page": "/api/social/growth/videos",
+      "regex": "^/api/social/growth/videos(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/social/growth/videos(?:/)?$"
+    },
+    {
+      "page": "/api/social/growth/website",
+      "regex": "^/api/social/growth/website(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/social/growth/website(?:/)?$"
+    },
+    {
       "page": "/api/social/hashtag-groups",
       "regex": "^/api/social/hashtag\\-groups(?:/)?$",
       "routeKeys": {},
@@ -1134,6 +1318,12 @@
       "regex": "^/dashboard/social/clients(?:/)?$",
       "routeKeys": {},
       "namedRegex": "^/dashboard/social/clients(?:/)?$"
+    },
+    {
+      "page": "/dashboard/social/growth",
+      "regex": "^/dashboard/social/growth(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/dashboard/social/growth(?:/)?$"
     },
     {
       "page": "/dashboard/social/inbox",

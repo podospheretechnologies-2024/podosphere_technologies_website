@@ -7,6 +7,7 @@ import { startIntegrationWorker } from '@/modules/social/server/integrations/int
 import { startAlertWorker } from '@/modules/social/server/alerts/alert.worker';
 import { startReportWorker } from '@/modules/social/server/reports/report.worker';
 import { startWeeklyPlanWorker } from '@/modules/social/server/ai/weekly-plan.worker';
+import { startGrowthWorker } from '@/modules/social/server/growth/growth.worker';
 
 // Background process for queued jobs. Every module that needs background work
 // starts its workers here.
@@ -20,6 +21,7 @@ async function main() {
     await startAlertWorker(), // alerts.evaluate + alerts.slaSweep
     await startReportWorker(),
     await startWeeklyPlanWorker(),
+    await startGrowthWorker(), // Growth Desk: Shopify sync, post tasks, daily insights
   ];
   console.log('[worker] started');
 

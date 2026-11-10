@@ -66,6 +66,8 @@ const serverEnvSchema = z.object({
   // Manager (MCC) customer id, digits only; sent as login-customer-id when accounts are reached through it.
   GOOGLE_ADS_LOGIN_CUSTOMER_ID: z.string().optional(),
   GOOGLE_ADS_API_VERSION: z.string().optional(),
+  // Shopify Admin GraphQL API version for the Growth Desk store connection (custom-app tokens per client).
+  SHOPIFY_API_VERSION: z.string().regex(/^\d{4}-\d{2}$/).default('2026-07'),
   // Pinterest (OAuth + /v5/pins). Optional — Connect stays disabled until both are set.
   PINTEREST_CLIENT_ID: z.string().optional(),
   PINTEREST_CLIENT_SECRET: z.string().optional(),

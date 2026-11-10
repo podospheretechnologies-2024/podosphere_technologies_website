@@ -5,7 +5,7 @@
       "routeType": "page",
       "response": "complete",
       "compute": "static",
-      "htmlSize": 49894,
+      "htmlSize": 50420,
       "experimentalBypassFor": [
         {
           "type": "header",
@@ -62,7 +62,7 @@
       "routeType": "page",
       "response": "complete",
       "compute": "static",
-      "htmlSize": 8400,
+      "htmlSize": 8912,
       "experimentalBypassFor": [
         {
           "type": "header",
@@ -90,7 +90,7 @@
       "routeType": "page",
       "response": "complete",
       "compute": "static",
-      "htmlSize": 16202,
+      "htmlSize": 16714,
       "experimentalBypassFor": [
         {
           "type": "header",
@@ -150,7 +150,7 @@
       "routeType": "page",
       "response": "complete",
       "compute": "static",
-      "htmlSize": 12133,
+      "htmlSize": 12671,
       "experimentalBypassFor": [
         {
           "type": "header",
@@ -178,7 +178,7 @@
       "routeType": "page",
       "response": "complete",
       "compute": "static",
-      "htmlSize": 12341,
+      "htmlSize": 12879,
       "experimentalBypassFor": [
         {
           "type": "header",
@@ -206,7 +206,7 @@
       "routeType": "page",
       "response": "complete",
       "compute": "static",
-      "htmlSize": 23819,
+      "htmlSize": 24331,
       "experimentalBypassFor": [
         {
           "type": "header",
@@ -234,7 +234,7 @@
       "routeType": "page",
       "response": "complete",
       "compute": "static",
-      "htmlSize": 12412,
+      "htmlSize": 12950,
       "experimentalBypassFor": [
         {
           "type": "header",
@@ -294,7 +294,7 @@
       "routeType": "page",
       "response": "complete",
       "compute": "static",
-      "htmlSize": 20802,
+      "htmlSize": 21314,
       "experimentalBypassFor": [
         {
           "type": "header",
@@ -322,7 +322,7 @@
       "routeType": "page",
       "response": "complete",
       "compute": "static",
-      "htmlSize": 22105,
+      "htmlSize": 22617,
       "experimentalBypassFor": [
         {
           "type": "header",

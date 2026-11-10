@@ -55,6 +55,7 @@ export const adInsightRowSchema = z
     ctr: optionalGraphString,
     frequency: optionalGraphString,
     actions: z.array(adInsightActionSchema).optional().catch(undefined),
+    action_values: z.array(adInsightActionSchema).optional().catch(undefined),
   })
   .passthrough();
 

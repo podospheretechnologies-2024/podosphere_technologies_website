@@ -1,0 +1,3 @@
+{
+  "/api/social/growth/content/[postId]/boost/route": "app/api/social/growth/content/[postId]/boost/route.js"
+}

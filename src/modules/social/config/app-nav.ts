@@ -16,6 +16,7 @@ import {
   Users,
   FileText,
   Contact,
+  TrendingUp,
 } from 'lucide-react';
 import { SOCIAL_BASE_PATH } from './navigation';
 
@@ -79,6 +80,12 @@ export const socialAppNav: SocialAppNavItem[] = [
     label: 'WhatsApp',
     href: `${SOCIAL_BASE_PATH}/whatsapp`,
     icon: MessageCircle,
+  },
+  {
+    key: 'growth',
+    label: 'Growth',
+    href: `${SOCIAL_BASE_PATH}/growth`,
+    icon: TrendingUp,
   },
   {
     key: 'ads',

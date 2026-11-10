@@ -17,6 +17,7 @@ import {
   adSetNodeSchema,
 } from './ads.graph.schema';
 import { getServerEnv } from '@/shared/lib/env';
+import { ecommerceFromInsight } from './ads-ecommerce';
 
 // 2 hours for structure (campaigns/adsets/ads)
 const SYNC_STRUCTURE_EVERY_MS = 2 * 60 * 60 * 1000;
@@ -250,6 +251,8 @@ async function syncStructure() {
 }
 
 const INSIGHT_LOOKBACK_DAYS = 14;
+const ECOMMERCE_BACKFILL_DAYS = 90;
+const ECOMMERCE_BACKFILL_KIND = 'ads.ecommerce.backfill';
 const INSIGHT_LEVELS = [
   { level: 'campaign', idField: 'campaign_id' },
   { level: 'adset', idField: 'adset_id' },
@@ -277,6 +280,9 @@ async function upsertInsightDaily(input: {
   reach: string | undefined;
   clicks: string | undefined;
   leads: number;
+  purchases: number;
+  purchaseValue: number;
+  addToCart: number;
   cpc: string | null;
   ctr: string | null;
   frequency: string | null;
@@ -297,6 +303,9 @@ async function upsertInsightDaily(input: {
       reach,
       clicks: parseInt(input.clicks || '0', 10) || 0,
       leads: input.leads,
+      purchases: input.purchases,
+      purchaseValue: input.purchaseValue.toFixed(2),
+      addToCart: input.addToCart,
       cpc: input.cpc,
       ctr: input.ctr,
       frequency: input.frequency,
@@ -311,6 +320,9 @@ async function upsertInsightDaily(input: {
       reach,
       clicks: parseInt(input.clicks || '0', 10) || 0,
       leads: input.leads,
+      purchases: input.purchases,
+      purchaseValue: input.purchaseValue.toFixed(2),
+      addToCart: input.addToCart,
       cpc: input.cpc,
       ctr: input.ctr,
       frequency: input.frequency,
@@ -328,6 +340,7 @@ async function syncInsights() {
       accessTokenEncrypted: true,
       refreshNeeded: true,
       timezoneName: true,
+      organizationId: true,
     },
   });
   const config = getGraphConfig();
@@ -339,7 +352,13 @@ async function syncInsights() {
     try {
       const until = accountDateOnly(account.timezoneName);
       const since = new Date(until);
-      since.setUTCDate(since.getUTCDate() - (INSIGHT_LOOKBACK_DAYS - 1));
+      // One-time 90-day backfill so purchases / revenue (added for the Growth Desk) cover history.
+      const backfill = await prisma.socialSyncState.findUnique({
+        where: { adAccountId_kind: { adAccountId: account.id, kind: ECOMMERCE_BACKFILL_KIND } },
+        select: { backfillDoneAt: true },
+      });
+      const lookbackDays = backfill?.backfillDoneAt ? INSIGHT_LOOKBACK_DAYS : ECOMMERCE_BACKFILL_DAYS;
+      since.setUTCDate(since.getUTCDate() - (lookbackDays - 1));
       const timeRange = JSON.stringify({ since: ymd(since), until: ymd(until) });
 
       for (const { level, idField } of INSIGHT_LEVELS) {
@@ -349,7 +368,7 @@ async function syncInsights() {
             level,
             time_range: timeRange,
             time_increment: 1,
-            fields: `${idField},date_start,spend,impressions,reach,clicks,cpc,ctr,frequency,actions`,
+            fields: `${idField},date_start,spend,impressions,reach,clicks,cpc,ctr,frequency,actions,action_values`,
             limit: STRUCTURE_PAGE_LIMIT,
           }),
           `ads.insights:${account.externalId}:${level}`
@@ -380,11 +399,28 @@ async function syncInsights() {
             reach: insight.reach,
             clicks: insight.clicks,
             leads,
+            ...ecommerceFromInsight(insight),
             cpc: insight.cpc || null,
             ctr: insight.ctr || null,
             frequency: insight.frequency || null,
           });
         }
+      }
+
+      if (!backfill?.backfillDoneAt) {
+        const now = new Date();
+        await prisma.socialSyncState.upsert({
+          where: { adAccountId_kind: { adAccountId: account.id, kind: ECOMMERCE_BACKFILL_KIND } },
+          update: { backfillDoneAt: now, lastRunAt: now, lastSuccessAt: now },
+          create: {
+            organizationId: account.organizationId,
+            adAccountId: account.id,
+            kind: ECOMMERCE_BACKFILL_KIND,
+            backfillDoneAt: now,
+            lastRunAt: now,
+            lastSuccessAt: now,
+          },
+        });
       }
 
       if (account.refreshNeeded) {

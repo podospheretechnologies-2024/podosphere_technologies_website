@@ -969,6 +969,11 @@ model AdInsightDaily {
   reach       BigInt
   clicks      Int
   leads       Int
+  /// Meta-reported purchases (omni_purchase / purchase action), for ROAS.
+  purchases     Int     @default(0)
+  /// Meta-reported purchase value (action_values), in the ad account currency.
+  purchaseValue Decimal @default(0) @map("purchase_value") @db.Decimal(14, 2)
+  addToCart     Int     @default(0) @map("add_to_cart")
   frequency   Decimal? @db.Decimal(8, 4)
   ctr         Decimal? @db.Decimal(8, 4)
   cpc         Decimal? @db.Decimal(14, 4)

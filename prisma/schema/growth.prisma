@@ -1,0 +1,322 @@
+// Growth Desk (PODO_GROWTH_DESK_PLAN.md): per-client e-commerce performance desk.
+// Shopify store + daily store metrics, goals, tasks with review, change log, bot insights,
+// ad plan approvals, SEO blogs, idea-box briefs, AI video ideas, post boosts and 15-day reports.
+// Every table carries organizationId + customerId and is read through scopeWhere().
+// Guide-only rule: nothing here writes to ad accounts. The only outside write is publishing an
+// approved blog to the client's Shopify store, and only when a person presses Publish.
+
+// One Shopify store per client, connected with a custom-app Admin API token
+// (or Dev Dashboard client id + secret, exchanged for short-lived tokens).
+model SocialShopifyStore {
+  id                    String    @id @default(uuid())
+  organizationId        String
+  customerId            String    @unique
+  /// "my-store.myshopify.com"
+  shopDomain            String    @unique @db.VarChar(255)
+  shopName              String?   @db.VarChar(255)
+  /// Public storefront URL, e.g. "https://siyarabeauty.com"
+  primaryUrl            String?   @db.VarChar(512)
+  currency              String    @default("INR") @db.VarChar(3)
+  /// IANA time zone of the store; daily metrics are bucketed in this zone.
+  timeZone              String    @default("Asia/Kolkata") @db.VarChar(64)
+  /// "token" = Admin API access token pasted by the agency; "client_credentials" = id + secret.
+  authMode              String    @default("token") @db.VarChar(24)
+  /// AES-GCM encrypted (see @/shared/lib/crypto).
+  accessTokenEncrypted  String?   @db.Text
+  clientId              String?   @db.VarChar(255)
+  clientSecretEncrypted String?   @db.Text
+  tokenExpiresAt        DateTime?
+  scopes                String?   @db.Text
+  /// "active" | "error"
+  status                String    @default("active") @db.VarChar(16)
+  lastError             String?   @db.VarChar(1024)
+  lastSyncedAt          DateTime?
+  /// Shopify traffic (ShopifyQL) availability: null = not tried, true/false after first try.
+  trafficAvailable      Boolean?
+  trafficError          String?   @db.VarChar(1024)
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@index([organizationId])
+  @@map("social_shopify_stores")
+}
+
+// One row per store per store-local day.
+model ShopifyDailyMetric {
+  id              String   @id @default(uuid())
+  storeId         String
+  organizationId  String
+  customerId      String
+  date            DateTime @db.Date
+  orders          Int      @default(0)
+  /// Sum of current order totals (after edits/refunds), excluding cancelled and test orders.
+  sales           Decimal  @default(0) @db.Decimal(14, 2)
+  cancelledOrders Int      @default(0)
+  cancelledSales  Decimal  @default(0) @db.Decimal(14, 2)
+  /// From ShopifyQL when the store exposes it; null otherwise.
+  sessions        Int?
+  addToCart       Int?
+  checkouts       Int?
+  fetchedAt       DateTime @updatedAt
+
+  @@unique([storeId, date])
+  @@index([organizationId, customerId, date])
+  @@map("shopify_daily_metrics")
+}
+
+// Latest website funnel breakdown (landing pages, sources, devices) for a period.
+model ShopifyTrafficSnapshot {
+  id             String   @id @default(uuid())
+  storeId        String
+  organizationId String
+  customerId     String
+  periodStart    DateTime @db.Date
+  periodEnd      DateTime @db.Date
+  sessions       Int      @default(0)
+  addToCart      Int      @default(0)
+  orders         Int      @default(0)
+  /// [{ name, sessions, atc }]
+  landing        Json
+  sources        Json
+  devices        Json
+  note           String?  @db.Text
+  createdAt      DateTime @default(now())
+
+  @@index([organizationId, customerId, createdAt])
+  @@map("shopify_traffic_snapshots")
+}
+
+// Goals and desk settings per client.
+model SocialGrowthSettings {
+  id              String   @id @default(uuid())
+  organizationId  String
+  customerId      String   @unique
+  targetRoas      Decimal  @default(10) @db.Decimal(8, 2)
+  dailyBudget     Decimal? @db.Decimal(14, 2)
+  budgetCap       Decimal? @db.Decimal(14, 2)
+  blogsPerMonth   Int      @default(5)
+  reportEveryDays Int      @default(15)
+  /// Optional link to the client's content calendar sheet.
+  contentSheetUrl String?  @db.VarChar(2048)
+  /// Plain facts about the brand the AI may use (promise, founder, stores, season). No offers.
+  brandContext    String?  @db.Text
+  /// Turn off the daily AI insights job for this client.
+  insightsEnabled Boolean  @default(true)
+  lastInsightsAt  DateTime?
+  updatedAt       DateTime @updatedAt
+  createdAt       DateTime @default(now())
+
+  @@index([organizationId])
+  @@map("social_growth_settings")
+}
+
+// Work items for the team: todo -> review -> done (or sent back to todo with a note).
+model SocialTask {
+  id             String    @id @default(uuid())
+  organizationId String
+  customerId     String
+  title          String    @db.VarChar(255)
+  detail         String?   @db.Text
+  /// ads | website | content | smm | seo | design | video | other
+  area           String    @default("ads") @db.VarChar(24)
+  /// high | med | low
+  priority       String    @default("med") @db.VarChar(8)
+  /// todo | review | done
+  status         String    @default("todo") @db.VarChar(12)
+  dueDate        DateTime? @db.Date
+  assigneeId     String?
+  link           String?   @db.VarChar(2048)
+  /// manual | bot | post | brief | insight | blog | ad_plan
+  source         String    @default("manual") @db.VarChar(16)
+  /// Idempotency key for generated tasks, e.g. "post:<id>:approve". Unique per client.
+  sourceRef      String?   @db.VarChar(191)
+  doneNote       String?   @db.Text
+  doneAt         DateTime?
+  doneById       String?
+  reviewNote     String?   @db.Text
+  reviewedAt     DateTime?
+  reviewedById   String?
+  createdById    String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@unique([customerId, sourceRef])
+  @@index([organizationId, customerId, status])
+  @@index([organizationId, assigneeId])
+  @@map("social_tasks")
+}
+
+// Manual log of changes made in Ads Manager or on the store.
+model SocialChangeLog {
+  id             String   @id @default(uuid())
+  organizationId String
+  customerId     String
+  /// Campaign / ad set / ad / page where the change was made.
+  place          String   @db.VarChar(255)
+  what           String   @db.Text
+  why            String?  @db.Text
+  byName         String?  @db.VarChar(120)
+  userId         String?
+  createdAt      DateTime @default(now())
+
+  @@index([organizationId, customerId, createdAt])
+  @@map("social_change_logs")
+}
+
+// Findings written by the daily insights job ("What the bot noticed").
+model SocialGrowthInsight {
+  id             String   @id @default(uuid())
+  organizationId String
+  customerId     String
+  date           DateTime @db.Date
+  /// good | warn | bad | info
+  severity       String   @default("info") @db.VarChar(8)
+  title          String   @db.VarChar(255)
+  body           String   @db.Text
+  createdAt      DateTime @default(now())
+
+  @@index([organizationId, customerId, date])
+  @@map("social_growth_insights")
+}
+
+// Proposed ads: campaign -> ad set -> ad. Owner approves; marketer builds it in Ads Manager and marks it live.
+model SocialAdPlanItem {
+  id             String    @id @default(uuid())
+  organizationId String
+  customerId     String
+  campaignName   String    @db.VarChar(255)
+  objective      String?   @db.VarChar(120)
+  budgetNote     String?   @db.VarChar(255)
+  adsetName      String    @db.VarChar(255)
+  audience       String?   @db.Text
+  adName         String    @db.VarChar(255)
+  format         String?   @db.VarChar(120)
+  hook           String?   @db.Text
+  primaryText    String?   @db.Text
+  headline       String?   @db.VarChar(255)
+  description    String?   @db.VarChar(512)
+  cta            String?   @db.VarChar(64)
+  landingPage    String?   @db.VarChar(2048)
+  product        String?   @db.VarChar(255)
+  placements     String?   @db.VarChar(255)
+  imageNote      String?   @db.Text
+  imageUrl       String?   @db.VarChar(2048)
+  rationale      String?   @db.Text
+  /// pending | approved | rejected | live
+  status         String    @default("pending") @db.VarChar(12)
+  feedback       String?   @db.Text
+  decidedAt      DateTime?
+  decidedById    String?
+  liveAt         DateTime?
+  source         String    @default("bot") @db.VarChar(16)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([organizationId, customerId, status])
+  @@map("social_ad_plan_items")
+}
+
+// SEO blog: idea -> draft -> (changes) -> approved -> published (to the Shopify blog).
+model SocialBlog {
+  id               String    @id @default(uuid())
+  organizationId   String
+  customerId       String
+  title            String    @db.VarChar(255)
+  slug             String?   @db.VarChar(255)
+  metaDescription  String?   @db.VarChar(512)
+  keywords         String?   @db.VarChar(512)
+  angle            String?   @db.Text
+  bodyHtml         String?   @db.LongText
+  /// [{ text, url }]
+  productLinks     Json?
+  coverImageUrl    String?   @db.VarChar(2048)
+  /// idea | draft | changes | approved | published | rejected
+  status           String    @default("idea") @db.VarChar(12)
+  feedback         String?   @db.Text
+  writeNext        Boolean   @default(false)
+  shopifyBlogId    String?   @db.VarChar(191)
+  shopifyArticleId String?   @db.VarChar(191)
+  publishedUrl     String?   @db.VarChar(2048)
+  publishedAt      DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@index([organizationId, customerId, status])
+  @@map("social_blogs")
+}
+
+// Idea box: a rough idea turned into a worked brief.
+model SocialBrief {
+  id             String   @id @default(uuid())
+  organizationId String
+  customerId     String
+  area           String   @db.VarChar(40)
+  ask            String   @db.Text
+  /// { title, summary, ideas[], creative, script, copy, tasks[] } or null when the AI was unavailable.
+  output         Json?
+  tasksAdded     Boolean  @default(false)
+  createdById    String?
+  createdAt      DateTime @default(now())
+
+  @@index([organizationId, customerId, createdAt])
+  @@map("social_briefs")
+}
+
+// AI video ideas with ordered prompts for Gemini / Flow / other video tools.
+model SocialVideoIdea {
+  id             String   @id @default(uuid())
+  organizationId String
+  customerId     String
+  title          String   @db.VarChar(255)
+  length         String?  @db.VarChar(40)
+  hook           String?  @db.Text
+  tool           String?  @db.VarChar(120)
+  product        String?  @db.VarChar(255)
+  landingPage    String?  @db.VarChar(2048)
+  /// [{ label, text }]
+  prompts        Json
+  createdAt      DateTime @default(now())
+
+  @@index([organizationId, customerId, createdAt])
+  @@map("social_video_ideas")
+}
+
+// Boost plan for a scheduled/published post (the post itself stays in SocialPost).
+model SocialPostBoost {
+  id             String   @id @default(uuid())
+  organizationId String
+  customerId     String
+  postId         String   @unique
+  boost          Boolean  @default(true)
+  budget         Decimal? @db.Decimal(14, 2)
+  spend          Decimal? @db.Decimal(14, 2)
+  note           String?  @db.Text
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([organizationId, customerId])
+  @@map("social_post_boosts")
+}
+
+// 15-day report: numbers, insights, work done and the plan for the next 30 days.
+model SocialGrowthReport {
+  id             String   @id @default(uuid())
+  organizationId String
+  customerId     String
+  title          String   @db.VarChar(255)
+  periodStart    DateTime @db.Date
+  periodEnd      DateTime @db.Date
+  kpis           Json
+  summary        String   @db.Text
+  insights       Json
+  done           Json
+  /// [{ phase, dates, focus, actions[] }]
+  poa            Json
+  targets        Json
+  /// "ai" | "numbers"
+  by             String   @default("ai") @db.VarChar(12)
+  createdAt      DateTime @default(now())
+
+  @@index([organizationId, customerId, createdAt])
+  @@map("social_growth_reports")
+}
