@@ -1,0 +1,3 @@
+{
+  "/(auth)/client/set-password/page": "app/(auth)/client/set-password/page.js"
+}

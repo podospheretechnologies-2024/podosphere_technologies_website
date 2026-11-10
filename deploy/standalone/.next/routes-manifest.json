@@ -184,6 +184,32 @@
       "namedRegex": "^/api/social/clients/(?<nxtPid>[^/]+?)(?:/)?$"
     },
     {
+      "page": "/api/social/clients/[id]/approvers",
+      "regex": "^/api/social/clients/([^/]+?)/approvers(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/social/clients/(?<nxtPid>[^/]+?)/approvers(?:/)?$"
+    },
+    {
+      "page": "/api/social/clients/[id]/approvers/[approverId]",
+      "regex": "^/api/social/clients/([^/]+?)/approvers/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid",
+        "nxtPapproverId": "nxtPapproverId"
+      },
+      "namedRegex": "^/api/social/clients/(?<nxtPid>[^/]+?)/approvers/(?<nxtPapproverId>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/api/social/clients/[id]/approvers/[approverId]/password",
+      "regex": "^/api/social/clients/([^/]+?)/approvers/([^/]+?)/password(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid",
+        "nxtPapproverId": "nxtPapproverId"
+      },
+      "namedRegex": "^/api/social/clients/(?<nxtPid>[^/]+?)/approvers/(?<nxtPapproverId>[^/]+?)/password(?:/)?$"
+    },
+    {
       "page": "/api/social/clients/[id]/magic-link",
       "regex": "^/api/social/clients/([^/]+?)/magic\\-link(?:/)?$",
       "routeKeys": {
@@ -200,12 +226,36 @@
       "namedRegex": "^/api/social/clients/(?<nxtPid>[^/]+?)/onboarding(?:/)?$"
     },
     {
+      "page": "/api/social/clients/[id]/portal-goals",
+      "regex": "^/api/social/clients/([^/]+?)/portal\\-goals(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/social/clients/(?<nxtPid>[^/]+?)/portal\\-goals(?:/)?$"
+    },
+    {
       "page": "/api/social/clients/[id]/portal-login",
       "regex": "^/api/social/clients/([^/]+?)/portal\\-login(?:/)?$",
       "routeKeys": {
         "nxtPid": "nxtPid"
       },
       "namedRegex": "^/api/social/clients/(?<nxtPid>[^/]+?)/portal\\-login(?:/)?$"
+    },
+    {
+      "page": "/api/social/clients/[id]/portal-requests",
+      "regex": "^/api/social/clients/([^/]+?)/portal\\-requests(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/social/clients/(?<nxtPid>[^/]+?)/portal\\-requests(?:/)?$"
+    },
+    {
+      "page": "/api/social/clients/[id]/portal-tabs",
+      "regex": "^/api/social/clients/([^/]+?)/portal\\-tabs(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/social/clients/(?<nxtPid>[^/]+?)/portal\\-tabs(?:/)?$"
     },
     {
       "page": "/api/social/clients/[id]/revoke-link",
@@ -676,6 +726,66 @@
       "namedRegex": "^/api/meta/data\\-deletion(?:/)?$"
     },
     {
+      "page": "/api/portal/ads",
+      "regex": "^/api/portal/ads(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/portal/ads(?:/)?$"
+    },
+    {
+      "page": "/api/portal/brand",
+      "regex": "^/api/portal/brand(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/portal/brand(?:/)?$"
+    },
+    {
+      "page": "/api/portal/brand/media",
+      "regex": "^/api/portal/brand/media(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/portal/brand/media(?:/)?$"
+    },
+    {
+      "page": "/api/portal/leads",
+      "regex": "^/api/portal/leads(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/portal/leads(?:/)?$"
+    },
+    {
+      "page": "/api/portal/login",
+      "regex": "^/api/portal/login(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/portal/login(?:/)?$"
+    },
+    {
+      "page": "/api/portal/logout",
+      "regex": "^/api/portal/logout(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/portal/logout(?:/)?$"
+    },
+    {
+      "page": "/api/portal/password",
+      "regex": "^/api/portal/password(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/portal/password(?:/)?$"
+    },
+    {
+      "page": "/api/portal/requests",
+      "regex": "^/api/portal/requests(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/portal/requests(?:/)?$"
+    },
+    {
+      "page": "/api/portal/sales",
+      "regex": "^/api/portal/sales(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/portal/sales(?:/)?$"
+    },
+    {
+      "page": "/api/portal/set-password",
+      "regex": "^/api/portal/set\\-password(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/portal/set\\-password(?:/)?$"
+    },
+    {
       "page": "/api/social/ads/accounts",
       "regex": "^/api/social/ads/accounts(?:/)?$",
       "routeKeys": {},
@@ -962,6 +1072,48 @@
       "regex": "^/api/social/growth/content/ideas(?:/)?$",
       "routeKeys": {},
       "namedRegex": "^/api/social/growth/content/ideas(?:/)?$"
+    },
+    {
+      "page": "/api/social/growth/content-sheet",
+      "regex": "^/api/social/growth/content\\-sheet(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/social/growth/content\\-sheet(?:/)?$"
+    },
+    {
+      "page": "/api/social/growth/content-sheet/options",
+      "regex": "^/api/social/growth/content\\-sheet/options(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/social/growth/content\\-sheet/options(?:/)?$"
+    },
+    {
+      "page": "/api/social/growth/ga4",
+      "regex": "^/api/social/growth/ga4(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/social/growth/ga4(?:/)?$"
+    },
+    {
+      "page": "/api/social/growth/ga4/callback",
+      "regex": "^/api/social/growth/ga4/callback(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/social/growth/ga4/callback(?:/)?$"
+    },
+    {
+      "page": "/api/social/growth/ga4/connect",
+      "regex": "^/api/social/growth/ga4/connect(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/social/growth/ga4/connect(?:/)?$"
+    },
+    {
+      "page": "/api/social/growth/ga4/properties",
+      "regex": "^/api/social/growth/ga4/properties(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/social/growth/ga4/properties(?:/)?$"
+    },
+    {
+      "page": "/api/social/growth/ga4/sync",
+      "regex": "^/api/social/growth/ga4/sync(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/social/growth/ga4/sync(?:/)?$"
     },
     {
       "page": "/api/social/growth/insights",
@@ -1264,10 +1416,22 @@
       "namedRegex": "^/api/webhooks/whatsapp(?:/)?$"
     },
     {
+      "page": "/approver/change-password",
+      "regex": "^/approver/change\\-password(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/approver/change\\-password(?:/)?$"
+    },
+    {
       "page": "/approver/portal",
       "regex": "^/approver/portal(?:/)?$",
       "routeKeys": {},
       "namedRegex": "^/approver/portal(?:/)?$"
+    },
+    {
+      "page": "/client/set-password",
+      "regex": "^/client/set\\-password(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/client/set\\-password(?:/)?$"
     },
     {
       "page": "/dashboard",
@@ -1430,6 +1594,72 @@
       "regex": "^/login(?:/)?$",
       "routeKeys": {},
       "namedRegex": "^/login(?:/)?$"
+    },
+    {
+      "page": "/portal",
+      "regex": "^/portal(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/portal(?:/)?$"
+    },
+    {
+      "page": "/portal/ads",
+      "regex": "^/portal/ads(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/portal/ads(?:/)?$"
+    },
+    {
+      "page": "/portal/analytics",
+      "regex": "^/portal/analytics(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/portal/analytics(?:/)?$"
+    },
+    {
+      "page": "/portal/brand",
+      "regex": "^/portal/brand(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/portal/brand(?:/)?$"
+    },
+    {
+      "page": "/portal/channels",
+      "regex": "^/portal/channels(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/portal/channels(?:/)?$"
+    },
+    {
+      "page": "/portal/content",
+      "regex": "^/portal/content(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/portal/content(?:/)?$"
+    },
+    {
+      "page": "/portal/leads",
+      "regex": "^/portal/leads(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/portal/leads(?:/)?$"
+    },
+    {
+      "page": "/portal/overview",
+      "regex": "^/portal/overview(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/portal/overview(?:/)?$"
+    },
+    {
+      "page": "/portal/reports",
+      "regex": "^/portal/reports(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/portal/reports(?:/)?$"
+    },
+    {
+      "page": "/portal/requests",
+      "regex": "^/portal/requests(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/portal/requests(?:/)?$"
+    },
+    {
+      "page": "/portal/sales",
+      "regex": "^/portal/sales(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/portal/sales(?:/)?$"
     },
     {
       "page": "/privacy",

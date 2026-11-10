@@ -1,0 +1,3 @@
+{
+  "/api/social/clients/[id]/portal-goals/route": "app/api/social/clients/[id]/portal-goals/route.js"
+}

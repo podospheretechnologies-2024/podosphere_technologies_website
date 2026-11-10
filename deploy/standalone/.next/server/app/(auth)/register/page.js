@@ -8,7 +8,7 @@ R.c("server/chunks/ssr/1q8-_next_dist_client_components_098eziz._.js")
 R.c("server/chunks/ssr/1q8-_next_dist_client_components_builtin_forbidden_1j_kigo.js")
 R.c("server/chunks/ssr/1q8-_next_dist_client_components_builtin_unauthorized_015stkh.js")
 R.c("server/chunks/ssr/1q8-_next_dist_client_components_builtin_global-error_10pzi_3.js")
-R.c("server/chunks/ssr/_08ssa5k._.js")
+R.c("server/chunks/ssr/_0cuzjr1._.js")
 R.c("server/chunks/ssr/_next-internal_server_app_(auth)_register_page_actions_04l6fhn.js")
 R.m(788094)
 module.exports=R.m(788094).exports
