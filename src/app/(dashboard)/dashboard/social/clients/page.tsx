@@ -14,9 +14,11 @@ import {
   Pencil,
   LogIn,
   Shuffle,
+  KeyRound,
 } from 'lucide-react';
 import { apiFetch } from '@/shared/lib/fetcher';
 import { useClientScopeKey } from '@/modules/social/hooks/use-client-scope';
+import { PortalAccessModal } from '@/modules/social/components/clients/portal-access-modal';
 
 type ClientTemplateListItem = {
   id: string;
@@ -175,6 +177,7 @@ export default function ClientsPage() {
   const [savedTemplateId, setSavedTemplateId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [portalAccessClient, setPortalAccessClient] = useState<{ id: string; name: string } | null>(null);
 
   function openAdd() {
     setForm(EMPTY_FORM);
@@ -670,6 +673,13 @@ export default function ClientsPage() {
                       >
                         <Pencil className="size-3.5" /> Edit links
                       </button>
+                      <button
+                        onClick={() => setPortalAccessClient({ id: client.id, name: client.name })}
+                        className="inline-flex items-center gap-1.5 rounded-md border bg-surface px-3 py-1.5 text-xs font-medium shadow-sm hover:bg-surface-muted transition"
+                        title="Manage client portal email/password logins"
+                      >
+                        <KeyRound className="size-3.5" /> Portal access
+                      </button>
                       <Link
                         href={`/dashboard/social/clients/${client.id}/onboarding`}
                         className="inline-flex items-center gap-1.5 rounded-md border bg-surface px-3 py-1.5 text-xs font-medium shadow-sm hover:bg-surface-muted transition"
@@ -743,6 +753,13 @@ export default function ClientsPage() {
           </tbody>
         </table>
       </div>
+
+      <PortalAccessModal
+        open={Boolean(portalAccessClient)}
+        clientId={portalAccessClient?.id ?? ''}
+        clientName={portalAccessClient?.name ?? ''}
+        onClose={() => setPortalAccessClient(null)}
+      />
     </div>
   );
 }

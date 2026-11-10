@@ -6,12 +6,16 @@ import { Input } from '@/shared/components/ui/input';
 import { cn } from '@/shared/lib/cn';
 import { errorText, growthCall, useGrowth, type GrowthSettings, type ShopifyStore } from './growth-api';
 import { ErrorLine, Field, Panel, Pill, textareaClass } from './growth-ui';
+import { Ga4Panel } from './growth-ga4';
+import { ContentSheetPanel } from './growth-content-sheet';
 
 export function SettingsTab({ canReview, onChange }: { canReview: boolean; onChange: () => void }) {
   return (
     <div className="grid gap-4 lg:grid-cols-2">
       <ShopifyPanel canReview={canReview} onChange={onChange} />
       <GoalsPanel canReview={canReview} onChange={onChange} />
+      <Ga4Panel canReview={canReview} onChange={onChange} />
+      <ContentSheetPanel canReview={canReview} />
     </div>
   );
 }
@@ -200,7 +204,6 @@ function GoalsPanel({ canReview, onChange }: { canReview: boolean; onChange: () 
         budgetCap: form!.budgetCap,
         blogsPerMonth: form!.blogsPerMonth,
         reportEveryDays: form!.reportEveryDays,
-        contentSheetUrl: form!.contentSheetUrl || null,
         brandContext: form!.brandContext || null,
         insightsEnabled: form!.insightsEnabled,
       });
@@ -235,9 +238,6 @@ function GoalsPanel({ canReview, onChange }: { canReview: boolean; onChange: () 
           Daily AI check
         </label>
       </div>
-      <Field label="Content calendar sheet link (optional)">
-        <Input value={form.contentSheetUrl ?? ''} disabled={!canReview} onChange={(e) => set('contentSheetUrl', e.target.value)} placeholder="https://docs.google.com/…" />
-      </Field>
       <Field label="Brand facts the AI may use (promise, founder, stores, season). No offers or prices it should invent.">
         <textarea
           className={textareaClass}

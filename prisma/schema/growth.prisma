@@ -98,6 +98,8 @@ model SocialGrowthSettings {
   reportEveryDays Int      @default(15)
   /// Optional link to the client's content calendar sheet.
   contentSheetUrl String?  @db.VarChar(2048)
+  /// Only read this tab of the sheet (null = every tab). For one master sheet with a tab per client.
+  contentSheetTab String?  @db.VarChar(191)
   /// Plain facts about the brand the AI may use (promise, founder, stores, season). No offers.
   brandContext    String?  @db.Text
   /// Turn off the daily AI insights job for this client.

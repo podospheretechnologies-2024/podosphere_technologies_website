@@ -1,6 +1,11 @@
 import 'server-only';
 import { cookies } from 'next/headers';
-import { approvalService, type PortalSession } from '@/modules/social/server/approvals/approval.service';
+import {
+  approvalService,
+  portalSessionMaxAge,
+  type PortalSession,
+  type PortalSessionTtl,
+} from '@/modules/social/server/approvals/approval.service';
 import { HttpError } from './http-error';
 
 export const APPROVER_SESSION_COOKIE = 'approver_session';
@@ -15,7 +20,7 @@ export async function getPortalSession(): Promise<PortalSession> {
   const cookieStore = await cookies();
   const token = cookieStore.get(APPROVER_SESSION_COOKIE)?.value;
   if (!token) {
-    throw new HttpError(401, 'Please use your magic link to sign in');
+    throw new HttpError(401, 'Please log in to the client portal');
   }
   return approvalService.verifyPortalSession(token);
 }
@@ -27,4 +32,33 @@ export async function getPortalSessionOrNull(): Promise<PortalSession | null> {
   } catch {
     return null;
   }
+}
+
+/** Write the portal session cookie. `ttl` must match the JWT expiry from `createPortalSession`. */
+export async function setPortalSessionCookie(token: string, ttl: PortalSessionTtl): Promise<void> {
+  const cookieStore = await cookies();
+  cookieStore.set(APPROVER_SESSION_COOKIE, token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    path: '/',
+    maxAge: portalSessionMaxAge(ttl),
+  });
+}
+
+export async function clearPortalSessionCookie(): Promise<void> {
+  const cookieStore = await cookies();
+  cookieStore.delete(APPROVER_SESSION_COOKIE);
+}
+
+/**
+ * Portal actions other than password change: refuse until the client replaces a generated password.
+ * Agency "Login as client" (agencyPreview) is allowed through so staff can review the portal.
+ */
+export async function requirePortalSessionReady(): Promise<PortalSession> {
+  const session = await getPortalSession();
+  if (session.mustChangePassword && !session.agencyPreview) {
+    throw new HttpError(403, 'Set your own password before continuing');
+  }
+  return session;
 }

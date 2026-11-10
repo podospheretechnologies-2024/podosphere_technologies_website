@@ -1,13 +1,15 @@
 import { errorResponse } from '@/shared/server/http-error';
 import { growthRequest } from '@/modules/social/server/growth/growth-http';
 import { shopifyService } from '@/modules/social/server/growth/shopify.service';
+import { ga4Service } from '@/modules/social/server/growth/ga4.service';
 import { prisma } from '@/shared/lib/prisma';
 
 export async function GET() {
   try {
     const { gc } = await growthRequest('view');
-    const [store, snapshot] = await Promise.all([
+    const [store, ga4, snapshot] = await Promise.all([
       shopifyService.get(gc.organizationId, gc.customerId),
+      ga4Service.website(gc.organizationId, gc.customerId),
       prisma.shopifyTrafficSnapshot.findFirst({
         where: { organizationId: gc.organizationId, customerId: gc.customerId },
         orderBy: { createdAt: 'desc' },
@@ -15,6 +17,7 @@ export async function GET() {
     ]);
     return Response.json({
       store,
+      ga4,
       snapshot: snapshot
         ? {
             periodStart: snapshot.periodStart.toISOString().slice(0, 10),

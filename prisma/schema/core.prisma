@@ -71,6 +71,7 @@ model Organization {
   whatsappBroadcasts    WhatsAppBroadcast[]
   whatsappConnections   SocialWhatsAppConnection[]
   whatsappAutoReplies   SocialWhatsAppAutoReply[]
+  portalRequests        SocialPortalRequest[]
 
   @@map("organizations")
 }

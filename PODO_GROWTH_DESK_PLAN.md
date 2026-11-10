@@ -48,6 +48,56 @@ dev.shopify.com → create app → set the same scopes → release a version →
 copy Client ID + Client secret → Growth → Setup → "Client ID + secret". The desk exchanges them for
 short-lived tokens itself. Screen names may differ slightly.
 
+### Google Analytics (GA4), added 10 Nov 2026, uncommitted, not tested against a live property
+
+Connected like Meta / Google Ads: one Google login per organization (scope `analytics.readonly`). It
+lists every GA4 property that login can read, and each property is assigned to one client. Read-only.
+
+- Code: `prisma/schema/ga4.prisma` + migration `20261110160000_ga4`, `server/growth/ga4.client.ts`
+  (Admin API discovery, Data API `runReport` / `batchRunReports`, parsers), `ga4.service.ts`, routes
+  `/api/social/growth/ga4` (+ `connect`, `callback`, `properties`, `sync`), UI `components/growth/growth-ga4.tsx`
+  (Setup panel + Website-tab section), worker jobs `growth.ga4.syncAll` (every 3 h) and `growth.ga4.syncProperty`.
+- Stored per client: `ga4_daily_metrics` (90 days: sessions, users, new users, engaged sessions,
+  add to cart, checkout, purchases, purchase revenue, key events) and `ga4_traffic_snapshots`
+  (last 30 days by channel, source / medium, landing page, device). These rows will feed the client portal's Analytics tab.
+- Isolation: one property per client (unique `customerId`); a property already used by another client is
+  refused (409) and hidden from the picker; when a property changes client, its synced rows are deleted.
+
+Setup (owner):
+1. Google Cloud project of `GOOGLE_CLIENT_ID`: enable **Google Analytics Admin API** and **Google Analytics
+   Data API**; on the OAuth client add the redirect URI `<APP_URL>/api/social/growth/ga4/callback`; if the
+   consent screen is in Testing, add the agency Google account as a test user.
+2. `pnpm db:migrate` (local) / `pnpm db:deploy` (prod), then reload web + worker.
+3. Growth → pick a client → Setup → **Connect Google Analytics** (owner/admin).
+4. In each client's GA4: Admin → Property access management → add the agency Google account as **Viewer**.
+   Then press Refresh list in Setup, pick the property, and press Sync now.
+5. Purchase / revenue numbers only show when the site sends GA4 e-commerce events (`add_to_cart`, `begin_checkout`, `purchase`).
+
+### Content calendar from Google Sheets, added 10 Nov 2026, uncommitted, not tested against a live sheet
+
+This reuses the existing org-wide **Google Sheets** login from Plugs (scopes `spreadsheets.readonly` + `drive.readonly`).
+Each client links its own content calendar sheet, and can be limited to one tab when a master sheet holds every client.
+It is read-only and never writes to the sheet.
+
+- Code: column `contentSheetTab` on `social_growth_settings` (migration `20261110200000_content_sheet_tab`);
+  `server/growth/content-sheet.service.ts`; routes `/api/social/growth/content-sheet` (GET rows, PUT link) and
+  `/content-sheet/options` (picker list); in `google-sheets.service.ts`: `clientSpreadsheet` (reads one sheet live, cached 15 min),
+  `listLite`, `filterSheetRows` and a scoped `contentForDate`; UI `components/growth/growth-content-sheet.tsx`
+  (a Setup panel, plus a section on the Content tab).
+- Content tab: dated rows from 2 weeks back to 60 days ahead, with the Platform / Format / Status columns when the sheet has them.
+  Each row is marked "In Calendar" when a post for this client exists that day, otherwise "Not scheduled".
+- Isolation (this also fixes the old composer behaviour): when a client is picked, the composer's "fill from Sheets"
+  uses only that client's sheet or tab. Sheets and tabs linked to other clients are hidden from `/api/social/google-sheets`,
+  `/content` and `/spreadsheets/[id]`. "All clients" (owner/admin, nothing picked) is unchanged.
+- Connecting from Growth → Setup now sends the user back to the Growth Desk (OAuth state carries `returnTo`).
+
+Setup (owner):
+1. In the Google Cloud project of `GOOGLE_CLIENT_ID`, enable the **Google Sheets API** and **Google Drive API**. On the OAuth client,
+   add the redirect URI `<APP_URL>/api/social/google-sheets/callback`.
+2. `pnpm db:migrate` / `pnpm db:deploy`.
+3. Growth → client → Setup → Content calendar → **Connect Google Sheets** (owner/admin, once).
+4. Share each client's sheet with that Google account (Viewer). Then pick it from the list, or paste its link, and choose a tab if needed.
+
 ---
 
 Source: the claude.ai artifact "Siyara Ads Bot" (https://claude.ai/artifact/R2huQoNMzAWLHfaDibSY6K).

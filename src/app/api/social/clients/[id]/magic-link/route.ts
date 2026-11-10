@@ -25,11 +25,15 @@ export async function POST(req: Request, props: { params: Promise<{ id: string }
     // Optional: pick a specific approver when a client has more than one. Defaults to the first,
     // matching the current UI (which only shows/links one approver per client today).
     const body = await req.json().catch(() => ({}) as { approverId?: string });
+    const enabled = customer.approvers.filter((a) => !a.disabledAt);
     const approver = body.approverId
       ? customer.approvers.find((a) => a.id === body.approverId)
-      : customer.approvers[0];
+      : enabled[0] ?? customer.approvers[0];
     if (!approver) {
       throw new HttpError(404, 'Approver not found for this client');
+    }
+    if (approver.disabledAt) {
+      throw new HttpError(400, 'That portal login is disabled. Enable it under Portal access first.');
     }
 
     const magicLink = await approvalService.generateMagicLink(approver.id);

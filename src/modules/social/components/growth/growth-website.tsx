@@ -1,7 +1,8 @@
 'use client';
 
-import { count, pct, useGrowth, type ShopifyStore, type TasksPayload } from './growth-api';
+import { count, pct, useGrowth, type Ga4Website, type ShopifyStore, type TasksPayload } from './growth-api';
 import { Empty, ErrorLine, Panel } from './growth-ui';
+import { Ga4WebsiteSection } from './growth-ga4';
 
 interface RateRow {
   name: string;
@@ -10,6 +11,7 @@ interface RateRow {
 }
 interface WebsitePayload {
   store: ShopifyStore;
+  ga4: Ga4Website;
   snapshot: {
     periodStart: string;
     periodEnd: string;
@@ -122,6 +124,7 @@ export function WebsiteTab() {
           </Panel>
         </div>
       )}
+      <Ga4WebsiteSection ga4={data?.ga4} />
     </div>
   );
 }

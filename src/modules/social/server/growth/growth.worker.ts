@@ -4,6 +4,7 @@ import { createQueueConnection } from '@/shared/lib/queue';
 import { prisma } from '@/shared/lib/prisma';
 import { closeGrowthQueue, getGrowthQueue, GROWTH_JOB, GROWTH_QUEUE_NAME } from './growth.queue';
 import { shopifyService } from './shopify.service';
+import { ga4Service } from './ga4.service';
 import { contentService } from './records.service';
 import { generateInsights } from './growth-ai.service';
 import { workerScope } from './growth-scope';
@@ -18,6 +19,10 @@ const INSIGHTS_AFTER_HOUR_IST = 8;
 async function syncAllStores() {
   const stores = await prisma.socialShopifyStore.findMany({ select: { id: true } });
   for (const store of stores) await shopifyService.syncStore(store.id);
+}
+
+async function syncAllGa4() {
+  for (const id of await ga4Service.allAssignedPropertyIds()) await ga4Service.syncProperty(id);
 }
 
 async function contentTasks() {
@@ -77,6 +82,10 @@ function processJob(job: Job) {
       return syncAllStores();
     case GROWTH_JOB.syncStore:
       return shopifyService.syncStore(String((job.data as { storeId?: string }).storeId ?? ''));
+    case GROWTH_JOB.syncAllGa4:
+      return syncAllGa4();
+    case GROWTH_JOB.syncGa4Property:
+      return ga4Service.syncProperty(String((job.data as { propertyRowId?: string }).propertyRowId ?? ''));
     case GROWTH_JOB.contentTasks:
       return contentTasks();
     case GROWTH_JOB.dailyInsights:
@@ -89,6 +98,7 @@ function processJob(job: Job) {
 export async function startGrowthWorker(): Promise<{ close(): Promise<void> }> {
   const queue = getGrowthQueue();
   await queue.upsertJobScheduler(GROWTH_JOB.syncAllStores, { every: SYNC_STORES_EVERY_MS }, { name: GROWTH_JOB.syncAllStores });
+  await queue.upsertJobScheduler(GROWTH_JOB.syncAllGa4, { every: SYNC_STORES_EVERY_MS }, { name: GROWTH_JOB.syncAllGa4 });
   await queue.upsertJobScheduler(GROWTH_JOB.contentTasks, { every: CONTENT_TASKS_EVERY_MS }, { name: GROWTH_JOB.contentTasks });
   await queue.upsertJobScheduler(GROWTH_JOB.dailyInsights, { every: INSIGHTS_CHECK_EVERY_MS }, { name: GROWTH_JOB.dailyInsights });
 

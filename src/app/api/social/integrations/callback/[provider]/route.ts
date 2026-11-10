@@ -37,7 +37,7 @@ export async function GET(
     );
 
     if (customerId) {
-      redirectUrl = new URL('/approver/portal', getServerEnv().APP_URL);
+      redirectUrl = new URL('/portal/channels', getServerEnv().APP_URL);
     }
 
     redirectUrl.searchParams.set(

@@ -172,3 +172,95 @@ export function times(value: number | null | undefined): string {
 export function errorText(error: unknown): string {
   return error instanceof Error ? error.message : 'Something went wrong';
 }
+
+// ---------- Google Analytics 4 ----------
+
+export interface Ga4Property {
+  propertyId: string;
+  displayName: string;
+  accountName: string | null;
+  currency: string | null;
+  timeZone: string | null;
+  status: string;
+  lastError: string | null;
+  lastSyncedAt: string | null;
+}
+
+export interface Ga4Status {
+  configured: boolean;
+  connected: boolean;
+  googleEmail: string | null;
+  connectionError: string | null;
+  canConnect: boolean;
+  property: Ga4Property | null;
+  available: { propertyId: string; displayName: string; accountName: string | null }[];
+  redirectUri: string;
+}
+
+export interface Ga4Totals {
+  sessions: number;
+  totalUsers: number;
+  newUsers: number;
+  engagedSessions: number;
+  addToCarts: number;
+  checkouts: number;
+  purchases: number;
+  revenue: number;
+  keyEvents: number;
+}
+
+export interface Ga4Row {
+  name: string;
+  sessions: number;
+  users: number;
+  atc: number;
+  purchases: number;
+  revenue: number;
+}
+
+export interface Ga4Website {
+  property: Ga4Property | null;
+  snapshot: {
+    periodStart: string;
+    periodEnd: string;
+    totals: Ga4Totals;
+    channels: Ga4Row[];
+    sources: Ga4Row[];
+    landing: Ga4Row[];
+    devices: Ga4Row[];
+    updatedAt: string;
+  } | null;
+}
+
+export interface ContentSheetRow {
+  date: string;
+  sheetName: string;
+  rowIndex: number;
+  content: string;
+  platform: string | null;
+  format: string | null;
+  status: string | null;
+  inCalendar: boolean;
+}
+
+export interface ContentSheet {
+  configured: boolean;
+  connected: boolean;
+  googleEmail: string | null;
+  canConnect: boolean;
+  link: { spreadsheetId: string; url: string; tab: string | null } | null;
+  sheet: { name: string; url: string; tabs: string[]; syncedAt: string } | null;
+  error: string | null;
+  rows: ContentSheetRow[];
+  undated: number;
+  from: string;
+  to: string;
+}
+
+export interface ContentSheetOption {
+  spreadsheetId: string;
+  name: string;
+  url: string;
+  sheetNames: string[];
+  rowCount: number;
+}

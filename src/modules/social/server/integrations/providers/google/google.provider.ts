@@ -60,15 +60,32 @@ async function refreshGoogleToken(clientId: string, clientSecret: string, refres
   return payload;
 }
 
-async function googleProfile(accessToken: string): Promise<{ id: string; name: string; picture?: string }> {
-  const response = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+interface YouTubeChannelList {
+  items?: {
+    id: string;
+    snippet?: { title?: string; customUrl?: string; thumbnails?: { default?: { url?: string } } };
+  }[];
+  error?: { message?: string };
+}
+
+// We only ask for YouTube scopes, so the Google userinfo endpoint is not
+// available: the channel itself is the identity of the connection.
+async function myYouTubeChannel(accessToken: string) {
+  const response = await fetch('https://www.googleapis.com/youtube/v3/channels?part=snippet&mine=true', {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
-  const payload = (await response.json().catch(() => ({}))) as { id?: string; name?: string; picture?: string };
-  if (!response.ok || !payload.id) {
-    throw new RefreshTokenError('google', 'Could not read the Google profile');
+  const listed = (await response.json().catch(() => ({}))) as YouTubeChannelList;
+  if (!response.ok) {
+    throw new BadBodyError('youtube', `YouTube: ${listed.error?.message || 'could not read the channel'}`);
   }
-  return { id: payload.id, name: payload.name || 'Google account', picture: payload.picture };
+  const channel = listed.items?.[0];
+  if (!channel) {
+    throw new BadBodyError(
+      'youtube',
+      'This Google account has no YouTube channel. Connect again and pick the account (or brand account) that owns the channel.'
+    );
+  }
+  return channel;
 }
 
 export class YouTubeProvider extends SocialProviderBase {
@@ -91,41 +108,36 @@ export class YouTubeProvider extends SocialProviderBase {
       state,
       scope: this.scopes.join(' '),
       access_type: 'offline',
-      prompt: 'consent',
+      // select_account lets the user pick the brand account that owns the channel.
+      prompt: 'select_account consent',
     });
     return { url: `${AUTHORIZE_URL}?${params}`, state, codeVerifier: '' };
   }
 
   async authenticate(params: AuthenticateParams): Promise<AuthTokenDetails> {
     const token = await exchangeCode(this.getEnv('GOOGLE_CLIENT_ID'), this.getEnv('GOOGLE_CLIENT_SECRET'), params);
-    const profile = await googleProfile(token.access_token!);
-    const channels = await fetch('https://www.googleapis.com/youtube/v3/channels?part=snippet&mine=true', {
-      headers: { Authorization: `Bearer ${token.access_token}` },
-    });
-    const listed = (await channels.json().catch(() => ({}))) as {
-      items?: { id: string; snippet?: { title?: string; thumbnails?: { default?: { url?: string } } } }[];
-    };
-    const channel = listed.items?.[0];
+    const channel = await myYouTubeChannel(token.access_token!);
     return {
-      internalId: channel?.id ?? profile.id,
-      name: channel?.snippet?.title ?? profile.name,
-      picture: channel?.snippet?.thumbnails?.default?.url ?? profile.picture,
+      internalId: channel.id,
+      name: channel.snippet?.title || 'YouTube channel',
+      username: channel.snippet?.customUrl,
+      picture: channel.snippet?.thumbnails?.default?.url,
       accessToken: token.access_token!,
       refreshToken: token.refresh_token,
       expiresIn: token.expires_in,
     };
   }
 
+  // Only the tokens are stored on refresh; the channel id/name stay as connected.
   async refreshToken(refreshToken: string): Promise<AuthTokenDetails> {
     const token = await refreshGoogleToken(
       this.getEnv('GOOGLE_CLIENT_ID'),
       this.getEnv('GOOGLE_CLIENT_SECRET'),
       refreshToken
     );
-    const profile = await googleProfile(token.access_token!);
     return {
-      internalId: profile.id,
-      name: profile.name,
+      internalId: this.identifier,
+      name: this.name,
       accessToken: token.access_token!,
       refreshToken,
       expiresIn: token.expires_in,
@@ -206,16 +218,23 @@ export class GoogleBusinessProvider extends SocialProviderBase {
 
   async authenticate(params: AuthenticateParams): Promise<AuthTokenDetails> {
     const token = await exchangeCode(this.getEnv('GOOGLE_CLIENT_ID'), this.getEnv('GOOGLE_CLIENT_SECRET'), params);
-    const profile = await googleProfile(token.access_token!);
     const accounts = await fetch('https://mybusinessaccountmanagement.googleapis.com/v1/accounts', {
       headers: { Authorization: `Bearer ${token.access_token}` },
     });
-    const listed = (await accounts.json().catch(() => ({}))) as { accounts?: { name: string; accountName?: string }[] };
+    const listed = (await accounts.json().catch(() => ({}))) as {
+      accounts?: { name: string; accountName?: string }[];
+      error?: { message?: string };
+    };
+    if (!accounts.ok) {
+      throw new BadBodyError(this.identifier, `Google Business Profile: ${listed.error?.message || 'could not read the account'}`);
+    }
     const account = listed.accounts?.[0];
+    if (!account) {
+      throw new BadBodyError(this.identifier, 'This Google account does not manage a Business Profile.');
+    }
     return {
-      internalId: account?.name ?? profile.id,
-      name: account?.accountName ?? profile.name,
-      picture: profile.picture,
+      internalId: account.name,
+      name: account.accountName || 'Google Business Profile',
       accessToken: token.access_token!,
       refreshToken: token.refresh_token,
       expiresIn: token.expires_in,

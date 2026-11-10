@@ -225,21 +225,26 @@ async function syncPosts() {
           caption?: string;
           media_type?: string;
           media_url?: string;
+          thumbnail_url?: string;
           permalink?: string;
           timestamp: string;
           like_count?: number;
           comments_count?: number;
         }>(config, `${integration.internalId}/media`, token, {
-          fields: 'id,caption,media_type,media_url,permalink,timestamp,like_count,comments_count',
+          fields: 'id,caption,media_type,media_url,thumbnail_url,permalink,timestamp,like_count,comments_count',
           limit: 50,
         });
         for (const media of mediaItems) {
+          // Reels/videos: media_url is the .mp4, so prefer thumbnail_url for the card image.
+          // Instagram CDN links expire, so refresh the stored link on every sync.
+          const thumbnailUrl = media.thumbnail_url || media.media_url || null;
           await prisma.socialExternalPost.upsert({
             where: { integrationId_externalId: { integrationId: integration.id, externalId: media.id } },
             update: {
               likes: media.like_count || 0,
               comments: media.comments_count || 0,
               caption: media.caption || null,
+              thumbnailUrl,
             },
             create: {
               integrationId: integration.id,
@@ -247,7 +252,7 @@ async function syncPosts() {
               type: (media.media_type || 'post').toLowerCase(),
               caption: media.caption || null,
               permalink: media.permalink || null,
-              thumbnailUrl: media.media_url || null,
+              thumbnailUrl,
               publishedAt: new Date(media.timestamp),
               likes: media.like_count || 0,
               comments: media.comments_count || 0,

@@ -177,12 +177,21 @@ export const clientTemplateService = {
         },
       });
 
+      const approverEmail = body.approverEmail.toLowerCase();
+      const emailTaken = await tx.clientApprover.findFirst({
+        where: { organizationId, email: approverEmail },
+        select: { id: true },
+      });
+      if (emailTaken) {
+        throw new HttpError(409, 'That approver email already has portal access in this workspace');
+      }
+
       await tx.clientApprover.create({
         data: {
           organizationId,
           customerId: customer.id,
           name: body.approverName,
-          email: body.approverEmail,
+          email: approverEmail,
         },
       });
 

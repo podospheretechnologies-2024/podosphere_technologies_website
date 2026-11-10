@@ -1,5 +1,5 @@
 import 'server-only';
-import type { SocialApprovalStep } from '@/generated/prisma/client';
+import { Prisma, type SocialApprovalStep } from '@/generated/prisma/client';
 import { prisma } from '@/shared/lib/prisma';
 import { getServerEnv } from '@/shared/lib/env';
 import { SignJWT, jwtVerify } from 'jose';
@@ -39,6 +39,41 @@ export interface PortalSession {
   approverId: string;
   organizationId: string;
   customerId: string;
+  /** True until the client replaces an agency-generated password. */
+  mustChangePassword: boolean;
+  /** Agency "Login as client" — skip forced password change; still scoped to this client. */
+  agencyPreview?: boolean;
+}
+
+/** Session JWT lifetime. Magic links stay short; password login can opt into longer. */
+export type PortalSessionTtl = '12h' | '7d' | '30d';
+
+const SESSION_TTL_SECONDS: Record<PortalSessionTtl, number> = {
+  '12h': 12 * 60 * 60,
+  '7d': 7 * 24 * 60 * 60,
+  '30d': 30 * 24 * 60 * 60,
+};
+
+export function portalSessionMaxAge(ttl: PortalSessionTtl): number {
+  return SESSION_TTL_SECONDS[ttl];
+}
+
+function toPortalSession(approver: {
+  id: string;
+  organizationId: string;
+  customerId: string;
+  mustChangePassword: boolean;
+  disabledAt: Date | null;
+}): PortalSession {
+  if (approver.disabledAt) {
+    throw new HttpError(401, 'This login has been disabled. Contact your agency.');
+  }
+  return {
+    approverId: approver.id,
+    organizationId: approver.organizationId,
+    customerId: approver.customerId,
+    mustChangePassword: approver.mustChangePassword,
+  };
 }
 
 async function loadApprover(approverId: string) {
@@ -47,6 +82,9 @@ async function loadApprover(approverId: string) {
     // Covers "removed approver's link/session stop working immediately": once the row is gone,
     // no token for it verifies, regardless of its own expiry.
     throw new HttpError(401, 'This approver no longer has access');
+  }
+  if (approver.disabledAt) {
+    throw new HttpError(401, 'This login has been disabled. Contact your agency.');
   }
   return approver;
 }
@@ -164,23 +202,28 @@ export const approvalService = {
       data: { tokenVersion: { increment: 1 }, lastSeenAt: new Date() },
     });
 
-    return { approverId: approver.id, organizationId: approver.organizationId, customerId: approver.customerId };
+    return toPortalSession(approver);
   },
 
-  /** Mint a renewable portal session after a magic link has been redeemed. */
-  async createPortalSession(session: PortalSession): Promise<string> {
+  /** Mint a renewable portal session after a magic link, password login, or agency preview. */
+  async createPortalSession(
+    session: Pick<PortalSession, 'approverId' | 'organizationId' | 'customerId'>,
+    ttl: PortalSessionTtl = '12h',
+    opts?: { agencyPreview?: boolean }
+  ): Promise<string> {
     const approver = await loadApprover(session.approverId);
     return new SignJWT({
       sub: session.approverId,
       org: session.organizationId,
       cust: session.customerId,
       ver: approver.tokenVersion,
+      ...(opts?.agencyPreview ? { ap: true } : {}),
     })
       .setProtectedHeader({ alg: 'HS256' })
       .setIssuedAt()
       .setIssuer(ISSUER)
       .setAudience(SESSION_AUDIENCE)
-      .setExpirationTime('12h')
+      .setExpirationTime(ttl)
       .sign(SECRET);
   },
 
@@ -199,7 +242,10 @@ export const approvalService = {
     if (payload.ver !== approver.tokenVersion) {
       throw new HttpError(401, 'This session was revoked. Ask for a new magic link.');
     }
-    return { approverId: approver.id, organizationId: approver.organizationId, customerId: approver.customerId };
+    return {
+      ...toPortalSession(approver),
+      ...(payload.ap === true ? { agencyPreview: true } : {}),
+    };
   },
 
   /** Revoke every outstanding link and session for an approver immediately (e.g. when removing
@@ -257,6 +303,18 @@ export const approvalService = {
         .catch((err) => console.error('[approvals] approval_needed notify failed', err));
     }
 
+    if (next.approvalStep === 'CLIENT') {
+      void import('../portal/portal-approval-alert.service')
+        .then(({ portalApprovalAlertService }) =>
+          portalApprovalAlertService.notifyClientApprovalNeeded(
+            scope.organizationId,
+            customerId,
+            group
+          )
+        )
+        .catch((err) => console.error('[approvals] client portal alert failed', err));
+    }
+
     return { approvalStep: next.approvalStep };
   },
 
@@ -278,7 +336,7 @@ export const approvalService = {
         state: 'DRAFT',
         approvalStep: 'CLIENT',
       },
-      select: { id: true, parentPostId: true, publishDate: true },
+      select: { id: true, parentPostId: true, publishDate: true, settings: true },
     });
     if (rows.length === 0) {
       throw new HttpError(404, 'Post not found or not waiting for client approval');
@@ -290,6 +348,10 @@ export const approvalService = {
       ...(next.state ? { state: next.state } : {}),
       error: next.error ?? null,
     });
+
+    if (reason?.trim()) {
+      await appendClientNoteOnRoot(rows, session.approverId, reason.trim());
+    }
 
     if (next.approvalStep === 'APPROVED') {
       await queueApprovedGroup(session.organizationId, group);
@@ -308,6 +370,44 @@ export const approvalService = {
     return { approvalStep: next.approvalStep };
   },
 
+  /**
+   * Client leaves a note on a draft without changing approval status (Phase 5).
+   * Scoped to session org + customer + CLIENT step only.
+   */
+  async portalAddNote(
+    session: PortalSession,
+    group: string,
+    note: string
+  ): Promise<{ notes: { at: string; text: string }[] }> {
+    const text = note.trim();
+    if (text.length < 2) throw new HttpError(400, 'Write a short note');
+    if (text.length > 2000) throw new HttpError(400, 'Keep notes under 2000 characters');
+
+    const rows = await prisma.socialPost.findMany({
+      where: {
+        organizationId: session.organizationId,
+        customerId: session.customerId,
+        group,
+        deletedAt: null,
+        state: 'DRAFT',
+        approvalStep: 'CLIENT',
+      },
+      select: { id: true, parentPostId: true, settings: true },
+    });
+    if (rows.length === 0) {
+      throw new HttpError(404, 'Post not found or not waiting for client approval');
+    }
+
+    const notes = await appendClientNoteOnRoot(rows, session.approverId, text);
+    await logAudit({
+      action: 'approval.client_note',
+      targetType: 'post_group',
+      targetId: group,
+      metadata: { customerId: session.customerId, approverId: session.approverId },
+    });
+    return { notes };
+  },
+
   /** Posts waiting on the magic-link portal for this client (CLIENT step only). */
   async listPortalQueue(session: PortalSession) {
     return prisma.socialPost.findMany({
@@ -324,3 +424,41 @@ export const approvalService = {
     });
   },
 };
+
+type PortalQueueRow = {
+  id: string;
+  parentPostId: string | null;
+  settings: unknown;
+};
+
+async function appendClientNoteOnRoot(
+  rows: PortalQueueRow[],
+  approverId: string,
+  text: string
+): Promise<{ at: string; text: string }[]> {
+  const root = rows.find((row) => row.parentPostId == null) ?? rows[0]!;
+  const base =
+    root.settings && typeof root.settings === 'object' && !Array.isArray(root.settings)
+      ? { ...(root.settings as Record<string, unknown>) }
+      : {};
+  const existing = Array.isArray(base.clientNotes) ? [...base.clientNotes] : [];
+  const entry = { at: new Date().toISOString(), text, approverId };
+  existing.push(entry);
+  base.clientNotes = existing;
+
+  await prisma.socialPost.update({
+    where: { id: root.id },
+    data: { settings: base as Prisma.InputJsonValue },
+  });
+
+  return existing
+    .filter((item): item is { at: string; text: string; approverId?: string } => {
+      return (
+        !!item &&
+        typeof item === 'object' &&
+        typeof (item as { at?: unknown }).at === 'string' &&
+        typeof (item as { text?: unknown }).text === 'string'
+      );
+    })
+    .map((item) => ({ at: item.at, text: item.text }));
+}

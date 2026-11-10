@@ -1,0 +1,93 @@
+// Google Analytics 4 for the Growth Desk (PODO_GROWTH_DESK_PLAN.md, section "Google Analytics").
+// Same shape as Meta / Google Ads: the agency signs in with Google ONCE (read-only scope), every GA4
+// property that login can see is listed, and each property is assigned to one Podo client.
+// Read-only: nothing here changes a GA4 property. Tokens never leave the server.
+
+// One Google login per organization, scope analytics.readonly.
+model SocialGa4Connection {
+  id              String    @id @default(uuid())
+  organizationId  String    @unique
+  email           String
+  name            String?
+  /// AES-GCM encrypted (see @/shared/lib/crypto).
+  accessToken     String    @db.Text
+  refreshToken    String?   @db.Text
+  tokenExpiration DateTime?
+  scopes          String    @db.Text
+  lastSyncedAt    DateTime?
+  /// Last property-discovery problem (e.g. Admin API not enabled); shown in Setup.
+  lastError       String?   @db.VarChar(1024)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@map("social_ga4_connections")
+}
+
+// GA4 properties the connected login can read; at most one per client.
+model SocialGa4Property {
+  id             String    @id @default(uuid())
+  organizationId String
+  /// Numeric GA4 property id, e.g. "123456789" (not the G-XXXX measurement id).
+  propertyId     String    @db.VarChar(32)
+  displayName    String    @db.VarChar(255)
+  accountName    String?   @db.VarChar(255)
+  currency       String?   @db.VarChar(3)
+  timeZone       String?   @db.VarChar(64)
+  /// Assigned Podo client, if any. One property per client.
+  customerId     String?   @unique
+  /// "active" | "error" (last sync)
+  status         String    @default("active") @db.VarChar(16)
+  lastError      String?   @db.VarChar(1024)
+  lastSyncedAt   DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@unique([organizationId, propertyId])
+  @@map("social_ga4_properties")
+}
+
+// One row per property per property-local day (GA4 "date" dimension).
+model Ga4DailyMetric {
+  id              String   @id @default(uuid())
+  organizationId  String
+  customerId      String
+  propertyId      String   @db.VarChar(32)
+  date            DateTime @db.Date
+  sessions        Int      @default(0)
+  totalUsers      Int      @default(0)
+  newUsers        Int      @default(0)
+  engagedSessions Int      @default(0)
+  addToCarts      Int      @default(0)
+  checkouts       Int      @default(0)
+  purchases       Int      @default(0)
+  /// purchaseRevenue, in the property currency.
+  revenue         Decimal  @default(0) @db.Decimal(14, 2)
+  keyEvents       Decimal  @default(0) @db.Decimal(14, 2)
+  fetchedAt       DateTime @updatedAt
+
+  @@unique([organizationId, propertyId, date])
+  @@index([organizationId, customerId, date])
+  @@map("ga4_daily_metrics")
+}
+
+// Latest 30-day breakdown per property: channels, source / medium, landing pages, devices.
+model Ga4TrafficSnapshot {
+  id             String   @id @default(uuid())
+  organizationId String
+  customerId     String
+  propertyId     String   @db.VarChar(32)
+  periodStart    DateTime @db.Date
+  periodEnd      DateTime @db.Date
+  /// { sessions, totalUsers, newUsers, engagedSessions, addToCarts, checkouts, purchases, revenue, keyEvents }
+  totals         Json
+  /// [{ name, sessions, users, atc, purchases, revenue }]
+  channels       Json
+  sources        Json
+  landing        Json
+  devices        Json
+  updatedAt      DateTime @updatedAt
+
+  @@unique([organizationId, propertyId])
+  @@index([organizationId, customerId])
+  @@map("ga4_traffic_snapshots")
+}

@@ -97,6 +97,39 @@ export const googleSheetsRepository = {
     });
   },
 
+  /** Picker list: names and tabs only, no row data. */
+  listSpreadsheetsLite(organizationId: string) {
+    return prisma.socialGoogleSpreadsheet.findMany({
+      where: { connection: { organizationId } },
+      orderBy: { name: 'asc' },
+      select: { spreadsheetId: true, name: true, url: true, sheetNames: true, rowCount: true },
+    });
+  },
+
+  findBySpreadsheetId(connectionId: string, spreadsheetId: string) {
+    return prisma.socialGoogleSpreadsheet.findUnique({
+      where: { connectionId_spreadsheetId: { connectionId, spreadsheetId } },
+    });
+  },
+
+  upsertSpreadsheet(connectionId: string, item: GoogleSpreadsheetData) {
+    const data = {
+      name: item.name,
+      url: item.url,
+      modifiedTime: item.modifiedTime ?? null,
+      sheetNames: item.sheetNames,
+      headers: item.headers,
+      rows: item.rows,
+      rowCount: item.rowCount,
+      syncedAt: item.syncedAt,
+    };
+    return prisma.socialGoogleSpreadsheet.upsert({
+      where: { connectionId_spreadsheetId: { connectionId, spreadsheetId: item.spreadsheetId } },
+      create: { connectionId, spreadsheetId: item.spreadsheetId, ...data },
+      update: data,
+    });
+  },
+
   findSpreadsheet(organizationId: string, id: string) {
     return prisma.socialGoogleSpreadsheet.findFirst({
       where: {

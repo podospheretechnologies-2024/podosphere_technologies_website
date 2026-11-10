@@ -9,7 +9,7 @@ import type {
   GoogleSheetsStatusResponse,
   GoogleSpreadsheetItem,
 } from '../../types/google-sheets';
-import { googleSheetsOAuthState } from './google-sheets-oauth-state';
+import { googleSheetsOAuthState, type GoogleSheetsReturnTo } from './google-sheets-oauth-state';
 import { googleSheetsRepository } from './google-sheets.repository';
 
 const AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
@@ -321,17 +321,19 @@ async function listAllSpreadsheets(accessToken: string): Promise<DriveFile[]> {
 async function fetchSpreadsheetRows(
   accessToken: string,
   spreadsheetId: string
-): Promise<{ sheetNames: string[]; headers: string[]; rows: GoogleSheetRow[] }> {
+): Promise<{ title: string | null; sheetNames: string[]; headers: string[]; rows: GoogleSheetRow[] }> {
   const meta = await googleFetch<{
+    properties?: { title?: string };
     sheets?: Array<{ properties?: { title?: string } }>;
-  }>(`${SHEETS_API}/${spreadsheetId}?fields=sheets.properties.title`, accessToken);
+  }>(`${SHEETS_API}/${encodeURIComponent(spreadsheetId)}?fields=properties.title,sheets.properties.title`, accessToken);
 
+  const title = meta.properties?.title?.trim() || null;
   const sheetNames = (meta.sheets ?? [])
     .map((sheet) => sheet.properties?.title?.trim())
     .filter((title): title is string => Boolean(title));
 
   if (sheetNames.length === 0) {
-    return { sheetNames: [], headers: [], rows: [] };
+    return { title, sheetNames: [], headers: [], rows: [] };
   }
 
   const ranges = sheetNames.map((name) => `'${name.replace(/'/g, "''")}'!A1:ZZ${MAX_ROWS_PER_SHEET}`);
@@ -365,10 +367,55 @@ async function fetchSpreadsheetRows(
   });
 
   return {
+    title,
     sheetNames,
     headers: [...headersSet],
     rows: allRows,
   };
+}
+
+/** Pulls a value out of a Google Sheets link (or takes a bare spreadsheet id). Null when it is not one. */
+export function spreadsheetIdFromLink(link: string | null | undefined): string | null {
+  const value = (link ?? '').trim();
+  if (!value) return null;
+  const fromUrl = value.match(/docs\.google\.com\/spreadsheets\/(?:u\/\d+\/)?d\/([a-zA-Z0-9_-]{20,})/);
+  if (fromUrl) return fromUrl[1];
+  return /^[a-zA-Z0-9_-]{20,}$/.test(value) ? value : null;
+}
+
+export function spreadsheetUrl(spreadsheetId: string): string {
+  return `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit`;
+}
+
+/** One spreadsheet, optionally one tab, that belongs to one client. */
+export interface SheetLink {
+  spreadsheetId: string;
+  tab: string | null;
+}
+
+function tabInLink(spreadsheetId: string, tab: string, link: SheetLink): boolean {
+  return link.spreadsheetId === spreadsheetId && (!link.tab || link.tab === tab);
+}
+
+/**
+ * Keeps only what `only` names (when given) and drops what `exclude` names: whole spreadsheets
+ * when the link has no tab, else just that tab (its rows and its tab name).
+ */
+export function filterSheetRows(
+  spreadsheets: GoogleSpreadsheetItem[],
+  options: { only?: SheetLink[]; exclude?: SheetLink[] }
+): GoogleSpreadsheetItem[] {
+  const keepTab = (spreadsheetId: string, tab: string) =>
+    (!options.only || options.only.some((link) => tabInLink(spreadsheetId, tab, link))) &&
+    !options.exclude?.some((link) => tabInLink(spreadsheetId, tab, link));
+  return spreadsheets
+    .filter((sheet) => !options.only || options.only.some((link) => link.spreadsheetId === sheet.spreadsheetId))
+    .filter((sheet) => !options.exclude?.some((link) => link.spreadsheetId === sheet.spreadsheetId && !link.tab))
+    .map((sheet) => {
+      const rows = sheet.rows.filter((row) => keepTab(sheet.spreadsheetId, row.sheetName));
+      const sheetNames = sheet.sheetNames.filter((tab) => keepTab(sheet.spreadsheetId, tab));
+      return { ...sheet, sheetNames, rows, rowCount: rows.length };
+    });
 }
 
 async function syncSpreadsheets(organizationId: string, accessToken: string) {
@@ -487,14 +534,17 @@ function findContentForDate(
 export const googleSheetsService = {
   isConfigured,
 
-  async getConnectUrl(organizationId: string): Promise<{ url: string }> {
+  async getConnectUrl(
+    organizationId: string,
+    returnTo: GoogleSheetsReturnTo = 'automation'
+  ): Promise<{ url: string }> {
     if (!isConfigured()) {
       throw new HttpError(
         400,
         'Google Sheets is not configured. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in .env.'
       );
     }
-    const state = await googleSheetsOAuthState.save(organizationId);
+    const state = await googleSheetsOAuthState.save(organizationId, returnTo);
     const params = new URLSearchParams({
       client_id: getGoogleEnv('GOOGLE_CLIENT_ID'),
       redirect_uri: redirectUri(),
@@ -508,9 +558,14 @@ export const googleSheetsService = {
     return { url: `${AUTH_URL}?${params}` };
   },
 
-  async completeConnect(organizationId: string, code: string, state: string) {
-    const savedOrg = await googleSheetsOAuthState.consume(state);
-    if (!savedOrg || savedOrg !== organizationId) {
+  /** Finishes the Google login and says where the user started it from. */
+  async completeConnect(
+    organizationId: string,
+    code: string,
+    state: string
+  ): Promise<{ returnTo: GoogleSheetsReturnTo }> {
+    const saved = await googleSheetsOAuthState.consume(state);
+    if (!saved || saved.organizationId !== organizationId) {
       throw new HttpError(400, 'Invalid or expired Google authorization state');
     }
 
@@ -541,6 +596,7 @@ export const googleSheetsService = {
     });
 
     await syncSpreadsheets(organizationId, token.access_token);
+    return { returnTo: saved.returnTo };
   },
 
   async getStatus(organizationId: string, options?: { autoSync?: boolean }) {
@@ -571,12 +627,85 @@ export const googleSheetsService = {
     await googleSheetsRepository.deleteConnection(organizationId);
   },
 
-  async contentForDate(organizationId: string, date: string): Promise<GoogleSheetsContentMatch> {
+  /**
+   * Sheet content for a post date.
+   * `only`: the picked client's own calendar sheet(s), read fresh; nothing else is searched.
+   * `exclude`: calendar sheets of other clients, never offered for this post.
+   */
+  async contentForDate(
+    organizationId: string,
+    date: string,
+    options: { only?: SheetLink[]; exclude?: SheetLink[] } = {}
+  ): Promise<GoogleSheetsContentMatch> {
+    if (options.only?.length) {
+      const sheets: GoogleSpreadsheetItem[] = [];
+      for (const link of options.only) {
+        sheets.push(await this.clientSpreadsheet(organizationId, link.spreadsheetId));
+      }
+      return findContentForDate(filterSheetRows(sheets, options), date);
+    }
     const status = await this.getStatus(organizationId, { autoSync: true });
     if (!status.connection.connected) {
       throw new HttpError(404, 'Google Sheets is not connected');
     }
-    return findContentForDate(status.spreadsheets, date);
+    return findContentForDate(filterSheetRows(status.spreadsheets, { exclude: options.exclude }), date);
+  },
+
+  /** Lightweight list for pickers: spreadsheet names and tab names, no rows. */
+  async listLite(organizationId: string) {
+    const rows = await googleSheetsRepository.listSpreadsheetsLite(organizationId);
+    return rows.map((row) => ({
+      spreadsheetId: row.spreadsheetId,
+      name: row.name,
+      url: row.url,
+      sheetNames: parseStringArray(row.sheetNames),
+      rowCount: row.rowCount,
+    }));
+  },
+
+  /**
+   * One spreadsheet by its Google id, from the cache when fresh, else read live from Google and cached.
+   * Works for a pasted link even when the full Drive sync has not picked the file up yet.
+   */
+  async clientSpreadsheet(
+    organizationId: string,
+    spreadsheetId: string,
+    options: { force?: boolean } = {}
+  ): Promise<GoogleSpreadsheetItem> {
+    const connection = await googleSheetsRepository.findConnectionOnly(organizationId);
+    if (!connection) {
+      throw new HttpError(404, 'Google Sheets is not connected');
+    }
+    const cached = await googleSheetsRepository.findBySpreadsheetId(connection.id, spreadsheetId);
+    if (cached && !options.force && Date.now() - cached.syncedAt.getTime() < AUTO_SYNC_MS) {
+      return toSpreadsheetItem(cached);
+    }
+    const accessToken = await getValidAccessToken(organizationId);
+    let data: Awaited<ReturnType<typeof fetchSpreadsheetRows>>;
+    try {
+      data = await fetchSpreadsheetRows(accessToken, spreadsheetId);
+    } catch (error) {
+      if (cached) return toSpreadsheetItem(cached);
+      if (error instanceof HttpError && error.message.includes('(404)')) {
+        throw new HttpError(404, `The connected Google account (${connection.email}) cannot find this sheet. Share it with that account.`);
+      }
+      if (error instanceof HttpError && error.message.includes('(403)')) {
+        throw new HttpError(403, `The connected Google account (${connection.email}) has no access to this sheet. Share it with that account (Viewer is enough).`);
+      }
+      throw error;
+    }
+    const saved = await googleSheetsRepository.upsertSpreadsheet(connection.id, {
+      spreadsheetId,
+      name: data.title ?? cached?.name ?? 'Content calendar',
+      url: cached?.url ?? spreadsheetUrl(spreadsheetId),
+      modifiedTime: cached?.modifiedTime ?? null,
+      sheetNames: data.sheetNames,
+      headers: data.headers,
+      rows: data.rows as unknown as Prisma.InputJsonValue,
+      rowCount: data.rows.length,
+      syncedAt: new Date(),
+    });
+    return toSpreadsheetItem(saved);
   },
 
   async getSpreadsheet(organizationId: string, id: string): Promise<GoogleSpreadsheetItem> {

@@ -100,6 +100,11 @@ model SocialCustomer {
   templateBootstrap Json?
   // Optional soft AI spend cap for this client (USD / calendar month). Null = no per-client cap.
   aiMonthlyBudgetUsd Decimal? @db.Decimal(10, 2)
+  // Client portal tab visibility + ad spend toggle. Shape: { tabs?: Record<tabId, boolean>, adSpendVisible?: boolean }.
+  // Null = use defaults (Overview/Content/Analytics/Reports on; Ads/Sales/Leads when connected).
+  portalTabs     Json?
+  // Portal goals / budget (Phase 5). Shape: { leadsPerMonth?, postsPerMonth?, adBudgetPerMonth? }.
+  portalGoals    Json?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
   deletedAt      DateTime?
@@ -133,6 +138,7 @@ model SocialCustomer {
   shortLinks            SocialShortLink[]
   hashtagGroups         SocialHashtagGroup[]
   bioPages              SocialBioPage[]
+  portalRequests        SocialPortalRequest[]
 
   @@index([organizationId])
   @@map("social_customers")
@@ -867,22 +873,59 @@ model SocialClientMember {
 }
 
 model ClientApprover {
-  id             String    @id @default(uuid())
-  organizationId String
-  customerId     String
-  email          String
-  name           String?
-  lastSeenAt     DateTime?
+  id                 String    @id @default(uuid())
+  organizationId     String
+  customerId         String
+  email              String
+  name               String?
+  /// E.164-ish digits for WhatsApp approval alerts (optional).
+  phone              String?   @db.VarChar(32)
+  lastSeenAt         DateTime?
+  /// bcrypt hash; null means magic-link-only (no password login yet).
+  passwordHash       String?
+  /// True after agency generates a password; cleared when the client sets their own.
+  mustChangePassword Boolean   @default(false)
+  lastLoginAt        DateTime?
+  /// Soft-disable: login and existing sessions stop working while set.
+  disabledAt         DateTime?
   // Bumped every time a one-time magic link is consumed, and can be bumped manually to revoke
   // every outstanding link/session for this approver. Embedded in magic-link JWTs as `ver`.
-  tokenVersion   Int       @default(0)
-  createdAt      DateTime  @default(now())
+  tokenVersion       Int       @default(0)
+  createdAt          DateTime  @default(now())
 
   organization Organization   @relation(fields: [organizationId], references: [id])
   customer     SocialCustomer @relation(fields: [customerId], references: [id])
+  portalRequests SocialPortalRequest[]
 
-  @@unique([customerId, email])
+  @@unique([organizationId, email])
+  @@index([customerId])
   @@map("client_approvers")
+}
+
+/// Client portal Requests tab: client asks for a post / campaign / change.
+model SocialPortalRequest {
+  id             String   @id @default(uuid())
+  organizationId String
+  customerId     String
+  approverId     String
+  /// post | campaign | change | other
+  type           String   @db.VarChar(24)
+  title          String   @db.VarChar(200)
+  detail         String?  @db.Text
+  /// open | in_progress | done | declined
+  status         String   @default("open") @db.VarChar(24)
+  /// Short agency reply visible to the client.
+  reply          String?  @db.Text
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization   @relation(fields: [organizationId], references: [id])
+  customer     SocialCustomer @relation(fields: [customerId], references: [id])
+  approver     ClientApprover @relation(fields: [approverId], references: [id])
+
+  @@index([organizationId, customerId, createdAt])
+  @@index([organizationId, status])
+  @@map("social_portal_requests")
 }
 
 model SocialInsightDaily {

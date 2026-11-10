@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { cn } from '@/shared/lib/cn';
 import { Input } from '@/shared/components/ui/input';
 import { Button } from '@/shared/components/ui/button';
@@ -147,6 +147,12 @@ function ClientDesk({ initialTab = 'today' }: { initialTab?: GrowthTab }) {
   const [to, setTo] = useState('');
   const [applied, setApplied] = useState<{ from: string; to: string } | null>(null);
   const [tab, setTab] = useState<GrowthTab>(initialTab);
+  // OAuth redirects (e.g. Google Analytics) come back with ?tab=settings.
+  useEffect(() => {
+    const wanted = new URLSearchParams(window.location.search).get('tab');
+    const match = TABS.find((t) => t.id === wanted);
+    if (match) setTab(match.id);
+  }, []);
 
   const query =
     preset === 'custom' && applied ? `?preset=custom&from=${applied.from}&to=${applied.to}` : `?preset=${preset === 'custom' ? '7d' : preset}`;

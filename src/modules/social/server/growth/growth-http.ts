@@ -9,6 +9,8 @@ export interface GrowthRequest {
   userName: string;
   /** May approve / send back tasks, decide ads and blogs, connect the store, change goals. */
   canReview: boolean;
+  /** Organization owner / admin (connects org-wide logins such as Google Analytics). */
+  isAdmin: boolean;
 }
 
 /**
@@ -24,5 +26,6 @@ export async function growthRequest(permission: ClientPermission = 'view'): Prom
     userId: access.user.id,
     userName: access.user.name || access.user.email,
     canReview: access.can('approve', gc.customerId),
+    isAdmin: access.role === 'OWNER' || access.role === 'ADMIN',
   };
 }

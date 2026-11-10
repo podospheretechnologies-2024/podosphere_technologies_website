@@ -12,6 +12,10 @@ export const GROWTH_JOB = {
   contentTasks: 'growth.content.tasks',
   /** Daily AI insights + tasks for every client with a store or ad account (scheduler). */
   dailyInsights: 'growth.insights.daily',
+  /** Every GA4 property assigned to a client (scheduler). */
+  syncAllGa4: 'growth.ga4.syncAll',
+  /** One GA4 property right after assigning it. data: { propertyRowId } */
+  syncGa4Property: 'growth.ga4.syncProperty',
 } as const;
 
 let queue: Queue | undefined;
@@ -33,6 +37,10 @@ export function getGrowthQueue() {
 
 export async function enqueueStoreSync(storeId: string) {
   await getGrowthQueue().add(GROWTH_JOB.syncStore, { storeId }, { jobId: `shopify-sync-${storeId}-${Date.now()}` });
+}
+
+export async function enqueueGa4Sync(propertyRowId: string) {
+  await getGrowthQueue().add(GROWTH_JOB.syncGa4Property, { propertyRowId }, { jobId: `ga4-sync-${propertyRowId}-${Date.now()}` });
 }
 
 export async function closeGrowthQueue() {

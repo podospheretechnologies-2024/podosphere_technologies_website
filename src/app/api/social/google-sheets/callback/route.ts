@@ -13,7 +13,8 @@ function toUserMessage(error: unknown): string {
 }
 
 export async function GET(request: NextRequest) {
-  const redirectUrl = new URL(socialSections.automation.href, getServerEnv().APP_URL);
+  const appUrl = getServerEnv().APP_URL;
+  let redirectUrl = new URL(socialSections.automation.href, appUrl);
 
   try {
     const organization = await getCurrentOrganization();
@@ -29,7 +30,11 @@ export async function GET(request: NextRequest) {
       throw new HttpError(400, 'Invalid response from Google');
     }
 
-    await googleSheetsService.completeConnect(organization.id, code, state);
+    const { returnTo } = await googleSheetsService.completeConnect(organization.id, code, state);
+    if (returnTo === 'growth') {
+      redirectUrl = new URL('/dashboard/social/growth', appUrl);
+      redirectUrl.searchParams.set('tab', 'settings');
+    }
     redirectUrl.searchParams.set('googleSheets', 'connected');
   } catch (error) {
     redirectUrl.searchParams.set('error', toUserMessage(error));

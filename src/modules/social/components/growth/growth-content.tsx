@@ -6,6 +6,7 @@ import { Button } from '@/shared/components/ui/button';
 import { Input } from '@/shared/components/ui/input';
 import { count, errorText, growthCall, useGrowth } from './growth-api';
 import { Empty, ErrorLine, Panel, Pill, statusTone } from './growth-ui';
+import { ContentSheetSection } from './growth-content-sheet';
 
 interface TrackerPost {
   id: string;
@@ -117,6 +118,8 @@ export function ContentTab() {
             ))}
         </div>
       </Panel>
+
+      <ContentSheetSection />
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Panel title="Results of posted content">

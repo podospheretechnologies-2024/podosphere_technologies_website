@@ -121,3 +121,13 @@ export const boostSchema = z.object({
   spend: z.number().min(0).max(100_000_000).nullish(),
   note: optionalText(2000),
 });
+
+/** Assign (or clear with null) the GA4 property of the selected client. Numeric property id. */
+export const ga4AssignSchema = z.object({
+  propertyId: z.string().regex(/^\d{1,20}$/, 'Invalid GA4 property id').nullable(),
+});
+
+export const contentSheetLinkSchema = z.object({
+  link: z.string().trim().max(2048).nullable(),
+  tab: z.string().trim().max(191).nullish(),
+});
