@@ -6,7 +6,12 @@ import { getServerEnv } from '@/shared/lib/env';
 import { HttpError } from '@/shared/server/http-error';
 import { planService } from '@/modules/social/server/billing/plan.service';
 import type { CurrentUser } from './session';
-import type { CreateInvitationBody } from './invitation.schema';
+import type { Prisma } from '@/generated/prisma/client';
+import { CLIENT_PERMISSION_IDS, type ClientAccessEntry, type ClientPermissionId } from '../config/client-permissions';
+import type { CreateInvitationBody, SetMemberClientsBody } from './invitation.schema';
+
+const isClientPermission = (value: string): value is ClientPermissionId =>
+  (CLIENT_PERMISSION_IDS as readonly string[]).includes(value);
 
 const BCRYPT_ROUNDS = 12;
 const INVITE_TTL_MS = 72 * 60 * 60 * 1000; // 72h, matching the client magic link.
@@ -16,6 +21,24 @@ const INVITE_TTL_MS = 72 * 60 * 60 * 1000; // 72h, matching the client magic lin
 // up by hashing the token the invitee presents.
 function hashToken(rawToken: string): string {
   return createHash('sha256').update(rawToken).digest('hex');
+}
+
+/** Keep only clients that exist (not deleted) in this organization; duplicate ids collapse. */
+async function validClientAccess(
+  db: Prisma.TransactionClient | typeof prisma,
+  organizationId: string,
+  entries: ClientAccessEntry[]
+): Promise<ClientAccessEntry[]> {
+  const unique = new Map(entries.map((entry) => [entry.customerId, entry]));
+  if (unique.size === 0) return [];
+  const found = await db.socialCustomer.findMany({
+    where: { organizationId, deletedAt: null, id: { in: [...unique.keys()] } },
+    select: { id: true },
+  });
+  const ok = new Set(found.map((row) => row.id));
+  return [...unique.values()]
+    .filter((entry) => ok.has(entry.customerId))
+    .map((entry) => ({ customerId: entry.customerId, permissions: [...new Set(entry.permissions)] }));
 }
 
 async function assertEmailFree(email: string): Promise<void> {
@@ -37,6 +60,8 @@ export const invitationService = {
   ): Promise<{ inviteUrl: string; email: string; role: 'ADMIN' | 'MEMBER'; expiresAt: Date }> {
     await planService.assertUserCapacity(organizationId);
     await assertEmailFree(body.email);
+    // ADMIN sees every client; only a MEMBER carries a client list.
+    const clientAccess = body.role === 'MEMBER' ? await validClientAccess(prisma, organizationId, body.clientAccess) : [];
 
     const rawToken = randomBytes(32).toString('base64url');
     const tokenHash = hashToken(rawToken);
@@ -52,7 +77,7 @@ export const invitationService = {
           organizationId,
           email: body.email,
           role: body.role,
-          clientAccess: [],
+          clientAccess: clientAccess as unknown as Prisma.InputJsonValue,
           tokenHash,
           invitedById,
           expiresAt,
@@ -64,12 +89,69 @@ export const invitationService = {
     return { inviteUrl, email: body.email, role: body.role, expiresAt };
   },
 
-  /** Active staff logins in the organization, newest first. */
+  /** Active staff logins in the organization, oldest first, with the clients each MEMBER can see. */
   async listMembers(organizationId: string) {
-    return prisma.user.findMany({
+    const users = await prisma.user.findMany({
       where: { organizationId, deletedAt: null },
-      select: { id: true, name: true, email: true, role: true, lastLoginAt: true, createdAt: true },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        lastLoginAt: true,
+        createdAt: true,
+        clientMemberships: {
+          where: { organizationId, customer: { deletedAt: null } },
+          select: { customerId: true, permissions: true },
+        },
+      },
       orderBy: { createdAt: 'asc' },
+    });
+    return users.map(({ clientMemberships, ...user }) => ({
+      ...user,
+      clients: clientMemberships.map((m) => ({
+        customerId: m.customerId,
+        permissions: (Array.isArray(m.permissions) ? (m.permissions as string[]) : []).filter(isClientPermission),
+      })),
+    }));
+  },
+
+  /** Clients the Team page can hand out (every live client in the organization). */
+  async listAssignableClients(organizationId: string) {
+    return prisma.socialCustomer.findMany({
+      where: { organizationId, deletedAt: null },
+      select: { id: true, name: true },
+      orderBy: { name: 'asc' },
+    });
+  },
+
+  /**
+   * Replace a member's client list. Clients left out lose access; listed ones are created or get
+   * the new permission set. Only MEMBER logins carry a list — OWNER/ADMIN always see everything.
+   */
+  async setMemberClients(organizationId: string, userId: string, body: SetMemberClientsBody) {
+    const user = await prisma.user.findFirst({
+      where: { id: userId, organizationId, deletedAt: null },
+      select: { id: true, role: true },
+    });
+    if (!user) throw new HttpError(404, 'Team member not found');
+    if (user.role !== 'MEMBER') {
+      throw new HttpError(400, 'Owners and admins already see every client. Only members get a client list.');
+    }
+
+    return prisma.$transaction(async (tx) => {
+      const entries = await validClientAccess(tx, organizationId, body.clients);
+      await tx.socialClientMember.deleteMany({
+        where: { userId, organizationId, customerId: { notIn: entries.map((e) => e.customerId) } },
+      });
+      for (const entry of entries) {
+        await tx.socialClientMember.upsert({
+          where: { userId_customerId: { userId, customerId: entry.customerId } },
+          create: { organizationId, userId, customerId: entry.customerId, permissions: entry.permissions },
+          update: { permissions: entry.permissions },
+        });
+      }
+      return entries;
     });
   },
 
@@ -133,6 +215,25 @@ export const invitationService = {
         },
         include: { organization: true },
       });
+
+      // Give the new MEMBER the clients chosen on the invite (skipping any deleted since).
+      if (invite.role === 'MEMBER' && Array.isArray(invite.clientAccess)) {
+        const entries = await validClientAccess(
+          tx,
+          invite.organizationId,
+          invite.clientAccess as unknown as ClientAccessEntry[]
+        );
+        for (const entry of entries) {
+          await tx.socialClientMember.create({
+            data: {
+              organizationId: invite.organizationId,
+              userId: user.id,
+              customerId: entry.customerId,
+              permissions: entry.permissions,
+            },
+          });
+        }
+      }
 
       await tx.invitation.update({ where: { id: invite.id }, data: { acceptedAt: new Date() } });
       return user;

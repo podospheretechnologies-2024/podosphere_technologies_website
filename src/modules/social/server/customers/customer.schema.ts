@@ -52,3 +52,25 @@ export function clientLinksFromCreate(body: CreateClientBody): ClientAssetLinks 
     googleAdAccountIds: presentIds(body.googleAdAccountIds),
   };
 }
+
+/** Sort-channels screen: each group goes to an existing client or a new one created by name. */
+export const bulkAssignSchema = z.object({
+  groups: z
+    .array(
+      z
+        .object({
+          clientId: z.string().min(1).max(64).optional(),
+          newClientName: z.string().trim().min(1).max(120).optional(),
+          integrationIds: z.array(integrationIdSchema).max(50).default([]),
+          adAccountIds: z.array(adAccountIdSchema).max(50).default([]),
+          googleAdAccountIds: z.array(googleAdsCustomerIdSchema).max(50).default([]),
+        })
+        .refine((g) => Boolean(g.clientId) !== Boolean(g.newClientName), {
+          message: 'Pick an existing client or type a new client name',
+        })
+    )
+    .min(1)
+    .max(200),
+});
+
+export type BulkAssignBody = z.infer<typeof bulkAssignSchema>;

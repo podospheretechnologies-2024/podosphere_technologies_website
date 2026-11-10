@@ -46,8 +46,18 @@ export type GrowthTab = (typeof TABS)[number]['id'];
 
 export function GrowthDesk() {
   const { selectedClientId, clients, setSelectedClientId } = useClientScope();
-  if (!selectedClientId) return <ClientsSummary onPick={(id) => void setSelectedClientId(id)} hasClients={clients.length > 0} />;
-  return <ClientDesk key={selectedClientId} />;
+  const [startTab, setStartTab] = useState<GrowthTab>('today');
+  if (!selectedClientId)
+    return (
+      <ClientsSummary
+        onPick={(id, tab = 'today') => {
+          setStartTab(tab);
+          void setSelectedClientId(id);
+        }}
+        hasClients={clients.length > 0}
+      />
+    );
+  return <ClientDesk key={selectedClientId} initialTab={startTab} />;
 }
 
 interface SummaryRow {
@@ -66,13 +76,17 @@ interface SummaryRow {
   reviewTasks: number;
 }
 
-function ClientsSummary({ onPick, hasClients }: { onPick: (id: string) => void; hasClients: boolean }) {
+function ClientsSummary({ onPick, hasClients }: { onPick: (id: string, tab?: GrowthTab) => void; hasClients: boolean }) {
   const { data, error, isLoading } = useGrowth<SummaryRow[]>('/summary');
+  const connectedCount = data?.filter((row) => row.storeConnected).length ?? 0;
   return (
     <div className="space-y-3">
       <p className="text-muted-foreground text-sm">
-        Pick a client to open their desk. Last 7 days: Shopify sales ÷ Meta spend, against each client&apos;s ROAS target.
+        Every client is listed here. Use <b>Connect Shopify</b> on a client that sells on Shopify; the others still get tasks, content and
+        reports. Last 7 days: Shopify sales ÷ Meta spend, against each client&apos;s ROAS target.
+        {data && data.length > 0 && ` ${connectedCount} of ${data.length} stores connected.`}
       </p>
+      <p className="text-muted-foreground text-xs">Client missing? Add it on the Clients page, then assign its Meta ad account on the Ads page.</p>
       <ErrorLine error={error?.message ?? null} />
       {isLoading && <Empty>Loading clients…</Empty>}
       {!hasClients && <Empty>No clients yet. Add one on the Clients page.</Empty>}
@@ -106,9 +120,16 @@ function ClientsSummary({ onPick, hasClients }: { onPick: (id: string) => void; 
                   <td className="px-3 py-2">{row.openTasks}</td>
                   <td className="px-3 py-2">{row.reviewTasks}</td>
                   <td className="px-3 py-2">
-                    <Button size="sm" variant="secondary" onClick={() => onPick(row.id)}>
-                      Open desk
-                    </Button>
+                    <div className="flex gap-2 whitespace-nowrap">
+                      {!row.storeConnected && (
+                        <Button size="sm" onClick={() => onPick(row.id, 'settings')}>
+                          Connect Shopify
+                        </Button>
+                      )}
+                      <Button size="sm" variant="secondary" onClick={() => onPick(row.id)}>
+                        Open desk
+                      </Button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -120,12 +141,12 @@ function ClientsSummary({ onPick, hasClients }: { onPick: (id: string) => void; 
   );
 }
 
-function ClientDesk() {
+function ClientDesk({ initialTab = 'today' }: { initialTab?: GrowthTab }) {
   const [preset, setPreset] = useState<(typeof PRESETS)[number]['id']>('7d');
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [applied, setApplied] = useState<{ from: string; to: string } | null>(null);
-  const [tab, setTab] = useState<GrowthTab>('today');
+  const [tab, setTab] = useState<GrowthTab>(initialTab);
 
   const query =
     preset === 'custom' && applied ? `?preset=custom&from=${applied.from}&to=${applied.to}` : `?preset=${preset === 'custom' ? '7d' : preset}`;

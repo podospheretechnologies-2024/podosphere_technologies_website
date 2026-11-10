@@ -258,3 +258,29 @@ List DTO change (phase 2): posts, calendar, inbox threads, leads and media inclu
    added, the token design is unchanged.
 5. MEMBER permissions are the existing nine (`access.ts`); no new roles.
 6. The client detail page replaces the inline forms on the Clients page over time; the list stays.
+
+---
+
+## 10. Launch gaps for selling subscriptions (added 10 Nov 2026)
+
+Re-checked against the code on 10 Nov 2026: none of these exist yet. Phase numbers point to the build
+order in section 5; items without a phase are new.
+
+| # | Gap | Phase | Notes |
+|---|---|---|---|
+| G1 | No forgot password: a customer who forgets it cannot get back in | 1 (L1) | needs `RESEND_API_KEY` on prod to send the email |
+| G2 | No "Sign in with Google" | **new, phase 1** | Google OAuth login on `/login` and `/register`; existing email + password stays; a Google login whose email matches an existing user logs into that user; a new email creates a workspace like `/register`. Needs the Google OAuth client (reuse `GOOGLE_CLIENT_ID` or a new one) with redirect `https://social.podospheretechnologies.com/api/auth/google/callback` added in Google Cloud (only you) |
+| G3 | No `/pricing` page: visitors cannot see plans before signing up | 4 | built from `config/plans.ts` (Solo ₹1,499, Starter ₹4,999, Growth ₹9,999, Pro ₹19,999); "Start free" → `/register?plan=` |
+| G4 | Invites and client portal links are not emailed; copied by hand | 1 (L2, L3, P5) | email first, WhatsApp later |
+| G5 | A MEMBER cannot be given access to a client, so sees empty pages | 1 (L4) | Team page client picker + per-permission checkboxes |
+| G6 | Dashboard does not work on a phone | 4 (L8) | bottom tab bar, drawers, cards |
+| G7 | Customers cannot connect their own Facebook/Instagram/LinkedIn | **outside code** | Meta App Review for app 1425390532878774 (Advanced Access for pages/instagram permissions) and LinkedIn app keys (`LINKEDIN_CLIENT_ID/SECRET`) on prod. Start now; Meta takes weeks |
+
+### Two workspaces for one company (found 10 Nov 2026)
+
+Each login belongs to exactly one workspace (`User.organizationId`). Prod has at least two
+PodoSphere workspaces: "Podosphere technologies" (Surbhi Trivedi's login, 115 channels, 52 active,
+63 need attention) and "Podosphere Technologies" (`admin@podospheretechnologies.com`, no channels).
+That is why the Clients form under the admin login says "No social channels connected yet".
+Check with `pnpm db:audit-orgs` on the server (read-only). Fix by choosing one workspace to keep and
+moving the other login into it (a data change on prod; only after an explicit yes).

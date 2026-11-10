@@ -3,7 +3,18 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import useSWR from 'swr';
-import { Plus, Link as LinkIcon, Check, Ban, BookmarkPlus, LayoutTemplate, Wand2, Pencil } from 'lucide-react';
+import {
+  Plus,
+  Link as LinkIcon,
+  Check,
+  Ban,
+  BookmarkPlus,
+  LayoutTemplate,
+  Wand2,
+  Pencil,
+  LogIn,
+  Shuffle,
+} from 'lucide-react';
 import { apiFetch } from '@/shared/lib/fetcher';
 import { useClientScopeKey } from '@/modules/social/hooks/use-client-scope';
 
@@ -144,6 +155,7 @@ export default function ClientsPage() {
   const integrations = assignable?.channels ?? [];
   const adAccounts = assignable?.adAccounts ?? [];
   const googleAdAccounts = assignable?.googleAdAccounts ?? [];
+  const unassignedCount = [...integrations, ...adAccounts, ...googleAdAccounts].filter((asset) => !asset.customerId).length;
 
   const [isAdding, setIsAdding] = useState(false);
   const [isFromTemplate, setIsFromTemplate] = useState(false);
@@ -156,6 +168,7 @@ export default function ClientsPage() {
     approverEmail: '',
   });
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [loggingInId, setLoggingInId] = useState<string | null>(null);
   const [revokingId, setRevokingId] = useState<string | null>(null);
   const [revokedId, setRevokedId] = useState<string | null>(null);
   const [savingTemplateId, setSavingTemplateId] = useState<string | null>(null);
@@ -285,6 +298,18 @@ export default function ClientsPage() {
     setTimeout(() => setCopiedId(null), 2000);
   }
 
+  async function loginAsClient(clientId: string) {
+    setLoggingInId(clientId);
+    try {
+      const res = (await apiFetch(`/api/social/clients/${clientId}/portal-login`, {
+        method: 'POST',
+      })) as { redirectTo: string };
+      window.open(res.redirectTo, '_blank', 'noopener,noreferrer');
+    } finally {
+      setLoggingInId(null);
+    }
+  }
+
   async function revokeLink(clientId: string, approverId?: string) {
     if (!approverId) return;
     setRevokingId(clientId);
@@ -371,6 +396,15 @@ export default function ClientsPage() {
           <p className="text-muted-foreground mt-1">Manage your agency clients and approval portals.</p>
         </div>
         <div className="flex items-center gap-2">
+          <Link
+            href="/dashboard/social/clients/sort"
+            className="border-border flex items-center gap-2 rounded-md border bg-surface px-4 py-2 text-sm font-medium transition hover:bg-surface-muted"
+          >
+            <Shuffle className="size-4" /> Sort channels
+            {unassignedCount > 0 && (
+              <span className="bg-primary text-primary-foreground rounded-full px-1.5 text-xs">{unassignedCount}</span>
+            )}
+          </Link>
           <button
             onClick={() => {
               setIsFromTemplate(true);
@@ -673,22 +707,33 @@ export default function ClientsPage() {
                         )}
                       </button>
                       {client.approvers?.[0] ? (
-                        <button
-                          onClick={() => revokeLink(client.id, client.approvers[0].id)}
-                          disabled={revokingId === client.id}
-                          className="inline-flex items-center gap-1.5 rounded-md border border-red-500/30 bg-surface px-3 py-1.5 text-xs font-medium text-red-600 shadow-sm transition hover:bg-red-500/10 disabled:opacity-60"
-                        >
-                          {revokedId === client.id ? (
-                            <>
-                              <Check className="size-3.5" /> Revoked
-                            </>
-                          ) : (
-                            <>
-                              <Ban className="size-3.5" />{' '}
-                              {revokingId === client.id ? 'Revoking…' : 'Revoke link'}
-                            </>
-                          )}
-                        </button>
+                        <>
+                          <button
+                            onClick={() => loginAsClient(client.id)}
+                            disabled={loggingInId === client.id}
+                            className="inline-flex items-center gap-1.5 rounded-md border bg-surface px-3 py-1.5 text-xs font-medium shadow-sm transition hover:bg-surface-muted disabled:opacity-60"
+                            title="Open the client portal as this client's approver"
+                          >
+                            <LogIn className="size-3.5" />
+                            {loggingInId === client.id ? 'Opening…' : 'Login as client'}
+                          </button>
+                          <button
+                            onClick={() => revokeLink(client.id, client.approvers[0].id)}
+                            disabled={revokingId === client.id}
+                            className="inline-flex items-center gap-1.5 rounded-md border border-red-500/30 bg-surface px-3 py-1.5 text-xs font-medium text-red-600 shadow-sm transition hover:bg-red-500/10 disabled:opacity-60"
+                          >
+                            {revokedId === client.id ? (
+                              <>
+                                <Check className="size-3.5" /> Revoked
+                              </>
+                            ) : (
+                              <>
+                                <Ban className="size-3.5" />{' '}
+                                {revokingId === client.id ? 'Revoking…' : 'Revoke link'}
+                              </>
+                            )}
+                          </button>
+                        </>
                       ) : null}
                     </div>
                   </td>

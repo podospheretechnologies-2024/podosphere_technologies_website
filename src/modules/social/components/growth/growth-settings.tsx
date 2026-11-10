@@ -63,19 +63,47 @@ function ShopifyPanel({ canReview, onChange }: { canReview: boolean; onChange: (
         ))}
       </div>
       <Field label="Store address (myshopify.com)">
-        <Input value={shopDomain} onChange={(e) => setShopDomain(e.target.value)} placeholder="siyara-beauty.myshopify.com" />
+        {/* Browsers treat a text field before a password field as a login form and autofill the
+            dashboard email + password here. Unique names + new-password stop that. */}
+        <Input
+          name="shopify-store-domain"
+          autoComplete="off"
+          spellCheck={false}
+          data-1p-ignore
+          data-lpignore="true"
+          value={shopDomain}
+          onChange={(e) => setShopDomain(e.target.value)}
+          placeholder="siyara-beauty.myshopify.com"
+        />
       </Field>
       {mode === 'token' ? (
         <Field label="Admin API access token (starts with shpat_)">
-          <Input type="password" autoComplete="off" value={accessToken} onChange={(e) => setAccessToken(e.target.value)} placeholder="shpat_…" />
+          <Input
+            type="password"
+            name="shopify-admin-token"
+            autoComplete="new-password"
+            data-1p-ignore
+            data-lpignore="true"
+            value={accessToken}
+            onChange={(e) => setAccessToken(e.target.value)}
+            placeholder="shpat_…"
+          />
         </Field>
       ) : (
         <>
           <Field label="Client ID">
-            <Input value={clientId} onChange={(e) => setClientId(e.target.value)} autoComplete="off" />
+            <Input name="shopify-client-id" value={clientId} onChange={(e) => setClientId(e.target.value)} autoComplete="off" data-1p-ignore data-lpignore="true" />
           </Field>
           <Field label="Client secret">
-            <Input type="password" autoComplete="off" value={clientSecret} onChange={(e) => setClientSecret(e.target.value)} />
+            <Input
+              type="password"
+              name="shopify-client-secret"
+              autoComplete="new-password"
+              data-1p-ignore
+              data-lpignore="true"
+              value={clientSecret}
+              onChange={(e) => setClientSecret(e.target.value)}
+            />
           </Field>
         </>
       )}

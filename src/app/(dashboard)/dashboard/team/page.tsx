@@ -13,9 +13,10 @@ export default async function TeamPage() {
     redirect('/dashboard/social');
   }
 
-  const [members, invitations] = await Promise.all([
+  const [members, invitations, clients] = await Promise.all([
     invitationService.listMembers(ctx.organization.id),
     invitationService.listPendingInvitations(ctx.organization.id),
+    invitationService.listAssignableClients(ctx.organization.id),
   ]);
 
   return (
@@ -24,6 +25,7 @@ export default async function TeamPage() {
         <h1 className="text-3xl font-bold tracking-tight text-gray-900">Team Management</h1>
         <p className="text-gray-500 mt-2">
           Invite team members with an invite link. They set their own password — no shared passwords.
+          Admins see every client; a member sees only the clients you tick for them.
         </p>
       </div>
 
@@ -39,6 +41,7 @@ export default async function TeamPage() {
             createdAt: i.createdAt.toISOString(),
             expiresAt: i.expiresAt.toISOString(),
           })),
+          clients,
           currentUserId: ctx.user.id,
         }}
       />

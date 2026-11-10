@@ -24,6 +24,8 @@ async function listSwitcherClients() {
   return prisma.socialCustomer.findMany({
     where: {
       organizationId: ctx.organization.id,
+      // Deleted clients stay in the table (soft delete) — never offer them in the switcher.
+      deletedAt: null,
       ...(listable === 'all' ? {} : { id: { in: listable } }),
     },
     select: { id: true, name: true },

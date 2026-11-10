@@ -200,6 +200,14 @@
       "namedRegex": "^/api/social/clients/(?<nxtPid>[^/]+?)/onboarding(?:/)?$"
     },
     {
+      "page": "/api/social/clients/[id]/portal-login",
+      "regex": "^/api/social/clients/([^/]+?)/portal\\-login(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/social/clients/(?<nxtPid>[^/]+?)/portal\\-login(?:/)?$"
+    },
+    {
       "page": "/api/social/clients/[id]/revoke-link",
       "regex": "^/api/social/clients/([^/]+?)/revoke\\-link(?:/)?$",
       "routeKeys": {
@@ -510,6 +518,14 @@
         "nxtPid": "nxtPid"
       },
       "namedRegex": "^/api/team/invitations/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/api/team/members/[id]/clients",
+      "regex": "^/api/team/members/([^/]+?)/clients(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/team/members/(?<nxtPid>[^/]+?)/clients(?:/)?$"
     },
     {
       "page": "/b/[slug]",
@@ -874,6 +890,12 @@
       "regex": "^/api/social/clients/assignable(?:/)?$",
       "routeKeys": {},
       "namedRegex": "^/api/social/clients/assignable(?:/)?$"
+    },
+    {
+      "page": "/api/social/clients/sort",
+      "regex": "^/api/social/clients/sort(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/social/clients/sort(?:/)?$"
     },
     {
       "page": "/api/social/google-sheets",
@@ -1318,6 +1340,12 @@
       "regex": "^/dashboard/social/clients(?:/)?$",
       "routeKeys": {},
       "namedRegex": "^/dashboard/social/clients(?:/)?$"
+    },
+    {
+      "page": "/dashboard/social/clients/sort",
+      "regex": "^/dashboard/social/clients/sort(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/dashboard/social/clients/sort(?:/)?$"
     },
     {
       "page": "/dashboard/social/growth",

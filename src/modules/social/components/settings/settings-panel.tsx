@@ -33,6 +33,7 @@ const tabs: { id: SettingsTab; label: string; description: string }[] = [
 const externalLinks = [
   { href: `${SOCIAL_BASE_PATH}/automation`, label: 'Webhooks' },
   { href: `${SOCIAL_BASE_PATH}/automation`, label: 'Auto Post' },
+  { href: '/dashboard/team', label: 'Team & access' },
 ];
 
 export function SettingsPanel() {
