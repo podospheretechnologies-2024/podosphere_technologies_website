@@ -52,14 +52,32 @@ const CONTENT_HEADER_HINTS = [
   'title',
 ];
 
+const NOT_CONFIGURED =
+  'Google Sheets is not configured. Set GOOGLE_SHEETS_CLIENT_ID and GOOGLE_SHEETS_CLIENT_SECRET (or GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET) in .env.';
+
+// Prefers the Sheets-only OAuth client (company Cloud project, Internal consent screen: drive.readonly
+// is a restricted scope, so an External app would need a security review or expire every 7 days);
+// falls back to the client shared with YouTube / GBP.
+function oauthClient(): { clientId?: string; clientSecret?: string } {
+  const env = process.env;
+  // Fall back as a pair, never field by field: an id from one Cloud project with a secret from
+  // another passes isConfigured() and then dies at token exchange with an opaque invalid_client.
+  if (env.GOOGLE_SHEETS_CLIENT_ID || env.GOOGLE_SHEETS_CLIENT_SECRET) {
+    return { clientId: env.GOOGLE_SHEETS_CLIENT_ID, clientSecret: env.GOOGLE_SHEETS_CLIENT_SECRET };
+  }
+  return { clientId: env.GOOGLE_CLIENT_ID, clientSecret: env.GOOGLE_CLIENT_SECRET };
+}
+
 function isConfigured(): boolean {
-  return Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
+  const { clientId, clientSecret } = oauthClient();
+  return Boolean(clientId && clientSecret);
 }
 
 function getGoogleEnv(name: 'GOOGLE_CLIENT_ID' | 'GOOGLE_CLIENT_SECRET'): string {
-  const value = process.env[name];
+  const { clientId, clientSecret } = oauthClient();
+  const value = name === 'GOOGLE_CLIENT_ID' ? clientId : clientSecret;
   if (!value) {
-    throw new HttpError(400, 'Google Sheets is not configured. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in .env.');
+    throw new HttpError(400, NOT_CONFIGURED);
   }
   return value;
 }
@@ -539,10 +557,7 @@ export const googleSheetsService = {
     returnTo: GoogleSheetsReturnTo = 'automation'
   ): Promise<{ url: string }> {
     if (!isConfigured()) {
-      throw new HttpError(
-        400,
-        'Google Sheets is not configured. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in .env.'
-      );
+      throw new HttpError(400, NOT_CONFIGURED);
     }
     const state = await googleSheetsOAuthState.save(organizationId, returnTo);
     const params = new URLSearchParams({

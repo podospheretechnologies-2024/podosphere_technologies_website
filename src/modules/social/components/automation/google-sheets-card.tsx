@@ -189,8 +189,8 @@ export function GoogleSheetsCard() {
 
       {configured === false && (
         <p className="text-muted-foreground rounded-xl border border-dashed border-[#DADCE0] bg-[#F8F9FA] px-3 py-2.5 text-sm">
-          Set <code className="rounded bg-white px-1.5 py-0.5 text-xs">GOOGLE_CLIENT_ID</code> and{' '}
-          <code className="rounded bg-white px-1.5 py-0.5 text-xs">GOOGLE_CLIENT_SECRET</code> in{' '}
+          Set <code className="rounded bg-white px-1.5 py-0.5 text-xs">GOOGLE_SHEETS_CLIENT_ID</code> and{' '}
+          <code className="rounded bg-white px-1.5 py-0.5 text-xs">GOOGLE_SHEETS_CLIENT_SECRET</code> in{' '}
           <code className="rounded bg-white px-1.5 py-0.5 text-xs">.env</code>, then restart the
           server.
         </p>

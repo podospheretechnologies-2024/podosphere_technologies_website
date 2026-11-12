@@ -190,7 +190,7 @@ export function GeneratePostFromSheetsDialog({
               </p>
               {!data.connection.configured && (
                 <p className="text-muted-foreground text-sm">
-                  Add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET to .env, then restart.
+                  Add GOOGLE_SHEETS_CLIENT_ID and GOOGLE_SHEETS_CLIENT_SECRET to .env, then restart.
                 </p>
               )}
               <Button onClick={connect} disabled={busy || !data.connection.configured}>

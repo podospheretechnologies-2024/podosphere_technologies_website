@@ -104,7 +104,7 @@ export function ContentSheetPanel({ canReview }: { canReview: boolean }) {
 
       {status && !status.configured && (
         <p className="text-sm text-amber-700 dark:text-amber-400">
-          Google is not set up on the server: add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET to .env.
+          Google Sheets is not set up on the server: add GOOGLE_SHEETS_CLIENT_ID and GOOGLE_SHEETS_CLIENT_SECRET to .env.
         </p>
       )}
 
