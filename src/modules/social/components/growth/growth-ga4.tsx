@@ -68,7 +68,7 @@ export function Ga4Panel({ canReview, onChange }: { canReview: boolean; onChange
 
       {status && !status.configured && (
         <p className="text-sm text-amber-700 dark:text-amber-400">
-          Google is not set up on the server: add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET to .env.
+          Google Analytics is not set up on the server: add GOOGLE_GA4_CLIENT_ID and GOOGLE_GA4_CLIENT_SECRET to .env.
         </p>
       )}
 

@@ -64,12 +64,16 @@ lists every GA4 property that login can read, and each property is assigned to o
   refused (409) and hidden from the picker; when a property changes client, its synced rows are deleted.
 
 Setup (owner):
-1. Google Cloud project of `GOOGLE_CLIENT_ID`: enable **Google Analytics Admin API** and **Google Analytics
-   Data API**; on the OAuth client add the redirect URI `<APP_URL>/api/social/growth/ga4/callback`; if the
-   consent screen is in Testing, add the agency Google account as a test user.
+1. (Changed 11 Nov 2026) GA4 runs on its own OAuth client in the company project `podo-social-ads`
+   (org `podospheretechnologies.com`), not the personal project of `GOOGLE_CLIENT_ID`. There: enable
+   **Google Analytics Admin API** and **Google Analytics Data API**; keep the consent screen **Internal**
+   (no review, no 7-day token expiry); create a Web OAuth client with redirect URI
+   `<APP_URL>/api/social/growth/ga4/callback`; set `GOOGLE_GA4_CLIENT_ID` / `GOOGLE_GA4_CLIENT_SECRET` on the
+   server. Connect as **info@podospheretechnologies.com** (an org account is required with Internal).
+   Unset GA4 vars fall back to `GOOGLE_CLIENT_*`.
 2. `pnpm db:migrate` (local) / `pnpm db:deploy` (prod), then reload web + worker.
 3. Growth → pick a client → Setup → **Connect Google Analytics** (owner/admin).
-4. In each client's GA4: Admin → Property access management → add the agency Google account as **Viewer**.
+4. In each client's GA4: Admin → Property access management → add **info@podospheretechnologies.com** as **Viewer**.
    Then press Refresh list in Setup, pick the property, and press Sync now.
 5. Purchase / revenue numbers only show when the site sends GA4 e-commerce events (`add_to_cart`, `begin_checkout`, `purchase`).
 

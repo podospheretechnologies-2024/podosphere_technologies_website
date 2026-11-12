@@ -60,6 +60,10 @@ const serverEnvSchema = z.object({
   // back to the GOOGLE_CLIENT_* pair above. Connect needs only a client id + secret.
   GOOGLE_ADS_CLIENT_ID: z.string().optional(),
   GOOGLE_ADS_CLIENT_SECRET: z.string().optional(),
+  // Google Analytics (Growth Desk). Its own OAuth client on the company Cloud project (Internal
+  // consent screen). Unset falls back to the GOOGLE_CLIENT_* pair above.
+  GOOGLE_GA4_CLIENT_ID: z.string().optional(),
+  GOOGLE_GA4_CLIENT_SECRET: z.string().optional(),
   // Access level is granted per Google Cloud project; developer tokens were sunset 9 Sep 2026.
   // Keep this set only if a legacy token is still in use; it is sent as developer-token when present.
   GOOGLE_ADS_DEVELOPER_TOKEN: z.string().optional(),

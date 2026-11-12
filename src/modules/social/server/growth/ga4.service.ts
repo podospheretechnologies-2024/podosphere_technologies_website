@@ -24,7 +24,8 @@ import { dayToDate, localDay, shiftDay } from './growth-metrics';
 
 // Google Analytics 4, connected like Meta / Google Ads: one Google login per organization
 // (analytics.readonly), every property it can read is listed, each property is assigned to one
-// client. The login only needs Viewer on a property. Uses the shared GOOGLE_CLIENT_ID / SECRET.
+// client. The login only needs Viewer on a property. Uses GOOGLE_GA4_CLIENT_ID / SECRET when set,
+// otherwise the shared GOOGLE_CLIENT_ID / SECRET.
 
 const AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
 const TOKEN_URL = 'https://oauth2.googleapis.com/token';
@@ -53,7 +54,7 @@ export interface Ga4PropertyDto {
 }
 
 export interface Ga4StatusDto {
-  /** GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET are set on the server. */
+  /** GOOGLE_GA4_CLIENT_* (or the shared GOOGLE_CLIENT_*) pair is set on the server. */
   configured: boolean;
   /** The organization has a Google login connected for Analytics. */
   connected: boolean;
@@ -97,8 +98,15 @@ function toPropertyDto(row: SocialGa4Property): Ga4PropertyDto {
 
 // ---------- OAuth ----------
 
-function oauthClient() {
+// Prefers the GA4-only OAuth client (company Cloud project, Internal consent screen, so the
+// login never expires after 7 days); falls back to the client shared with Sheets / YouTube / GBP.
+function oauthClient(): { clientId?: string; clientSecret?: string } {
   const env = getServerEnv();
+  // Fall back as a pair, never field by field: an id from one Cloud project with a secret from
+  // another passes isConfigured() and then dies at token exchange with an opaque invalid_client.
+  if (env.GOOGLE_GA4_CLIENT_ID || env.GOOGLE_GA4_CLIENT_SECRET) {
+    return { clientId: env.GOOGLE_GA4_CLIENT_ID, clientSecret: env.GOOGLE_GA4_CLIENT_SECRET };
+  }
   return { clientId: env.GOOGLE_CLIENT_ID, clientSecret: env.GOOGLE_CLIENT_SECRET };
 }
 
@@ -110,7 +118,10 @@ function isConfigured() {
 function requireConfigured() {
   const { clientId, clientSecret } = oauthClient();
   if (!clientId || !clientSecret) {
-    throw new HttpError(400, 'Google is not configured. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in .env.');
+    throw new HttpError(
+      400,
+      'Google Analytics is not configured. Set GOOGLE_GA4_CLIENT_ID and GOOGLE_GA4_CLIENT_SECRET (or GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET) in .env.'
+    );
   }
   return { clientId, clientSecret };
 }
