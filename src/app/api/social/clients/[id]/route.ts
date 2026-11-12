@@ -29,3 +29,23 @@ export async function PATCH(request: NextRequest, props: { params: Promise<{ id:
     return errorResponse(error);
   }
 }
+
+/** Admin only: soft-delete a client row (unlink assets, kill portal access). */
+export async function DELETE(_request: NextRequest, props: { params: Promise<{ id: string }> }) {
+  try {
+    const { id } = await props.params;
+    const ctx = await requireRole('ADMIN');
+    const result = await customerService.softDeleteClient(ctx.organization.id, id);
+
+    await logAudit({
+      action: 'delete_client',
+      targetType: 'SocialCustomer',
+      targetId: result.id,
+      metadata: { name: result.name },
+    });
+
+    return Response.json({ ok: true, ...result });
+  } catch (error) {
+    return errorResponse(error);
+  }
+}

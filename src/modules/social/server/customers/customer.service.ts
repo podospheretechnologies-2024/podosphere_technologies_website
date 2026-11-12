@@ -234,6 +234,45 @@ export const customerService = {
   },
 
   /**
+   * Admin soft-delete: hide the client from the agency list, unlink channels/ads so they can be
+   * reassigned, and kill portal/magic-link access. Does NOT disconnect Meta/Google tokens or
+   * wipe posts/media — those stay on the org as unlinked history.
+   */
+  async softDeleteClient(organizationId: string, customerId: string) {
+    const customer = await prisma.socialCustomer.findFirst({
+      where: { id: customerId, organizationId, deletedAt: null },
+      select: { id: true, name: true },
+    });
+    if (!customer) throw new HttpError(404, 'Client not found');
+
+    const now = new Date();
+    await prisma.$transaction(async (tx) => {
+      await tx.socialIntegration.updateMany({
+        where: { organizationId, customerId },
+        data: { customerId: null },
+      });
+      await tx.adAccount.updateMany({
+        where: { organizationId, customerId },
+        data: { customerId: null },
+      });
+      await tx.socialGoogleAdsAccount.updateMany({
+        where: { organizationId, customerId },
+        data: { customerId: null },
+      });
+      await tx.clientApprover.updateMany({
+        where: { organizationId, customerId, disabledAt: null },
+        data: { disabledAt: now, tokenVersion: { increment: 1 } },
+      });
+      await tx.socialCustomer.update({
+        where: { id: customerId },
+        data: { deletedAt: now },
+      });
+    });
+
+    return { id: customer.id, name: customer.name, deletedAt: now.toISOString() };
+  },
+
+  /**
    * Sort-channels screen: every channel / ad account not yet on a client, grouped by brand name and
    * matched to an existing client where the names agree.
    */

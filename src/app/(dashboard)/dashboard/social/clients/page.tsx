@@ -15,6 +15,7 @@ import {
   LogIn,
   Shuffle,
   KeyRound,
+  Trash2,
 } from 'lucide-react';
 import { apiFetch } from '@/shared/lib/fetcher';
 import { useClientScopeKey } from '@/modules/social/hooks/use-client-scope';
@@ -173,6 +174,7 @@ export default function ClientsPage() {
   const [loggingInId, setLoggingInId] = useState<string | null>(null);
   const [revokingId, setRevokingId] = useState<string | null>(null);
   const [revokedId, setRevokedId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [savingTemplateId, setSavingTemplateId] = useState<string | null>(null);
   const [savedTemplateId, setSavedTemplateId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -326,6 +328,24 @@ export default function ClientsPage() {
       setTimeout(() => setRevokedId(null), 2000);
     } finally {
       setRevokingId(null);
+    }
+  }
+
+  async function deleteClient(client: ClientRow) {
+    const ok = window.confirm(
+      `Delete "${client.name}"?\n\n` +
+        `• Removes them from Client Management\n` +
+        `• Unlinks channels & ads (they stay in the workspace, ready to reassign)\n` +
+        `• Stops portal / magic-link logins\n` +
+        `• Does NOT disconnect Meta/Google or wipe old posts`
+    );
+    if (!ok) return;
+    setDeletingId(client.id);
+    try {
+      await apiFetch(`/api/social/clients/${client.id}`, { method: 'DELETE' });
+      await Promise.all([mutate(), mutateAssignable()]);
+    } finally {
+      setDeletingId(null);
     }
   }
 
@@ -745,6 +765,15 @@ export default function ClientsPage() {
                           </button>
                         </>
                       ) : null}
+                      <button
+                        onClick={() => deleteClient(client)}
+                        disabled={deletingId === client.id}
+                        className="inline-flex items-center gap-1.5 rounded-md border border-red-500/40 bg-surface px-3 py-1.5 text-xs font-medium text-red-600 shadow-sm transition hover:bg-red-500/10 disabled:opacity-60"
+                        title="Admin only: remove this client from the list"
+                      >
+                        <Trash2 className="size-3.5" />
+                        {deletingId === client.id ? 'Deleting…' : 'Delete'}
+                      </button>
                     </div>
                   </td>
                 </tr>
