@@ -8,7 +8,7 @@ export interface AiStatus {
 
 export type AiSettingsSource = 'client' | 'workspace' | 'env';
 
-/** Masked AI provider config shown in the admin panel. Never carries the raw API key. */
+/** AI provider config for the admin panel (agency can view/edit the client key). */
 export interface AiProviderDisplay {
   /** Which level the current scope edits. */
   level: 'client' | 'workspace';
@@ -16,6 +16,8 @@ export interface AiProviderDisplay {
   provider: AiProvider | null;
   model: string | null;
   keyLast4: string | null;
+  /** Decrypted key stored at this level (null when none). Env keys are never returned. */
+  apiKey: string | null;
   /** What actually runs for this scope, and where it comes from. */
   effective: { provider: AiProvider; model: string; source: AiSettingsSource } | null;
 }

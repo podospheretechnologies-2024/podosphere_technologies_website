@@ -154,7 +154,7 @@ export const aiSettingsService = {
     );
   },
 
-  /** Masked settings for the UI — stored config at this level + what actually runs. Never the key. */
+  /** Settings for the UI — stored config at this level + what actually runs. Includes the client key. */
   async getDisplay(scope: ClientScope): Promise<AiProviderDisplay> {
     const organizationId = scope.organizationId;
     const customerId = levelCustomerId(scope);
@@ -167,13 +167,15 @@ export const aiSettingsService = {
     ]);
 
     const provider = row && isAiProvider(row.provider) ? row.provider : null;
-    const keyLast4 = row?.apiKeyEncrypted ? decrypt(row.apiKeyEncrypted).slice(-4) : null;
+    const apiKey = row?.apiKeyEncrypted ? decrypt(row.apiKeyEncrypted) : null;
+    const keyLast4 = apiKey ? apiKey.slice(-4) : null;
 
     return {
       level: customerId ? 'client' : 'workspace',
       provider,
       model: row?.model ?? null,
       keyLast4,
+      apiKey,
       effective: resolved
         ? { provider: resolved.config.provider, model: resolved.config.model, source: resolved.source }
         : null,
@@ -220,23 +222,29 @@ export const aiSettingsService = {
   },
 
   /** One tiny live call to verify a key/provider/model, without persisting anything. */
-  async test(input: AiSettingsTestInput): Promise<{ ok: true } | { ok: false; error: string }> {
+  async test(
+    input: AiSettingsTestInput
+  ): Promise<{ ok: true; reply: string; model: string } | { ok: false; error: string }> {
     const cfg: ResolvedAiConfig = {
       provider: input.provider,
       apiKey: input.apiKey,
       model: input.model?.trim() || defaultModel(input.provider),
     };
-    const schema = z.object({ ok: z.string() });
+    const schema = z.object({ reply: z.string() });
     try {
       const result = await generateStructured(cfg, {
-        system: ['You are a connectivity check for an app. Answer exactly what is asked.'],
-        task: 'Return a JSON object whose "ok" field is the word "ok".',
-        input: 'ping',
+        system: [
+          'You are a connectivity check for an agency dashboard. Reply in one short friendly sentence.',
+        ],
+        task: 'Return JSON with a "reply" field — one short sentence confirming you are working.',
+        input: 'Say hello and confirm the API key works.',
         effort: 'low',
         schema,
         schemaName: 'connectivity_test',
       });
-      if (result.outcome.kind === 'ok') return { ok: true };
+      if (result.outcome.kind === 'ok') {
+        return { ok: true, reply: result.outcome.parsed.reply.trim(), model: result.model };
+      }
       return { ok: false, error: 'The provider accepted the key but did not return a usable answer.' };
     } catch (error) {
       if (error instanceof HttpError) return { ok: false, error: error.message };
