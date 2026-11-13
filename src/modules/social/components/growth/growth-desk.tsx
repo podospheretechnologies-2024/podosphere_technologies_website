@@ -222,21 +222,41 @@ function ClientDesk({ initialTab = 'today' }: { initialTab?: GrowthTab }) {
           </div>
           <div className="text-xs text-white/75">
             {t.roas != null
-              ? `Shopify sales ÷ Meta spend.${t.metaRoas != null ? ` Meta-reported: ${times(t.metaRoas)}.` : ''}`
+              ? `Shopify sales ÷ ad spend (Meta${data.hasGoogleAds ? ' + Google' : ''}).${t.metaRoas != null ? ` Meta-reported: ${times(t.metaRoas)}.` : ''}`
               : !data.store.connected
                 ? 'Connect the Shopify store (Setup tab) to see real ROAS.'
                 : !data.hasAds
-                  ? 'No Meta ad account is assigned to this client yet (Ads page → assign to client).'
+                  ? 'No Meta or Google ad account is assigned to this client yet (Ads page → assign to client).'
                   : 'No ad spend for these dates yet.'}
           </div>
         </div>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
           <Stat label="Sales" value={money(t.sales, currency)} note="Shopify" />
-          <Stat label="Ad spend" value={money(t.spend, currency)} note={data.hasAds ? 'Meta Ads' : 'No ad account'} />
+          <Stat
+            label="Ad spend"
+            value={money(t.spend, currency)}
+            note={
+              !data.hasAds
+                ? 'No ad account'
+                : [data.hasMetaAds ? `Meta ${money(t.metaSpend, currency)}` : null, data.hasGoogleAds ? `Google ${money(t.googleSpend, currency)}` : null]
+                    .filter(Boolean)
+                    .join(' · ')
+            }
+          />
           <Stat label="Orders" value={count(t.orders)} note={t.aov != null ? `AOV ${money(t.aov, currency)}` : ''} />
           <Stat label="Sessions" value={count(t.sessions)} note={t.sessions ? `Order rate ${pct(t.orders, t.sessions)}` : 'Needs read_reports'} />
           <Stat label="Add to cart" value={count(t.atc)} note={t.sessions ? `Cart rate ${pct(t.atc, t.sessions)}` : ''} />
-          <Stat label="Meta purchases" value={count(t.metaPurchases)} note={t.metaPurchases ? `CPP ${money((t.spend ?? 0) / t.metaPurchases, currency)}` : ''} />
+          <Stat
+            label="Meta purchases"
+            value={count(t.metaPurchases)}
+            note={
+              t.metaPurchases
+                ? `CPP ${money((t.metaSpend ?? 0) / t.metaPurchases, currency)}`
+                : t.googleConversions
+                  ? `Google conv. ${count(t.googleConversions)}`
+                  : ''
+            }
+          />
         </div>
         <div className="flex flex-wrap gap-2 md:col-span-2">
           {needs.map((n) => (

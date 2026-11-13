@@ -1,9 +1,10 @@
 import 'server-only';
 import { prisma } from '@/shared/lib/prisma';
-import type { ClientScope } from '@/shared/server/client-scope';
+import { organizationScope, type ClientScope } from '@/shared/server/client-scope';
 import { HttpError } from '@/shared/server/http-error';
 import type { GrowthClient } from './growth-scope';
 import { dayToDate, daysBetween, localDay, reportDue, roas, shiftDay } from './growth-metrics';
+import { googleAdsService } from '../google-ads/google-ads.service';
 import { shopifyService } from './shopify.service';
 
 const MAX_RANGE_DAYS = 400;
@@ -97,6 +98,76 @@ async function customerAdAccountIds(organizationId: string, customerId: string):
   return accounts.map((a) => a.id);
 }
 
+/** Soft-live Google Ads for Growth: spend + campaigns for the date range. Never throws. */
+async function googleAdsForDesk(
+  organizationId: string,
+  customerId: string,
+  from: string,
+  to: string
+): Promise<{
+  hasGoogleAds: boolean;
+  spend: number;
+  conversions: number;
+  campaigns: CampaignRow[];
+  dailySpend: Map<string, number>;
+  error: string | null;
+}> {
+  const accounts = await prisma.socialGoogleAdsAccount.findMany({
+    where: { organizationId, customerId },
+    select: { googleCustomerId: true, name: true },
+    orderBy: { name: 'asc' },
+  });
+  if (!accounts.length) {
+    return { hasGoogleAds: false, spend: 0, conversions: 0, campaigns: [], dailySpend: new Map(), error: null };
+  }
+
+  try {
+    const scope = organizationScope(organizationId, customerId);
+    const overview = await googleAdsService.overview(scope, accounts[0]!.googleCustomerId, {
+      mode: 'range',
+      since: from,
+      until: to,
+    });
+    const dailySpend = new Map<string, number>();
+    for (const point of overview.daily) {
+      if (!point.date) continue;
+      dailySpend.set(point.date, (dailySpend.get(point.date) ?? 0) + point.spend);
+    }
+    const campaigns: CampaignRow[] = overview.campaigns
+      .filter((c) => c.spend > 0 || c.leads > 0)
+      .map((c) => ({
+        id: `google:${c.id}`,
+        name: c.name,
+        status: c.status,
+        objective: c.objective,
+        spend: c.spend,
+        purchases: c.leads,
+        revenue: 0,
+        roas: null,
+        costPerPurchase: c.costPerLead,
+        ctr: c.ctr,
+        atc: 0,
+      }));
+    return {
+      hasGoogleAds: true,
+      spend: overview.totals.spend,
+      conversions: overview.totals.leads,
+      campaigns,
+      dailySpend,
+      error: null,
+    };
+  } catch (error) {
+    return {
+      hasGoogleAds: true,
+      spend: 0,
+      conversions: 0,
+      campaigns: [],
+      dailySpend: new Map(),
+      error: error instanceof Error ? error.message : 'Could not load Google Ads',
+    };
+  }
+}
+
 export async function resolveRange(
   organizationId: string,
   customerId: string,
@@ -152,7 +223,7 @@ export async function overview(
   const toDate = dayToDate(range.to);
   const accountIds = await customerAdAccountIds(organizationId, customerId);
 
-  const [storeRows, adByDay, adByCampaign] = await Promise.all([
+  const [storeRows, adByDay, adByCampaign, google] = await Promise.all([
     prisma.shopifyDailyMetric.findMany({
       where: { organizationId, customerId, date: { gte: fromDate, lte: toDate } },
     }),
@@ -170,25 +241,30 @@ export async function overview(
           _sum: { spend: true, purchases: true, purchaseValue: true, clicks: true, impressions: true, addToCart: true },
         })
       : Promise.resolve([]),
+    googleAdsForDesk(organizationId, customerId, range.from, range.to),
   ]);
 
   const storeByDay = new Map(storeRows.map((r) => [r.date.toISOString().slice(0, 10), r]));
   const adDay = new Map(adByDay.map((r) => [r.date.toISOString().slice(0, 10), r._sum]));
   const hasStore = store.connected;
-  const hasAds = accountIds.length > 0;
+  const hasMetaAds = accountIds.length > 0;
+  const hasGoogleAds = google.hasGoogleAds;
+  const hasAds = hasMetaAds || hasGoogleAds;
 
   const days: DailyRow[] = daysBetween(range.from, range.to).map((date) => {
     const s = storeByDay.get(date);
     const a = adDay.get(date);
+    const metaSpend = hasMetaAds ? (a?.spend?.toNumber() ?? 0) : 0;
+    const googleSpend = hasGoogleAds ? (google.dailySpend.get(date) ?? 0) : 0;
     return {
       date,
       orders: hasStore ? (s?.orders ?? null) : null,
       sales: hasStore ? (s ? s.sales.toNumber() : null) : null,
       sessions: s?.sessions ?? null,
       atc: s?.addToCart ?? null,
-      spend: hasAds ? (a?.spend?.toNumber() ?? 0) : null,
-      metaPurchases: hasAds ? (a?.purchases ?? 0) : null,
-      metaRevenue: hasAds ? (a?.purchaseValue?.toNumber() ?? 0) : null,
+      spend: hasAds ? metaSpend + googleSpend : null,
+      metaPurchases: hasMetaAds ? (a?.purchases ?? 0) : null,
+      metaRevenue: hasMetaAds ? (a?.purchaseValue?.toNumber() ?? 0) : null,
     };
   });
 
@@ -241,14 +317,21 @@ export async function overview(
     .filter((c) => c.spend > 0 || c.purchases > 0)
     .sort((a, b) => b.spend - a.spend);
 
+  const metaSpendTotal = hasMetaAds
+    ? days.reduce((n, d) => n + ((adDay.get(d.date)?.spend?.toNumber() ?? 0)), 0)
+    : null;
+  const googleSpendTotal = hasGoogleAds ? (google.error ? null : google.spend) : null;
   const totals = {
     sales: sum('sales'),
     orders: sum('orders'),
     sessions: sum('sessions'),
     atc: sum('atc'),
     spend: sum('spend'),
+    metaSpend: metaSpendTotal == null ? null : Math.round(metaSpendTotal * 100) / 100,
+    googleSpend: googleSpendTotal,
     metaPurchases: sum('metaPurchases'),
     metaRevenue: sum('metaRevenue'),
+    googleConversions: hasGoogleAds && !google.error ? google.conversions : null,
   };
 
   return {
@@ -257,14 +340,18 @@ export async function overview(
     store,
     settings,
     hasAds,
+    hasMetaAds,
+    hasGoogleAds,
+    googleError: google.error,
     totals: {
       ...totals,
       roas: roas(totals.sales, totals.spend),
-      metaRoas: roas(totals.metaRevenue, totals.spend),
+      metaRoas: roas(totals.metaRevenue, totals.metaSpend),
       aov: totals.orders ? Math.round(((totals.sales ?? 0) / totals.orders) * 100) / 100 : null,
     },
     days,
     campaigns,
+    googleCampaigns: google.campaigns,
     counts: await deskCounts(organizationId, customerId, settings.reportEveryDays, timeZone),
   };
 }
@@ -313,7 +400,7 @@ export async function clientsSummary(scope: ClientScope) {
   const from = dayToDate(shiftDay(today, -6));
   const to = dayToDate(today);
 
-  const [stores, sales, accounts, tasks, settings] = await Promise.all([
+  const [stores, sales, accounts, googleAccounts, tasks, settings] = await Promise.all([
     prisma.socialShopifyStore.findMany({
       where: { organizationId: scope.organizationId, customerId: { in: ids } },
       select: { customerId: true, status: true },
@@ -326,6 +413,10 @@ export async function clientsSummary(scope: ClientScope) {
     prisma.adAccount.findMany({
       where: { organizationId: scope.organizationId, customerId: { in: ids } },
       select: { id: true, customerId: true },
+    }),
+    prisma.socialGoogleAdsAccount.findMany({
+      where: { organizationId: scope.organizationId, customerId: { in: ids } },
+      select: { customerId: true },
     }),
     prisma.socialTask.groupBy({
       by: ['customerId', 'status'],
@@ -365,7 +456,7 @@ export async function clientsSummary(scope: ClientScope) {
       name: c.name,
       storeConnected: Boolean(store),
       storeStatus: store?.status ?? null,
-      hasAds: accounts.some((a) => a.customerId === c.id),
+      hasAds: accounts.some((a) => a.customerId === c.id) || googleAccounts.some((a) => a.customerId === c.id),
       sales7d: store ? (salesTotal ?? 0) : null,
       orders7d: store ? (s?._sum.orders ?? 0) : null,
       spend7d: sp ? Math.round(sp.spend) : null,

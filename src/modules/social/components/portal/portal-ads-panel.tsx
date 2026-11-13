@@ -122,6 +122,17 @@ export async function PortalAdsPanel({
                     </div>
                   ) : null}
                 </div>
+                {ads.meta.purchases > 0 ? (
+                  <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+                    <div className="mb-1 text-sm font-medium text-gray-500">Purchases</div>
+                    <div className="text-3xl font-bold text-gray-900">{nf.format(ads.meta.purchases)}</div>
+                    {ads.showSpend && ads.meta.spend != null ? (
+                      <div className="mt-1 text-xs text-gray-500">
+                        {metaMoney.format(ads.meta.spend / ads.meta.purchases)} per purchase
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
               </div>
               <h3 className="mb-3 text-lg font-semibold text-gray-900">Top Meta campaigns</h3>
               <CampaignTable rows={ads.meta.campaigns} showSpend={ads.showSpend} currency={metaCurrency} />

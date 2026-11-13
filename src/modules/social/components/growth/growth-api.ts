@@ -84,20 +84,27 @@ export interface Overview {
   store: ShopifyStore;
   settings: GrowthSettings;
   hasAds: boolean;
+  hasMetaAds: boolean;
+  hasGoogleAds: boolean;
+  googleError: string | null;
   totals: {
     sales: number | null;
     orders: number | null;
     sessions: number | null;
     atc: number | null;
     spend: number | null;
+    metaSpend: number | null;
+    googleSpend: number | null;
     metaPurchases: number | null;
     metaRevenue: number | null;
+    googleConversions: number | null;
     roas: number | null;
     metaRoas: number | null;
     aov: number | null;
   };
   days: DailyRow[];
   campaigns: CampaignRow[];
+  googleCampaigns: CampaignRow[];
   counts: {
     openTasks: number;
     reviewTasks: number;
