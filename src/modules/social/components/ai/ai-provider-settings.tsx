@@ -1,8 +1,10 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useSWRConfig } from 'swr';
 import { Button } from '@/shared/components/ui/button';
 import { AI_PROVIDER_OPTIONS, type AiProvider } from '../../config/ai';
+import { AI_API_ROUTE } from '../../hooks/use-ai-status';
 import { useClientScopeKey } from '../../hooks/use-client-scope';
 import type { AiProviderDisplay } from '../../types/ai';
 
@@ -14,12 +16,17 @@ function providerLabel(provider: AiProvider): string {
 
 export function AiProviderSettings() {
   const scopeKey = useClientScopeKey();
+  const { mutate } = useSWRConfig();
   const [display, setDisplay] = useState<AiProviderDisplay | null>(null);
   const [provider, setProvider] = useState<AiProvider>('anthropic');
   const [model, setModel] = useState('');
   const [apiKey, setApiKey] = useState('');
   const [status, setStatus] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  function refreshAiStatus() {
+    void mutate([AI_API_ROUTE, scopeKey]);
+  }
 
   useEffect(() => {
     setStatus(null);
@@ -78,6 +85,7 @@ export function AiProviderSettings() {
       if (!response.ok) throw new Error(payload.error || 'Save failed');
       setDisplay(payload);
       setApiKey('');
+      refreshAiStatus();
       setStatus(`Saved. ${providerLabel(provider)} will be used for ${scopeNoun}.`);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : 'Save failed');
@@ -97,6 +105,7 @@ export function AiProviderSettings() {
       setProvider(payload.provider ?? payload.effective?.provider ?? 'anthropic');
       setModel(payload.model ?? '');
       setApiKey('');
+      refreshAiStatus();
       setStatus('Removed. This level now inherits the fallback provider.');
     } catch (error) {
       setStatus(error instanceof Error ? error.message : 'Could not remove');

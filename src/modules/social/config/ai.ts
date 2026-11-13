@@ -33,7 +33,7 @@ export const AI_PROVIDER_OPTIONS: AiProviderOption[] = [
   {
     value: 'gemini',
     label: 'Gemini (Google)',
-    modelPlaceholder: 'gemini-flash-latest',
+    modelPlaceholder: 'gemini-2.5-flash',
     keyHint: 'Google AI Studio API key',
   },
 ];

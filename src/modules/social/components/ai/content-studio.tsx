@@ -88,7 +88,7 @@ export function ContentStudio() {
 
   async function run(params: RunParams) {
     if (!configured) {
-      setError('AI is switched off. Add ANTHROPIC_API_KEY to the server .env and restart.');
+      setError('AI is switched off for this client. Save a provider API key under AI provider above.');
       return;
     }
     const tone = params.tonePresetId ?? undefined;
@@ -190,8 +190,8 @@ export function ContentStudio() {
 
       {!configured && (
         <div className="border-border bg-surface-muted/50 text-muted-foreground rounded-lg border p-3 text-sm">
-          AI text is switched off. Set <code className="text-foreground">ANTHROPIC_API_KEY</code> in
-          the server <code className="text-foreground">.env</code> and restart to turn it on.
+          AI text is switched off for this client. Pick the client in the switcher, then set a Gemini /
+          ChatGPT / Claude key under <b>AI provider</b> above (or ask an admin to set a server env key).
         </div>
       )}
 

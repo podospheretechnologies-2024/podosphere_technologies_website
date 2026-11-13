@@ -24,7 +24,7 @@ const serverEnvSchema = z.object({
   OPENAI_IMAGE_MODEL: z.string().min(1).default('gpt-image-1'),
   // Gemini (Google Generative Language): optional text + image provider.
   GEMINI_API_KEY: z.string().optional(),
-  GEMINI_MODEL: z.string().min(1).default('gemini-flash-latest'),
+  GEMINI_MODEL: z.string().min(1).default('gemini-2.5-flash'),
   GEMINI_IMAGE_MODEL: z.string().min(1).default('gemini-2.5-flash-image'),
   // F13: vision alt + caption ideas on media upload. Soft-fails when off or when keys fail.
   // unset = on when ANTHROPIC_API_KEY or OPENAI_API_KEY is set.

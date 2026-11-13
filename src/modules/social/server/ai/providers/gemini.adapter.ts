@@ -28,11 +28,24 @@ function userParts(task: string, input: string, images: AskImage[] | undefined):
   return parts;
 }
 
+const RETRYABLE = new Set([429, 503]);
+const MAX_ATTEMPTS = 3;
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function httpError(status: number, bodyText: string): HttpError {
   if (status === 400) return new HttpError(400, 'Gemini rejected the request.');
   if (status === 401 || status === 403) return new HttpError(503, 'The Gemini API key is invalid');
   if (status === 429) {
     return new HttpError(429, 'The AI is busy or its quota is used up. Try again later.');
+  }
+  if (status === 503) {
+    return new HttpError(
+      503,
+      'Gemini is overloaded right now. Wait a minute, or switch Model to gemini-2.5-flash on the Agent page.'
+    );
   }
   console.error('Gemini API error', status, bodyText.slice(0, 500));
   return new HttpError(502, 'The AI service is not available right now. Try again.');
@@ -63,26 +76,40 @@ export async function geminiStructured(
     },
   };
 
-  let response: Response;
-  try {
-    response = await fetchWithTimeout(
-      `${BASE_URL}/models/${encodeURIComponent(cfg.model)}:generateContent`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-goog-api-key': cfg.apiKey },
-        body: JSON.stringify(body),
-      },
-      REQUEST_TIMEOUT_MS
-    );
-  } catch (error) {
-    if (error instanceof Error && error.name === 'AbortError') {
-      throw new HttpError(504, 'The AI took too long to respond. Try again.');
+  const url = `${BASE_URL}/models/${encodeURIComponent(cfg.model)}:generateContent`;
+  const init: RequestInit = {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-goog-api-key': cfg.apiKey },
+    body: JSON.stringify(body),
+  };
+
+  let response: Response | undefined;
+  let lastBody = '';
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    try {
+      response = await fetchWithTimeout(url, init, REQUEST_TIMEOUT_MS);
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new HttpError(504, 'The AI took too long to respond. Try again.');
+      }
+      throw new HttpError(502, 'The AI service is not available right now. Try again.');
     }
-    throw new HttpError(502, 'The AI service is not available right now. Try again.');
+
+    if (response.ok) break;
+
+    lastBody = await response.text().catch(() => '');
+    const retryable = RETRYABLE.has(response.status) && attempt < MAX_ATTEMPTS;
+    if (!retryable) {
+      throw httpError(response.status, lastBody);
+    }
+    console.warn(
+      `Gemini ${response.status} on ${cfg.model} (attempt ${attempt}/${MAX_ATTEMPTS}); retrying…`
+    );
+    await sleep(800 * attempt);
   }
 
-  if (!response.ok) {
-    throw httpError(response.status, await response.text().catch(() => ''));
+  if (!response?.ok) {
+    throw httpError(response?.status ?? 502, lastBody);
   }
 
   const data = (await response.json()) as GeminiResponse;
