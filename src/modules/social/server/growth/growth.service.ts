@@ -74,6 +74,7 @@ export interface DailyRow {
   spend: number | null;
   metaPurchases: number | null;
   metaRevenue: number | null;
+  metaLeads: number | null;
 }
 
 export interface CampaignRow {
@@ -231,14 +232,14 @@ export async function overview(
       ? prisma.adInsightDaily.groupBy({
           by: ['date'],
           where: { adAccountId: { in: accountIds }, level: 'campaign', date: { gte: fromDate, lte: toDate } },
-          _sum: { spend: true, purchases: true, purchaseValue: true },
+          _sum: { spend: true, purchases: true, purchaseValue: true, leads: true },
         })
       : Promise.resolve([]),
     accountIds.length
       ? prisma.adInsightDaily.groupBy({
           by: ['entityId'],
           where: { adAccountId: { in: accountIds }, level: 'campaign', date: { gte: fromDate, lte: toDate } },
-          _sum: { spend: true, purchases: true, purchaseValue: true, clicks: true, impressions: true, addToCart: true },
+          _sum: { spend: true, purchases: true, purchaseValue: true, clicks: true, impressions: true, addToCart: true, leads: true },
         })
       : Promise.resolve([]),
     googleAdsForDesk(organizationId, customerId, range.from, range.to),
@@ -265,6 +266,7 @@ export async function overview(
       spend: hasAds ? metaSpend + googleSpend : null,
       metaPurchases: hasMetaAds ? (a?.purchases ?? 0) : null,
       metaRevenue: hasMetaAds ? (a?.purchaseValue?.toNumber() ?? 0) : null,
+      metaLeads: hasMetaAds ? (a?.leads ?? 0) : null,
     };
   });
 
@@ -331,8 +333,11 @@ export async function overview(
     googleSpend: googleSpendTotal,
     metaPurchases: sum('metaPurchases'),
     metaRevenue: sum('metaRevenue'),
+    metaLeads: sum('metaLeads'),
     googleConversions: hasGoogleAds && !google.error ? google.conversions : null,
   };
+  const shopifyRoas = hasStore ? roas(totals.sales, totals.spend) : null;
+  const metaRoas = roas(totals.metaRevenue, totals.metaSpend);
 
   return {
     client: { id: customerId, name: gc.customerName },
@@ -345,8 +350,10 @@ export async function overview(
     googleError: google.error,
     totals: {
       ...totals,
-      roas: roas(totals.sales, totals.spend),
-      metaRoas: roas(totals.metaRevenue, totals.metaSpend),
+      /** Shopify sales ÷ spend when store linked; otherwise Meta purchase value ÷ Meta spend. */
+      roas: shopifyRoas ?? metaRoas,
+      shopifyRoas,
+      metaRoas,
       aov: totals.orders ? Math.round(((totals.sales ?? 0) / totals.orders) * 100) / 100 : null,
     },
     days,
@@ -460,7 +467,8 @@ export async function clientsSummary(scope: ClientScope) {
       sales7d: store ? (salesTotal ?? 0) : null,
       orders7d: store ? (s?._sum.orders ?? 0) : null,
       spend7d: sp ? Math.round(sp.spend) : null,
-      roas7d: store && sp ? roas(salesTotal ?? 0, sp.spend) : null,
+      // Prefer Shopify ROAS; fall back to Meta-reported so non-store websites still show a number.
+      roas7d: store && sp ? roas(salesTotal ?? 0, sp.spend) : sp ? roas(sp.metaRevenue, sp.spend) : null,
       metaRoas7d: sp ? roas(sp.metaRevenue, sp.spend) : null,
       targetRoas: settings.find((x) => x.customerId === c.id)?.targetRoas.toNumber() ?? 10,
       openTasks: tasks.find((t) => t.customerId === c.id && t.status === 'todo')?._count._all ?? 0,

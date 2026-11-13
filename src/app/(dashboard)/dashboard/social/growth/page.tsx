@@ -9,7 +9,7 @@ export default function GrowthPage() {
     <div className="space-y-5">
       <PageHeader
         title="Growth Desk"
-        description="Shopify sales vs Meta spend, daily tasks with review, ad and blog approvals, content tracker and reports — per client. It only guides: nothing changes in the ad account by itself."
+        description="Ads spend and ROAS for every client website; Shopify sales when the store is linked. Tasks, campaign plan, blogs and reports — guides only, never changes the ad account by itself."
       />
       <GrowthDesk />
     </div>

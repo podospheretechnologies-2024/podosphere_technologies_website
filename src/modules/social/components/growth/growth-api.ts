@@ -62,6 +62,7 @@ export interface DailyRow {
   spend: number | null;
   metaPurchases: number | null;
   metaRevenue: number | null;
+  metaLeads: number | null;
 }
 
 export interface CampaignRow {
@@ -97,8 +98,11 @@ export interface Overview {
     googleSpend: number | null;
     metaPurchases: number | null;
     metaRevenue: number | null;
+    metaLeads: number | null;
     googleConversions: number | null;
+    /** Shopify ROAS when store linked, else Meta ROAS — works for every client with ads. */
     roas: number | null;
+    shopifyRoas: number | null;
     metaRoas: number | null;
     aov: number | null;
   };

@@ -123,7 +123,9 @@ export function PerformanceTab({ data }: { data: Overview }) {
         <p className="text-muted-foreground text-xs">
           {data.range.label} · revenue and purchases are Meta-reported (pixel). ROAS colour: green at or above {target}x, amber 3x+, red below.
         </p>
-        {!data.hasMetaAds && <Empty>No Meta ad account is assigned to this client. Assign one on the Ads page.</Empty>}
+        {!data.hasMetaAds && (
+          <Empty>No Meta ad account is assigned to this client yet. On the Ads page, assign an account to this client — Shopify is not required.</Empty>
+        )}
         {data.hasMetaAds && !rows.length && <Empty>No Meta campaigns with spend match this filter for these dates.</Empty>}
         {rows.length > 0 && <CampaignTable rows={rows} currency={currency} target={target} mode="meta" />}
       </Panel>

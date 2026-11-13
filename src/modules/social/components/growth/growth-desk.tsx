@@ -82,11 +82,11 @@ function ClientsSummary({ onPick, hasClients }: { onPick: (id: string, tab?: Gro
   return (
     <div className="space-y-3">
       <p className="text-muted-foreground text-sm">
-        Every client is listed here. Use <b>Connect Shopify</b> on a client that sells on Shopify; the others still get tasks, content and
-        reports. Last 7 days: Shopify sales ÷ Meta spend, against each client&apos;s ROAS target.
-        {data && data.length > 0 && ` ${connectedCount} of ${data.length} stores connected.`}
+        Every client works here — website or Shopify. Assign Meta/Google ads on the Ads page to see spend and ROAS; connect Shopify only for
+        store sales. Last 7 days vs each client&apos;s ROAS target
+        {data && data.length > 0 ? ` · ${connectedCount} of ${data.length} Shopify stores linked` : ''}.
       </p>
-      <p className="text-muted-foreground text-xs">Client missing? Add it on the Clients page, then assign its Meta ad account on the Ads page.</p>
+      <p className="text-muted-foreground text-xs">Client missing? Add it on Clients, then assign its ad account on Ads.</p>
       <ErrorLine error={error?.message ?? null} />
       {isLoading && <Empty>Loading clients…</Empty>}
       {!hasClients && <Empty>No clients yet. Add one on the Clients page.</Empty>}
@@ -121,14 +121,14 @@ function ClientsSummary({ onPick, hasClients }: { onPick: (id: string, tab?: Gro
                   <td className="px-3 py-2">{row.reviewTasks}</td>
                   <td className="px-3 py-2">
                     <div className="flex gap-2 whitespace-nowrap">
-                      {!row.storeConnected && (
-                        <Button size="sm" onClick={() => onPick(row.id, 'settings')}>
-                          Connect Shopify
-                        </Button>
-                      )}
-                      <Button size="sm" variant="secondary" onClick={() => onPick(row.id)}>
+                      <Button size="sm" variant={row.hasAds ? 'secondary' : undefined} onClick={() => onPick(row.id)}>
                         Open desk
                       </Button>
+                      {!row.storeConnected && (
+                        <Button size="sm" variant="secondary" onClick={() => onPick(row.id, 'settings')}>
+                          {row.hasAds ? 'Shopify optional' : 'Setup'}
+                        </Button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -175,9 +175,12 @@ function ClientDesk({ initialTab = 'today' }: { initialTab?: GrowthTab }) {
     { label: `${c.draftBlogs} blog draft${c.draftBlogs === 1 ? '' : 's'}`, hot: c.draftBlogs > 0, go: 'blogs' },
   ];
   if (c.reportDue) needs.push({ label: 'Report is due', hot: true, go: 'reports' });
-  if (!data.store.connected) needs.unshift({ label: 'Connect Shopify', hot: true, go: 'settings' });
+  // Ads first for every website; Shopify is optional (e-commerce only).
+  if (!data.hasAds) needs.unshift({ label: 'Link ads on Ads page', hot: true, go: 'performance' });
+  else if (!data.store.connected) needs.push({ label: 'Connect Shopify (optional)', hot: false, go: 'settings' });
 
   const badge: Partial<Record<GrowthTab, number>> = { today: c.openTasks, review: c.reviewTasks, campaigns: c.pendingAds, blogs: c.draftBlogs };
+  const usingShopifyRoas = data.store.connected && t.shopifyRoas != null;
 
   return (
     <div className="space-y-4">
@@ -215,46 +218,68 @@ function ClientDesk({ initialTab = 'today' }: { initialTab?: GrowthTab }) {
 
       <section className="grid gap-5 rounded-2xl bg-gradient-to-br from-[#3d2163] to-[#7a3f8f] p-5 text-white md:grid-cols-[1.1fr_1.4fr]">
         <div>
-          <div className="text-xs font-semibold tracking-wider text-white/70 uppercase">ROAS vs target ({target}x)</div>
+          <div className="text-xs font-semibold tracking-wider text-white/70 uppercase">
+            {usingShopifyRoas ? 'Shopify ROAS' : 'Ads ROAS'} vs target ({target}x)
+          </div>
           <div className="mt-1 text-5xl font-bold tabular-nums">{times(t.roas)}</div>
           <div className="relative mt-3 mb-1 h-3 rounded-full bg-white/20">
             <i className="absolute inset-y-0 left-0 rounded-full bg-white" style={{ width: `${roasPct}%`, minWidth: 4 }} />
           </div>
           <div className="text-xs text-white/75">
             {t.roas != null
-              ? `Shopify sales ÷ ad spend (Meta${data.hasGoogleAds ? ' + Google' : ''}).${t.metaRoas != null ? ` Meta-reported: ${times(t.metaRoas)}.` : ''}`
-              : !data.store.connected
-                ? 'Connect the Shopify store (Setup tab) to see real ROAS.'
-                : !data.hasAds
-                  ? 'No Meta or Google ad account is assigned to this client yet (Ads page → assign to client).'
-                  : 'No ad spend for these dates yet.'}
+              ? usingShopifyRoas
+                ? `Shopify sales ÷ ad spend (Meta${data.hasGoogleAds ? ' + Google' : ''}).${t.metaRoas != null ? ` Meta-reported: ${times(t.metaRoas)}.` : ''}`
+                : `Meta purchase value ÷ Meta spend (works without Shopify).${t.spend != null ? ` Spend ${money(t.spend, currency)}.` : ''}`
+              : !data.hasAds
+                ? 'Assign a Meta or Google ad account on the Ads page — Growth works for every website client.'
+                : t.spend != null && t.spend > 0
+                  ? 'Spend is in; Meta has no purchase value yet for these dates (lead campaigns show leads below).'
+                  : 'No ad spend for these dates yet. Open Performance after the next ads sync.'}
           </div>
         </div>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-          <Stat label="Sales" value={money(t.sales, currency)} note="Shopify" />
+          <Stat label="Sales" value={money(t.sales, currency)} note={data.store.connected ? 'Shopify' : 'Shopify optional'} />
           <Stat
             label="Ad spend"
             value={money(t.spend, currency)}
             note={
               !data.hasAds
-                ? 'No ad account'
+                ? 'Assign on Ads page'
                 : [data.hasMetaAds ? `Meta ${money(t.metaSpend, currency)}` : null, data.hasGoogleAds ? `Google ${money(t.googleSpend, currency)}` : null]
                     .filter(Boolean)
                     .join(' · ')
             }
           />
-          <Stat label="Orders" value={count(t.orders)} note={t.aov != null ? `AOV ${money(t.aov, currency)}` : ''} />
-          <Stat label="Sessions" value={count(t.sessions)} note={t.sessions ? `Order rate ${pct(t.orders, t.sessions)}` : 'Needs read_reports'} />
-          <Stat label="Add to cart" value={count(t.atc)} note={t.sessions ? `Cart rate ${pct(t.atc, t.sessions)}` : ''} />
+          <Stat
+            label="Orders"
+            value={count(t.orders)}
+            note={t.aov != null ? `AOV ${money(t.aov, currency)}` : data.store.connected ? '' : 'Shopify optional'}
+          />
+          <Stat
+            label="Sessions"
+            value={count(t.sessions)}
+            note={t.sessions ? `Order rate ${pct(t.orders, t.sessions)}` : data.store.connected ? 'Needs read_reports' : 'Shopify / GA4 optional'}
+          />
+          <Stat
+            label="Leads"
+            value={count(t.metaLeads)}
+            note={
+              t.metaLeads && t.metaSpend
+                ? `CPL ${money(t.metaSpend / t.metaLeads, currency)}`
+                : t.googleConversions
+                  ? `Google conv. ${count(t.googleConversions)}`
+                  : 'From Meta ads'
+            }
+          />
           <Stat
             label="Meta purchases"
             value={count(t.metaPurchases)}
             note={
               t.metaPurchases
                 ? `CPP ${money((t.metaSpend ?? 0) / t.metaPurchases, currency)}`
-                : t.googleConversions
-                  ? `Google conv. ${count(t.googleConversions)}`
-                  : ''
+                : t.metaRevenue
+                  ? `Revenue ${money(t.metaRevenue, currency)}`
+                  : 'Pixel purchases'
             }
           />
         </div>
