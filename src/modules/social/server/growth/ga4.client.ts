@@ -25,12 +25,25 @@ interface GoogleErrorBody {
   error?: { message?: string; status?: string };
 }
 
+const GA4_TIMEOUT_MS = 120_000;
+
 async function ga4Fetch<T>(url: string, accessToken: string, init: RequestInit = {}): Promise<T> {
-  const response = await fetch(url, {
-    ...init,
-    headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-    signal: AbortSignal.timeout(30_000),
-  });
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      ...init,
+      headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+      signal: AbortSignal.timeout(GA4_TIMEOUT_MS),
+    });
+  } catch (error) {
+    if (error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError')) {
+      throw new Ga4ApiError(
+        'Google Analytics took too long to respond. Try Sync now again in a minute.',
+        504
+      );
+    }
+    throw error;
+  }
   if (!response.ok) {
     const body = (await response.json().catch(() => null)) as GoogleErrorBody | null;
     const detail = body?.error?.message ?? response.statusText;

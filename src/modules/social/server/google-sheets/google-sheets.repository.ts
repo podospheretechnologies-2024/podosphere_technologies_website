@@ -26,11 +26,29 @@ export interface GoogleSpreadsheetData {
 }
 
 export const googleSheetsRepository = {
+  /**
+   * Connection + spreadsheet metadata only (no `rows` JSON).
+   * Ordering huge sheet caches in MySQL triggers "Out of sort memory" on small VPS DBs.
+   */
   findConnection(organizationId: string) {
     return prisma.socialGoogleSheetsConnection.findUnique({
       where: { organizationId },
       include: {
-        spreadsheets: { orderBy: { name: 'asc' } },
+        spreadsheets: {
+          orderBy: { name: 'asc' },
+          select: {
+            id: true,
+            connectionId: true,
+            spreadsheetId: true,
+            name: true,
+            url: true,
+            modifiedTime: true,
+            sheetNames: true,
+            headers: true,
+            rowCount: true,
+            syncedAt: true,
+          },
+        },
       },
     });
   },

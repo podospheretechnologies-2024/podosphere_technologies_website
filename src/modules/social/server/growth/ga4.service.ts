@@ -365,14 +365,31 @@ export const ga4Service = {
       if (still?.customerId !== customerId) return;
 
       const base = { organizationId: property.organizationId, customerId, propertyId: property.propertyId };
-      for (const day of daily) {
-        const { date, ...metrics } = day;
-        const row = { ...metrics, revenue: metrics.revenue.toFixed(2), keyEvents: metrics.keyEvents.toFixed(2), customerId };
-        await prisma.ga4DailyMetric.upsert({
-          where: { organizationId_propertyId_date: { organizationId: property.organizationId, propertyId: property.propertyId, date: dayToDate(date) } },
-          update: row,
-          create: { ...base, date: dayToDate(date), ...row },
-        });
+      // Upsert in small parallel batches so a 90-day sync does not spend minutes on serial DB writes.
+      const CHUNK = 15;
+      for (let i = 0; i < daily.length; i += CHUNK) {
+        await Promise.all(
+          daily.slice(i, i + CHUNK).map(async (day) => {
+            const { date, ...metrics } = day;
+            const row = {
+              ...metrics,
+              revenue: metrics.revenue.toFixed(2),
+              keyEvents: metrics.keyEvents.toFixed(2),
+              customerId,
+            };
+            await prisma.ga4DailyMetric.upsert({
+              where: {
+                organizationId_propertyId_date: {
+                  organizationId: property.organizationId,
+                  propertyId: property.propertyId,
+                  date: dayToDate(date),
+                },
+              },
+              update: row,
+              create: { ...base, date: dayToDate(date), ...row },
+            });
+          })
+        );
       }
 
       const today = localDay(new Date(), timeZone);

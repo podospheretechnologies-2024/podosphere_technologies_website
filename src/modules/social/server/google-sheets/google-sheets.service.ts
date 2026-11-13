@@ -191,7 +191,7 @@ function toSpreadsheetItem(row: {
   modifiedTime: Date | null;
   sheetNames: Prisma.JsonValue;
   headers: Prisma.JsonValue;
-  rows: Prisma.JsonValue;
+  rows?: Prisma.JsonValue;
   rowCount: number;
   syncedAt: Date;
 }): GoogleSpreadsheetItem {
@@ -205,7 +205,8 @@ function toSpreadsheetItem(row: {
     headers: parseStringArray(row.headers),
     rowCount: row.rowCount,
     syncedAt: row.syncedAt.toISOString(),
-    rows: parseRowsJson(row.rows),
+    // Status/list queries omit `rows` so MySQL never sorts megabyte JSON blobs.
+    rows: row.rows === undefined ? [] : parseRowsJson(row.rows),
   };
 }
 
@@ -663,7 +664,12 @@ export const googleSheetsService = {
     if (!status.connection.connected) {
       throw new HttpError(404, 'Google Sheets is not connected');
     }
-    return findContentForDate(filterSheetRows(status.spreadsheets, { exclude: options.exclude }), date);
+    // Status omits row bodies; load each sheet (cache / live) before matching the date.
+    const withRows: GoogleSpreadsheetItem[] = [];
+    for (const sheet of filterSheetRows(status.spreadsheets, { exclude: options.exclude })) {
+      withRows.push(await this.clientSpreadsheet(organizationId, sheet.spreadsheetId));
+    }
+    return findContentForDate(withRows, date);
   },
 
   /** Lightweight list for pickers: spreadsheet names and tab names, no rows. */
