@@ -32,45 +32,73 @@ const taskSchema = z.object({
 
 async function buildContext(gc: GrowthClient): Promise<string> {
   const { organizationId, customerId } = gc;
-  const [settings, last30, last7, changes, openTasks, adPlan, blogs, snapshot, posts, competitors] = await Promise.all([
-    getSettings(organizationId, customerId),
-    overview(gc, { preset: '30d', from: null, to: null }),
-    overview(gc, { preset: '7d', from: null, to: null }),
-    prisma.socialChangeLog.findMany({
-      where: { organizationId, customerId, createdAt: { gte: new Date(Date.now() - 21 * 86400000) } },
-      orderBy: { createdAt: 'desc' },
-      take: 20,
-    }),
-    prisma.socialTask.findMany({
-      where: { organizationId, customerId, status: { in: ['todo', 'review'] } },
-      select: { title: true, area: true, status: true },
-      take: 40,
-    }),
-    prisma.socialAdPlanItem.findMany({
-      where: { organizationId, customerId },
-      select: { adName: true, headline: true, status: true, campaignName: true },
-      orderBy: { createdAt: 'desc' },
-      take: 30,
-    }),
-    prisma.socialBlog.findMany({
-      where: { organizationId, customerId },
-      select: { title: true, status: true },
-      orderBy: { createdAt: 'desc' },
-      take: 30,
-    }),
-    prisma.shopifyTrafficSnapshot.findFirst({ where: { organizationId, customerId }, orderBy: { createdAt: 'desc' } }),
-    prisma.socialIntegration
-      .findMany({ where: { organizationId, customerId, deletedAt: null }, select: { id: true } })
-      .then((integrations) =>
-        prisma.socialExternalPost.findMany({
-      where: { integrationId: { in: integrations.map((i) => i.id) } },
-      orderBy: { publishedAt: 'desc' },
-      take: 25,
-      select: { type: true, caption: true, publishedAt: true, reach: true, likes: true, comments: true, shares: true, saves: true, videoViews: true, engagementRate: true },
-        })
-      ),
-    prisma.socialCompetitor.findMany({ where: { organizationId, customerId }, select: { name: true, platform: true }, take: 10 }),
-  ]);
+  const [settings, last30, last7, changes, openTasks, adPlan, blogs, shopifySnapshot, ga4Snapshot, posts, competitors] =
+    await Promise.all([
+      getSettings(organizationId, customerId),
+      overview(gc, { preset: '30d', from: null, to: null }),
+      overview(gc, { preset: '7d', from: null, to: null }),
+      prisma.socialChangeLog.findMany({
+        where: { organizationId, customerId, createdAt: { gte: new Date(Date.now() - 21 * 86400000) } },
+        orderBy: { createdAt: 'desc' },
+        take: 20,
+      }),
+      prisma.socialTask.findMany({
+        where: { organizationId, customerId, status: { in: ['todo', 'review'] } },
+        select: { title: true, area: true, status: true },
+        take: 40,
+      }),
+      prisma.socialAdPlanItem.findMany({
+        where: { organizationId, customerId },
+        select: { adName: true, headline: true, status: true, campaignName: true },
+        orderBy: { createdAt: 'desc' },
+        take: 30,
+      }),
+      prisma.socialBlog.findMany({
+        where: { organizationId, customerId },
+        select: { title: true, status: true },
+        orderBy: { createdAt: 'desc' },
+        take: 30,
+      }),
+      prisma.shopifyTrafficSnapshot.findFirst({
+        where: { organizationId, customerId },
+        orderBy: { createdAt: 'desc' },
+      }),
+      prisma.ga4TrafficSnapshot.findFirst({
+        where: { organizationId, customerId },
+        orderBy: { updatedAt: 'desc' },
+      }),
+      prisma.socialIntegration
+        .findMany({ where: { organizationId, customerId, deletedAt: null }, select: { id: true } })
+        .then((integrations) =>
+          prisma.socialExternalPost.findMany({
+            where: { integrationId: { in: integrations.map((i) => i.id) } },
+            orderBy: { publishedAt: 'desc' },
+            take: 25,
+            select: {
+              type: true,
+              caption: true,
+              publishedAt: true,
+              reach: true,
+              likes: true,
+              comments: true,
+              shares: true,
+              saves: true,
+              videoViews: true,
+              engagementRate: true,
+            },
+          })
+        ),
+      prisma.socialCompetitor.findMany({
+        where: { organizationId, customerId },
+        select: { name: true, platform: true },
+        take: 10,
+      }),
+    ]);
+
+  const leadGen =
+    !last30.store.connected &&
+    (last30.campaigns.some((c) => (c.objective ?? '').toUpperCase().includes('LEAD')) ||
+      (last30.totals.metaLeads ?? 0) > 0);
 
   const kpi = (o: Awaited<ReturnType<typeof overview>>) => ({
     period: `${o.range.from} to ${o.range.to}`,
@@ -80,18 +108,42 @@ async function buildContext(gc: GrowthClient): Promise<string> {
     sessions: o.totals.sessions,
     add_to_cart_sessions: o.totals.atc,
     meta_spend: o.totals.spend,
-    roas_shopify_sales_over_meta_spend: o.totals.roas,
+    meta_leads: o.totals.metaLeads,
+    cpl:
+      o.totals.metaLeads && o.totals.metaSpend
+        ? Math.round((o.totals.metaSpend / o.totals.metaLeads) * 100) / 100
+        : null,
+    roas_primary: o.totals.roas,
     meta_reported_purchases: o.totals.metaPurchases,
     meta_reported_revenue: o.totals.metaRevenue,
     meta_reported_roas: o.totals.metaRoas,
   });
 
+  const ga4Totals = ga4Snapshot?.totals as
+    | { sessions?: number; addToCarts?: number; purchases?: number }
+    | null
+    | undefined;
+
   const context = {
     client: gc.customerName,
+    client_type: leadGen
+      ? 'website_lead_gen'
+      : last30.store.connected
+        ? 'shopify_ecommerce'
+        : 'website_or_ads',
     today: localDay(new Date(), last30.store.timeZone ?? 'Asia/Kolkata'),
-    store: last30.store.connected ? { url: last30.store.primaryUrl, currency: last30.store.currency } : 'not connected',
+    store: last30.store.connected
+      ? { url: last30.store.primaryUrl, currency: last30.store.currency }
+      : 'not connected (optional for website / lead-gen clients)',
     brand_facts: settings.brandContext ?? '(none given)',
-    goals: { target_roas: settings.targetRoas, daily_budget: settings.dailyBudget, budget_cap: settings.budgetCap },
+    goals: {
+      target_roas: settings.targetRoas,
+      daily_budget: settings.dailyBudget,
+      budget_cap: settings.budgetCap,
+      note: leadGen
+        ? 'Primary KPI is leads / CPL. ROAS target applies only when purchase value exists.'
+        : 'Primary KPI is ROAS (sales or Meta purchase value ÷ spend).',
+    },
     last_7_days: kpi(last7),
     last_30_days: kpi(last30),
     campaigns_last_30_days: last30.campaigns.slice(0, 15).map((c) => ({
@@ -105,18 +157,35 @@ async function buildContext(gc: GrowthClient): Promise<string> {
       ctr: c.ctr == null ? null : Math.round(c.ctr * 10000) / 100,
       add_to_cart: c.atc,
     })),
-    website: snapshot
+    website: ga4Snapshot
       ? {
-          period: `${snapshot.periodStart.toISOString().slice(0, 10)} to ${snapshot.periodEnd.toISOString().slice(0, 10)}`,
-          sessions: snapshot.sessions,
-          add_to_cart: snapshot.addToCart,
-          orders: snapshot.orders,
-          landing_pages: snapshot.landing,
-          sources: snapshot.sources,
-          devices: snapshot.devices,
+          source: 'ga4',
+          period: `${ga4Snapshot.periodStart.toISOString().slice(0, 10)} to ${ga4Snapshot.periodEnd.toISOString().slice(0, 10)}`,
+          sessions: ga4Totals?.sessions ?? null,
+          add_to_cart: ga4Totals?.addToCarts ?? null,
+          purchases: ga4Totals?.purchases ?? null,
+          landing_pages: ga4Snapshot.landing,
+          sources: ga4Snapshot.sources,
+          devices: ga4Snapshot.devices,
         }
-      : 'no traffic data',
-    recent_changes: changes.map((c) => ({ when: c.createdAt.toISOString().slice(0, 10), where: c.place, what: c.what, why: c.why })),
+      : shopifySnapshot
+        ? {
+            source: 'shopify',
+            period: `${shopifySnapshot.periodStart.toISOString().slice(0, 10)} to ${shopifySnapshot.periodEnd.toISOString().slice(0, 10)}`,
+            sessions: shopifySnapshot.sessions,
+            add_to_cart: shopifySnapshot.addToCart,
+            orders: shopifySnapshot.orders,
+            landing_pages: shopifySnapshot.landing,
+            sources: shopifySnapshot.sources,
+            devices: shopifySnapshot.devices,
+          }
+        : 'no traffic data',
+    recent_changes: changes.map((c) => ({
+      when: c.createdAt.toISOString().slice(0, 10),
+      where: c.place,
+      what: c.what,
+      why: c.why,
+    })),
     open_tasks: openTasks,
     ad_plan: adPlan,
     blogs,
@@ -154,11 +223,13 @@ export async function generateInsights(gc: GrowthClient) {
     schema: insightsSchema,
     effort: 'medium',
     task: [
-      'You are the performance-marketing assistant for this e-commerce client.',
-      'Read CONTEXT and write 3 to 6 findings for today, each with a number from the data. Compare the last 7 days with the 30-day picture and with the ROAS target.',
-      'Look at: ROAS vs target, campaigns wasting spend (spend with no purchases), cart rate and order rate, landing pages with traffic but no carts, recent changes and whether they helped, content that performed well.',
+      'You are the performance-marketing assistant for this agency client.',
+      'Read CONTEXT.client_type. If website_lead_gen: Shopify is optional — do NOT ask to connect Shopify. Judge lead ads by meta_leads and CPL, not purchase ROAS.',
+      'If shopify_ecommerce: compare ROAS vs target, cart rate, order rate.',
+      'Read CONTEXT and write 3 to 6 findings for today, each with a number from the data. Compare the last 7 days with the 30-day picture.',
+      'Look at: spend efficiency, campaigns with spend but no leads/purchases (match the objective), GA4 sessions/sources when website is present, recent changes, content that performed well.',
       'Then write 2 to 6 concrete tasks for today (who does what, where). Do not repeat any title already in open_tasks.',
-      'If data is missing (store not connected, no ads), say so as an "info" finding and make a task to fix that.',
+      'If ads are missing, say so as an "info" finding. Only mention connecting Shopify when client_type is shopify_ecommerce or brand_facts clearly describe a store that should be linked.',
       RULES,
     ].join('\n'),
     input: context,

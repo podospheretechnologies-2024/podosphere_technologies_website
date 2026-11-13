@@ -224,9 +224,13 @@ export async function overview(
   const toDate = dayToDate(range.to);
   const accountIds = await customerAdAccountIds(organizationId, customerId);
 
-  const [storeRows, adByDay, adByCampaign, google] = await Promise.all([
+  const [storeRows, ga4Rows, adByDay, adByCampaign, google] = await Promise.all([
     prisma.shopifyDailyMetric.findMany({
       where: { organizationId, customerId, date: { gte: fromDate, lte: toDate } },
+    }),
+    prisma.ga4DailyMetric.findMany({
+      where: { organizationId, customerId, date: { gte: fromDate, lte: toDate } },
+      select: { date: true, sessions: true, addToCarts: true },
     }),
     accountIds.length
       ? prisma.adInsightDaily.groupBy({
@@ -246,23 +250,29 @@ export async function overview(
   ]);
 
   const storeByDay = new Map(storeRows.map((r) => [r.date.toISOString().slice(0, 10), r]));
+  const ga4ByDay = new Map(ga4Rows.map((r) => [r.date.toISOString().slice(0, 10), r]));
   const adDay = new Map(adByDay.map((r) => [r.date.toISOString().slice(0, 10), r._sum]));
   const hasStore = store.connected;
+  const hasGa4 = ga4Rows.length > 0;
   const hasMetaAds = accountIds.length > 0;
   const hasGoogleAds = google.hasGoogleAds;
   const hasAds = hasMetaAds || hasGoogleAds;
 
   const days: DailyRow[] = daysBetween(range.from, range.to).map((date) => {
     const s = storeByDay.get(date);
+    const g = ga4ByDay.get(date);
     const a = adDay.get(date);
     const metaSpend = hasMetaAds ? (a?.spend?.toNumber() ?? 0) : 0;
     const googleSpend = hasGoogleAds ? (google.dailySpend.get(date) ?? 0) : 0;
+    // Shopify sessions win when the store is linked; otherwise use GA4 so website clients show traffic.
+    const sessions = s?.sessions ?? (hasGa4 ? (g?.sessions ?? 0) : null);
+    const atc = s?.addToCart ?? (hasGa4 ? (g?.addToCarts ?? 0) : null);
     return {
       date,
       orders: hasStore ? (s?.orders ?? null) : null,
       sales: hasStore ? (s ? s.sales.toNumber() : null) : null,
-      sessions: s?.sessions ?? null,
-      atc: s?.addToCart ?? null,
+      sessions,
+      atc,
       spend: hasAds ? metaSpend + googleSpend : null,
       metaPurchases: hasMetaAds ? (a?.purchases ?? 0) : null,
       metaRevenue: hasMetaAds ? (a?.purchaseValue?.toNumber() ?? 0) : null,
