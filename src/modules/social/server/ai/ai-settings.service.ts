@@ -243,7 +243,8 @@ export const aiSettingsService = {
         schemaName: 'connectivity_test',
       });
       if (result.outcome.kind === 'ok') {
-        return { ok: true, reply: result.outcome.parsed.reply.trim(), model: result.model };
+        const parsed = schema.parse(result.outcome.parsed);
+        return { ok: true, reply: parsed.reply.trim(), model: result.model };
       }
       return { ok: false, error: 'The provider accepted the key but did not return a usable answer.' };
     } catch (error) {
