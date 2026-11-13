@@ -35,16 +35,34 @@ function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function googleErrorMessage(bodyText: string): string | null {
+  try {
+    const parsed = JSON.parse(bodyText) as { error?: { message?: string } };
+    const message = parsed.error?.message?.trim();
+    return message || null;
+  } catch {
+    return null;
+  }
+}
+
 function httpError(status: number, bodyText: string): HttpError {
   if (status === 400) return new HttpError(400, 'Gemini rejected the request.');
   if (status === 401 || status === 403) return new HttpError(503, 'The Gemini API key is invalid');
+  if (status === 404) {
+    const detail = googleErrorMessage(bodyText);
+    return new HttpError(
+      404,
+      detail ??
+        'That Gemini model is not available for this key. Set Model to gemini-3.0-flash on the Agent page.'
+    );
+  }
   if (status === 429) {
     return new HttpError(429, 'The AI is busy or its quota is used up. Try again later.');
   }
   if (status === 503) {
     return new HttpError(
       503,
-      'Gemini is overloaded right now. Wait a minute, or switch Model to gemini-2.5-flash on the Agent page.'
+      'Gemini is overloaded right now. Wait a minute, or switch Model to gemini-3.0-flash on the Agent page.'
     );
   }
   console.error('Gemini API error', status, bodyText.slice(0, 500));
