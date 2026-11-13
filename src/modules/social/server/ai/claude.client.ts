@@ -68,6 +68,7 @@ const PRICING: Record<string, [number, number, number, number]> = {
   'gpt-4.1-nano': [0.1, 0.4, 0.025, 0],
   // Gemini (approx list prices; estimate only — billed on the client's own Google account).
   'gemini-3.8-flash': [0.3, 2.5, 0.075, 0],
+  'gemini-3-flash-preview': [0.3, 2.5, 0.075, 0],
   'gemini-3.0-flash': [0.3, 2.5, 0.075, 0],
   'gemini-2.5-flash': [0.3, 2.5, 0.075, 0],
   'gemini-2.5-pro': [1.25, 10, 0.31, 0],

@@ -8,6 +8,15 @@ export interface AiStatus {
 
 export type AiSettingsSource = 'client' | 'workspace' | 'env';
 
+/** One client row that already has a saved AI key (for the Agent list / delete dropdown). */
+export interface AiConfiguredClientKey {
+  customerId: string;
+  customerName: string;
+  provider: AiProvider;
+  model: string | null;
+  keyLast4: string | null;
+}
+
 /** AI provider config for the admin panel (agency can view/edit the client key). */
 export interface AiProviderDisplay {
   /** Which level the current scope edits. */
@@ -18,6 +27,8 @@ export interface AiProviderDisplay {
   keyLast4: string | null;
   /** Decrypted key stored at this level (null when none). Env keys are never returned. */
   apiKey: string | null;
+  /** All clients in this org that already have a saved key. */
+  configuredKeys: AiConfiguredClientKey[];
   /** What actually runs for this scope, and where it comes from. */
   effective: { provider: AiProvider; model: string; source: AiSettingsSource } | null;
 }

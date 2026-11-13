@@ -8,7 +8,7 @@ import { getClientScope } from '@/shared/server/client-scope';
 import { errorResponse } from '@/shared/server/http-error';
 
 // AI provider + key config for the selected client. All-clients fallback is the server .env key.
-// Admin-only; the stored key is never returned — GET exposes only its last 4 characters.
+// Admin-only. GET also returns the roster of clients that already have a key.
 
 export async function GET() {
   try {
@@ -31,11 +31,12 @@ export async function PUT(request: NextRequest) {
   }
 }
 
-export async function DELETE() {
+export async function DELETE(request: NextRequest) {
   try {
     await requireRole('ADMIN');
     const scope = await getClientScope('view');
-    return Response.json(await aiSettingsService.remove(scope));
+    const customerId = request.nextUrl.searchParams.get('customerId') ?? undefined;
+    return Response.json(await aiSettingsService.remove(scope, customerId));
   } catch (error) {
     return errorResponse(error);
   }

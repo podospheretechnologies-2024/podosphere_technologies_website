@@ -33,10 +33,18 @@ export const AI_PROVIDER_OPTIONS: AiProviderOption[] = [
   {
     value: 'gemini',
     label: 'Gemini (Google)',
-    modelPlaceholder: 'gemini-3.0-flash',
+    // Google's 404 text says "gemini-3.0-flash", but ListModels uses this preview id.
+    modelPlaceholder: 'gemini-3-flash-preview',
     keyHint: 'Google AI Studio API key',
   },
 ];
+
+/** Suggested Gemini model ids for the Agent dropdown (new keys often reject 1.5 / 2.5). */
+export const GEMINI_MODEL_OPTIONS = [
+  { value: 'gemini-3-flash-preview', label: 'gemini-3-flash-preview (recommended)' },
+  { value: 'gemini-flash-latest', label: 'gemini-flash-latest' },
+  { value: 'gemini-2.5-flash', label: 'gemini-2.5-flash (older keys)' },
+] as const;
 
 export const AI_POST_VARIATIONS = 3;
 export const AI_PROMPT_MAX_LENGTH = 5000;

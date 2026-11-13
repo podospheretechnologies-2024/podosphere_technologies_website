@@ -6,7 +6,7 @@ import { prisma } from '@/shared/lib/prisma';
 import { HttpError } from '@/shared/server/http-error';
 import type { ClientScope } from '@/shared/server/client-scope';
 import { AI_PROVIDERS, isAiProvider, type AiProvider } from '../../config/ai';
-import type { AiProviderDisplay, AiSettingsSource } from '../../types/ai';
+import type { AiConfiguredClientKey, AiProviderDisplay, AiSettingsSource } from '../../types/ai';
 import { generateStructured, type ResolvedAiConfig } from './providers';
 
 /** Shape accepted by the save route. `apiKey` omitted = keep the stored key (edit model only). */
@@ -154,16 +154,50 @@ export const aiSettingsService = {
     );
   },
 
+  async listConfiguredKeys(organizationId: string): Promise<AiConfiguredClientKey[]> {
+    const rows = await prisma.socialAiSettings.findMany({
+      where: {
+        organizationId,
+        customerId: { not: null },
+        apiKeyEncrypted: { not: null },
+      },
+      select: {
+        customerId: true,
+        provider: true,
+        model: true,
+        apiKeyEncrypted: true,
+        customer: { select: { name: true, deletedAt: true } },
+      },
+      orderBy: { updatedAt: 'desc' },
+    });
+
+    const out: AiConfiguredClientKey[] = [];
+    for (const row of rows) {
+      if (!row.customerId || !row.customer || row.customer.deletedAt) continue;
+      if (!isAiProvider(row.provider)) continue;
+      const key = row.apiKeyEncrypted ? decrypt(row.apiKeyEncrypted) : null;
+      out.push({
+        customerId: row.customerId,
+        customerName: row.customer.name,
+        provider: row.provider,
+        model: row.model,
+        keyLast4: key ? key.slice(-4) : null,
+      });
+    }
+    return out;
+  },
+
   /** Settings for the UI — stored config at this level + what actually runs. Includes the client key. */
   async getDisplay(scope: ClientScope): Promise<AiProviderDisplay> {
     const organizationId = scope.organizationId;
     const customerId = levelCustomerId(scope);
-    const [row, resolved] = await Promise.all([
+    const [row, resolved, configuredKeys] = await Promise.all([
       prisma.socialAiSettings.findFirst({
         where: { organizationId, customerId },
         select: { provider: true, model: true, apiKeyEncrypted: true },
       }),
       resolveWithSource(scope),
+      this.listConfiguredKeys(organizationId),
     ]);
 
     const provider = row && isAiProvider(row.provider) ? row.provider : null;
@@ -176,6 +210,7 @@ export const aiSettingsService = {
       model: row?.model ?? null,
       keyLast4,
       apiKey,
+      configuredKeys,
       effective: resolved
         ? { provider: resolved.config.provider, model: resolved.config.model, source: resolved.source }
         : null,
@@ -214,9 +249,9 @@ export const aiSettingsService = {
   },
 
   /** Remove the client key so this client falls back to workspace / env. */
-  async remove(scope: ClientScope): Promise<AiProviderDisplay> {
+  async remove(scope: ClientScope, customerIdOverride?: string): Promise<AiProviderDisplay> {
     const organizationId = scope.organizationId;
-    const customerId = requireClientId(scope);
+    const customerId = customerIdOverride?.trim() || requireClientId(scope);
     await prisma.socialAiSettings.deleteMany({ where: { organizationId, customerId } });
     return this.getDisplay(scope);
   },

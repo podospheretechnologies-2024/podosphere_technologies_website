@@ -4,9 +4,9 @@ import { useEffect, useState } from 'react';
 import { Eye, EyeOff } from 'lucide-react';
 import { useSWRConfig } from 'swr';
 import { Button } from '@/shared/components/ui/button';
-import { AI_PROVIDER_OPTIONS, type AiProvider } from '../../config/ai';
+import { AI_PROVIDER_OPTIONS, GEMINI_MODEL_OPTIONS, type AiProvider } from '../../config/ai';
 import { AI_API_ROUTE } from '../../hooks/use-ai-status';
-import { useClientScopeKey } from '../../hooks/use-client-scope';
+import { useClientScope, useClientScopeKey } from '../../hooks/use-client-scope';
 import type { AiProviderDisplay } from '../../types/ai';
 
 const PROVIDER_ROUTE = '/api/social/ai/provider';
@@ -17,12 +17,14 @@ function providerLabel(provider: AiProvider): string {
 
 export function AiProviderSettings() {
   const scopeKey = useClientScopeKey();
+  const { selectedClientId, setSelectedClientId } = useClientScope();
   const { mutate } = useSWRConfig();
   const [display, setDisplay] = useState<AiProviderDisplay | null>(null);
   const [provider, setProvider] = useState<AiProvider>('anthropic');
   const [model, setModel] = useState('');
   const [apiKey, setApiKey] = useState('');
   const [showKey, setShowKey] = useState(false);
+  const [listCustomerId, setListCustomerId] = useState('');
   const [status, setStatus] = useState<string | null>(null);
   const [testReply, setTestReply] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -32,10 +34,26 @@ export function AiProviderSettings() {
   }
 
   function applyDisplay(data: AiProviderDisplay) {
+    const nextProvider = data.provider ?? data.effective?.provider ?? 'anthropic';
+    const savedModel = data.model ?? '';
+    const nextModel =
+      nextProvider === 'gemini' &&
+      savedModel &&
+      !GEMINI_MODEL_OPTIONS.some((item) => item.value === savedModel)
+        ? 'gemini-3-flash-preview'
+        : savedModel;
     setDisplay(data);
-    setProvider(data.provider ?? data.effective?.provider ?? 'anthropic');
-    setModel(data.model ?? '');
+    setProvider(nextProvider);
+    setModel(nextModel);
     setApiKey(data.apiKey ?? '');
+    const keys = data.configuredKeys ?? [];
+    setListCustomerId((current) => {
+      if (current && keys.some((item) => item.customerId === current)) return current;
+      if (selectedClientId && keys.some((item) => item.customerId === selectedClientId)) {
+        return selectedClientId;
+      }
+      return keys[0]?.customerId ?? '';
+    });
   }
 
   useEffect(() => {
@@ -52,6 +70,8 @@ export function AiProviderSettings() {
   const option = AI_PROVIDER_OPTIONS.find((item) => item.value === provider);
   const clientReady = display?.level === 'client';
   const scopeNoun = clientReady ? 'this client' : 'the selected client';
+  const configuredKeys = display?.configuredKeys ?? [];
+  const selectedListKey = configuredKeys.find((item) => item.customerId === listCustomerId) ?? null;
 
   async function readJson(response: Response) {
     const text = await response.text();
@@ -122,7 +142,7 @@ export function AiProviderSettings() {
     }
   }
 
-  async function remove() {
+  async function removeCurrent() {
     setBusy(true);
     setStatus(null);
     try {
@@ -132,12 +152,44 @@ export function AiProviderSettings() {
       applyDisplay(payload);
       setShowKey(false);
       refreshAiStatus();
-      setStatus('Removed. This level now inherits the fallback provider.');
+      setStatus('Removed. This client now inherits the fallback provider.');
     } catch (error) {
       setStatus(error instanceof Error ? error.message : 'Could not remove');
     } finally {
       setBusy(false);
     }
+  }
+
+  async function removeFromList() {
+    if (!listCustomerId) {
+      setStatus('Pick a client key from the list first.');
+      return;
+    }
+    const name = selectedListKey?.customerName ?? 'this client';
+    if (!window.confirm(`Remove the saved AI key for ${name}?`)) return;
+    setBusy(true);
+    setStatus(null);
+    try {
+      const response = await fetch(
+        `${PROVIDER_ROUTE}?customerId=${encodeURIComponent(listCustomerId)}`,
+        { method: 'DELETE' }
+      );
+      const payload = (await response.json()) as AiProviderDisplay & { error?: string };
+      if (!response.ok) throw new Error(payload.error || 'Could not remove');
+      applyDisplay(payload);
+      setShowKey(false);
+      refreshAiStatus();
+      setStatus(`Removed the AI key for ${name}.`);
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : 'Could not remove');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function openListedClient() {
+    if (!listCustomerId) return;
+    await setSelectedClientId(listCustomerId);
   }
 
   const keyPlaceholder = display?.provider
@@ -167,10 +219,60 @@ export function AiProviderSettings() {
         <p className="text-xs text-amber-600">No AI provider is configured yet.</p>
       )}
 
+      <div className="border-border bg-surface-muted/30 space-y-3 rounded-2xl border p-3">
+        <div>
+          <p className="text-sm font-medium">Saved client keys</p>
+          <p className="text-muted-foreground text-xs">
+            All clients that already have their own API key. Pick one to open or delete.
+          </p>
+        </div>
+        {configuredKeys.length === 0 ? (
+          <p className="text-muted-foreground text-xs">No client keys saved yet.</p>
+        ) : (
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+            <label className="min-w-0 flex-1">
+              <span className="text-muted-foreground mb-1 block text-xs font-medium">
+                Existing keys
+              </span>
+              <select
+                value={listCustomerId}
+                onChange={(event) => setListCustomerId(event.target.value)}
+                className="border-border bg-surface h-10 w-full rounded-xl border px-3 text-sm outline-none"
+              >
+                {configuredKeys.map((item) => (
+                  <option key={item.customerId} value={item.customerId}>
+                    {item.customerName} — {providerLabel(item.provider)}
+                    {item.keyLast4 ? ` (ends ${item.keyLast4})` : ''}
+                    {item.model ? ` · ${item.model}` : ''}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => void openListedClient()}
+                disabled={busy || !listCustomerId}
+              >
+                Open
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => void removeFromList()}
+                disabled={busy || !listCustomerId}
+              >
+                Delete
+              </Button>
+            </div>
+          </div>
+        )}
+      </div>
+
       {!clientReady ? (
         <p className="text-xs text-amber-600">
-          Pick a client in the switcher to add their API key. The env key stays the fallback for
-          all clients.
+          Pick a client in the switcher (or Open above) to add or edit their API key.
         </p>
       ) : (
         <>
@@ -194,12 +296,33 @@ export function AiProviderSettings() {
               <span className="text-muted-foreground mb-1 block text-xs font-medium">
                 Model <span className="font-normal">(optional)</span>
               </span>
-              <input
-                value={model}
-                placeholder={option?.modelPlaceholder}
-                onChange={(event) => setModel(event.target.value)}
-                className="border-border bg-surface-muted/40 h-10 w-full rounded-xl border px-3 text-sm outline-none"
-              />
+              {provider === 'gemini' ? (
+                <select
+                  value={
+                    GEMINI_MODEL_OPTIONS.some((item) => item.value === model)
+                      ? model
+                      : 'gemini-3-flash-preview'
+                  }
+                  onChange={(event) => setModel(event.target.value)}
+                  className="border-border bg-surface-muted/40 h-10 w-full rounded-xl border px-3 text-sm outline-none"
+                >
+                  {!GEMINI_MODEL_OPTIONS.some((item) => item.value === model) && model ? (
+                    <option value={model}>{model} (saved — pick a working model)</option>
+                  ) : null}
+                  {GEMINI_MODEL_OPTIONS.map((item) => (
+                    <option key={item.value} value={item.value}>
+                      {item.label}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  value={model}
+                  placeholder={option?.modelPlaceholder}
+                  onChange={(event) => setModel(event.target.value)}
+                  className="border-border bg-surface-muted/40 h-10 w-full rounded-xl border px-3 text-sm outline-none"
+                />
+              )}
             </label>
 
             <label className="md:col-span-2">
@@ -235,7 +358,7 @@ export function AiProviderSettings() {
               Test key
             </Button>
             {display?.provider && (
-              <Button type="button" variant="ghost" onClick={() => void remove()} disabled={busy}>
+              <Button type="button" variant="ghost" onClick={() => void removeCurrent()} disabled={busy}>
                 Remove
               </Button>
             )}
