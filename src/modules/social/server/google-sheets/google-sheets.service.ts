@@ -27,6 +27,8 @@ const SCOPES = [
 ] as const;
 
 const MAX_ROWS_PER_SHEET = 2000;
+/** Google Sheets caps around 300 columns (KN). ZZ (702) is invalid and returns "Unable to parse range". */
+const MAX_COLS_A1 = 'KN';
 const AUTO_SYNC_MS = 15 * 60 * 1000;
 
 const DATE_HEADER_HINTS = [
@@ -355,7 +357,7 @@ async function fetchSpreadsheetRows(
     return { title, sheetNames: [], headers: [], rows: [] };
   }
 
-  const ranges = sheetNames.map((name) => `'${name.replace(/'/g, "''")}'!A1:ZZ${MAX_ROWS_PER_SHEET}`);
+  const ranges = sheetNames.map((name) => `'${name.replace(/'/g, "''")}'!A1:${MAX_COLS_A1}${MAX_ROWS_PER_SHEET}`);
   const params = new URLSearchParams();
   for (const range of ranges) params.append('ranges', range);
   params.set('majorDimension', 'ROWS');
