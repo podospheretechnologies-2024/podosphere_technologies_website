@@ -92,6 +92,8 @@ model SocialGrowthSettings {
   organizationId  String
   customerId      String   @unique
   targetRoas      Decimal  @default(10) @db.Decimal(8, 2)
+  /// Max cost per Meta lead for website / lead-gen clients (null = desk default ₹200).
+  targetCpl       Decimal? @db.Decimal(14, 2)
   dailyBudget     Decimal? @db.Decimal(14, 2)
   budgetCap       Decimal? @db.Decimal(14, 2)
   blogsPerMonth   Int      @default(5)

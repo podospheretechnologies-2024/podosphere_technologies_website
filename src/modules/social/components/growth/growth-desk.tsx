@@ -82,8 +82,7 @@ function ClientsSummary({ onPick, hasClients }: { onPick: (id: string, tab?: Gro
   return (
     <div className="space-y-3">
       <p className="text-muted-foreground text-sm">
-        Every client works here — website or Shopify. Assign Meta/Google ads on the Ads page to see spend and ROAS; connect Shopify only for
-        store sales. Last 7 days vs each client&apos;s ROAS target
+        Website and lead clients use CPL on the desk; Shopify is only for stores. Assign Meta/Google ads on Ads, GA4 in Setup. Last 7 days
         {data && data.length > 0 ? ` · ${connectedCount} of ${data.length} Shopify stores linked` : ''}.
       </p>
       <p className="text-muted-foreground text-xs">Client missing? Add it on Clients, then assign its ad account on Ads.</p>
@@ -164,7 +163,15 @@ function ClientDesk({ initialTab = 'today' }: { initialTab?: GrowthTab }) {
   const currency = data.store.currency ?? 'INR';
   const t = data.totals;
   const target = data.settings.targetRoas;
+  const leadObjective = data.campaigns.some((c) => (c.objective ?? '').toUpperCase().includes('LEAD'));
+  const websiteMode = !data.store.connected && (leadObjective || (t.metaLeads ?? 0) > 0 || data.hasAds);
+  const cpl =
+    t.metaLeads && t.metaSpend && t.metaLeads > 0 ? Math.round((t.metaSpend / t.metaLeads) * 100) / 100 : null;
+  const targetCpl = data.settings.targetCpl ?? 200;
   const roasPct = t.roas == null ? 0 : Math.min(100, (t.roas / target) * 100);
+  // CPL bar: on target when CPL is at/under goal (lower is better).
+  const cplPct =
+    cpl == null || targetCpl <= 0 ? 0 : Math.min(100, Math.max(8, (targetCpl / Math.max(cpl, 0.01)) * 100));
   const c = data.counts;
 
   const needs: { label: string; hot: boolean; go: GrowthTab }[] = [
@@ -175,9 +182,10 @@ function ClientDesk({ initialTab = 'today' }: { initialTab?: GrowthTab }) {
     { label: `${c.draftBlogs} blog draft${c.draftBlogs === 1 ? '' : 's'}`, hot: c.draftBlogs > 0, go: 'blogs' },
   ];
   if (c.reportDue) needs.push({ label: 'Report is due', hot: true, go: 'reports' });
-  // Ads first for every website; Shopify is optional (e-commerce only).
   if (!data.hasAds) needs.unshift({ label: 'Link ads on Ads page', hot: true, go: 'performance' });
-  else if (!data.store.connected) needs.push({ label: 'Connect Shopify (optional)', hot: false, go: 'settings' });
+  else if (!data.store.connected && !websiteMode) {
+    needs.push({ label: 'Connect Shopify (optional)', hot: false, go: 'settings' });
+  }
 
   const badge: Partial<Record<GrowthTab, number>> = { today: c.openTasks, review: c.reviewTasks, campaigns: c.pendingAds, blogs: c.draftBlogs };
   const usingShopifyRoas = data.store.connected && t.shopifyRoas != null;
@@ -218,70 +226,135 @@ function ClientDesk({ initialTab = 'today' }: { initialTab?: GrowthTab }) {
 
       <section className="grid gap-5 rounded-2xl bg-gradient-to-br from-[#3d2163] to-[#7a3f8f] p-5 text-white md:grid-cols-[1.1fr_1.4fr]">
         <div>
-          <div className="text-xs font-semibold tracking-wider text-white/70 uppercase">
-            {usingShopifyRoas ? 'Shopify ROAS' : 'Ads ROAS'} vs target ({target}x)
-          </div>
-          <div className="mt-1 text-5xl font-bold tabular-nums">{times(t.roas)}</div>
-          <div className="relative mt-3 mb-1 h-3 rounded-full bg-white/20">
-            <i className="absolute inset-y-0 left-0 rounded-full bg-white" style={{ width: `${roasPct}%`, minWidth: 4 }} />
-          </div>
-          <div className="text-xs text-white/75">
-            {t.roas != null
-              ? usingShopifyRoas
-                ? `Shopify sales ÷ ad spend (Meta${data.hasGoogleAds ? ' + Google' : ''}).${t.metaRoas != null ? ` Meta-reported: ${times(t.metaRoas)}.` : ''}`
-                : `Meta purchase value ÷ Meta spend (works without Shopify).${t.spend != null ? ` Spend ${money(t.spend, currency)}.` : ''}`
-              : !data.hasAds
-                ? 'Assign a Meta or Google ad account on the Ads page — Growth works for every website client.'
-                : t.spend != null && t.spend > 0
-                  ? 'Spend is in; Meta has no purchase value yet for these dates (lead campaigns show leads below).'
-                  : 'No ad spend for these dates yet. Open Performance after the next ads sync.'}
-          </div>
+          {websiteMode ? (
+            <>
+              <div className="text-xs font-semibold tracking-wider text-white/70 uppercase">
+                Cost per lead vs target ({money(targetCpl, currency)})
+              </div>
+              <div className="mt-1 text-5xl font-bold tabular-nums">{cpl != null ? money(cpl, currency) : '—'}</div>
+              <div className="relative mt-3 mb-1 h-3 rounded-full bg-white/20">
+                <i
+                  className="absolute inset-y-0 left-0 rounded-full bg-white"
+                  style={{ width: `${cplPct}%`, minWidth: 4 }}
+                />
+              </div>
+              <div className="text-xs text-white/75">
+                {cpl != null
+                  ? `Website / lead desk · Meta spend ÷ leads.${t.spend != null ? ` Spend ${money(t.spend, currency)}.` : ''} ${
+                      cpl <= targetCpl ? 'On or under target.' : 'Above target — check ads and form quality.'
+                    }`
+                  : !data.hasAds
+                    ? 'Assign a Meta or Google ad account on the Ads page.'
+                    : 'Waiting for Meta leads in this date range. Open Performance after the next ads sync.'}
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="text-xs font-semibold tracking-wider text-white/70 uppercase">
+                {usingShopifyRoas ? 'Shopify ROAS' : 'Ads ROAS'} vs target ({target}x)
+              </div>
+              <div className="mt-1 text-5xl font-bold tabular-nums">{times(t.roas)}</div>
+              <div className="relative mt-3 mb-1 h-3 rounded-full bg-white/20">
+                <i className="absolute inset-y-0 left-0 rounded-full bg-white" style={{ width: `${roasPct}%`, minWidth: 4 }} />
+              </div>
+              <div className="text-xs text-white/75">
+                {t.roas != null
+                  ? usingShopifyRoas
+                    ? `Shopify sales ÷ ad spend (Meta${data.hasGoogleAds ? ' + Google' : ''}).${t.metaRoas != null ? ` Meta-reported: ${times(t.metaRoas)}.` : ''}`
+                    : `Meta purchase value ÷ Meta spend.${t.spend != null ? ` Spend ${money(t.spend, currency)}.` : ''}`
+                  : !data.hasAds
+                    ? 'Assign a Meta or Google ad account on the Ads page — Growth works for every website client.'
+                    : t.spend != null && t.spend > 0
+                      ? 'Spend is in; Meta has no purchase value yet for these dates.'
+                      : 'No ad spend for these dates yet. Open Performance after the next ads sync.'}
+              </div>
+            </>
+          )}
         </div>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-          <Stat label="Sales" value={money(t.sales, currency)} note={data.store.connected ? 'Shopify' : 'Shopify optional'} />
-          <Stat
-            label="Ad spend"
-            value={money(t.spend, currency)}
-            note={
-              !data.hasAds
-                ? 'Assign on Ads page'
-                : [data.hasMetaAds ? `Meta ${money(t.metaSpend, currency)}` : null, data.hasGoogleAds ? `Google ${money(t.googleSpend, currency)}` : null]
-                    .filter(Boolean)
-                    .join(' · ')
-            }
-          />
-          <Stat
-            label="Orders"
-            value={count(t.orders)}
-            note={t.aov != null ? `AOV ${money(t.aov, currency)}` : data.store.connected ? '' : 'Shopify optional'}
-          />
-          <Stat
-            label="Sessions"
-            value={count(t.sessions)}
-            note={t.sessions ? `Order rate ${pct(t.orders, t.sessions)}` : data.store.connected ? 'Needs read_reports' : 'Shopify / GA4 optional'}
-          />
-          <Stat
-            label="Leads"
-            value={count(t.metaLeads)}
-            note={
-              t.metaLeads && t.metaSpend
-                ? `CPL ${money(t.metaSpend / t.metaLeads, currency)}`
-                : t.googleConversions
-                  ? `Google conv. ${count(t.googleConversions)}`
-                  : 'From Meta ads'
-            }
-          />
-          <Stat
-            label="Meta purchases"
-            value={count(t.metaPurchases)}
-            note={
-              t.metaPurchases
-                ? `CPP ${money((t.metaSpend ?? 0) / t.metaPurchases, currency)}`
-                : t.metaRevenue
-                  ? `Revenue ${money(t.metaRevenue, currency)}`
-                  : 'Pixel purchases'
-            }
-          />
+          {websiteMode ? (
+            <>
+              <Stat
+                label="Leads"
+                value={count(t.metaLeads)}
+                note={t.googleConversions ? `Google conv. ${count(t.googleConversions)}` : 'From Meta ads'}
+              />
+              <Stat
+                label="Ad spend"
+                value={money(t.spend, currency)}
+                note={
+                  !data.hasAds
+                    ? 'Assign on Ads page'
+                    : [data.hasMetaAds ? `Meta ${money(t.metaSpend, currency)}` : null, data.hasGoogleAds ? `Google ${money(t.googleSpend, currency)}` : null]
+                        .filter(Boolean)
+                        .join(' · ')
+                }
+              />
+              <Stat
+                label="Sessions"
+                value={count(t.sessions)}
+                note={t.sessions ? 'From GA4' : 'Connect GA4 in Setup'}
+              />
+              <Stat
+                label="CPL"
+                value={cpl != null ? money(cpl, currency) : '—'}
+                note={`Target ${money(targetCpl, currency)}`}
+              />
+              <Stat
+                label="Form / pixel"
+                value={count(t.metaPurchases)}
+                note={t.metaPurchases ? 'Rare on lead ads' : 'Purchases N/A for lead ads'}
+              />
+              <Stat label="Mode" value="Website" note="Shopify not required" />
+            </>
+          ) : (
+            <>
+              <Stat label="Sales" value={money(t.sales, currency)} note={data.store.connected ? 'Shopify' : 'Shopify optional'} />
+              <Stat
+                label="Ad spend"
+                value={money(t.spend, currency)}
+                note={
+                  !data.hasAds
+                    ? 'Assign on Ads page'
+                    : [data.hasMetaAds ? `Meta ${money(t.metaSpend, currency)}` : null, data.hasGoogleAds ? `Google ${money(t.googleSpend, currency)}` : null]
+                        .filter(Boolean)
+                        .join(' · ')
+                }
+              />
+              <Stat
+                label="Orders"
+                value={count(t.orders)}
+                note={t.aov != null ? `AOV ${money(t.aov, currency)}` : data.store.connected ? '' : 'Shopify optional'}
+              />
+              <Stat
+                label="Sessions"
+                value={count(t.sessions)}
+                note={t.sessions ? `Order rate ${pct(t.orders, t.sessions)}` : data.store.connected ? 'Needs read_reports' : 'Shopify / GA4 optional'}
+              />
+              <Stat
+                label="Leads"
+                value={count(t.metaLeads)}
+                note={
+                  t.metaLeads && t.metaSpend
+                    ? `CPL ${money(t.metaSpend / t.metaLeads, currency)}`
+                    : t.googleConversions
+                      ? `Google conv. ${count(t.googleConversions)}`
+                      : 'From Meta ads'
+                }
+              />
+              <Stat
+                label="Meta purchases"
+                value={count(t.metaPurchases)}
+                note={
+                  t.metaPurchases
+                    ? `CPP ${money((t.metaSpend ?? 0) / t.metaPurchases, currency)}`
+                    : t.metaRevenue
+                      ? `Revenue ${money(t.metaRevenue, currency)}`
+                      : 'Pixel purchases'
+                }
+              />
+            </>
+          )}
         </div>
         <div className="flex flex-wrap gap-2 md:col-span-2">
           {needs.map((n) => (

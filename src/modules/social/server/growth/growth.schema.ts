@@ -12,6 +12,7 @@ const httpsUrl = z
 
 export const settingsSchema = z.object({
   targetRoas: z.number().min(0.1).max(100).optional(),
+  targetCpl: z.number().min(0).max(100_000_000).nullable().optional(),
   dailyBudget: z.number().min(0).max(100_000_000).nullable().optional(),
   budgetCap: z.number().min(0).max(100_000_000).nullable().optional(),
   blogsPerMonth: z.number().int().min(0).max(31).optional(),

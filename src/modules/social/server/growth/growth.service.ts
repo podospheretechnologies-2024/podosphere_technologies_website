@@ -11,6 +11,8 @@ const MAX_RANGE_DAYS = 400;
 
 export interface GrowthSettingsDto {
   targetRoas: number;
+  /** Max CPL for website / lead-gen clients; null means the desk uses ₹200. */
+  targetCpl: number | null;
   dailyBudget: number | null;
   budgetCap: number | null;
   blogsPerMonth: number;
@@ -27,6 +29,7 @@ export async function getSettings(organizationId: string, customerId: string): P
   const row = await prisma.socialGrowthSettings.findFirst({ where: { organizationId, customerId } });
   return {
     targetRoas: num(row?.targetRoas) ?? 10,
+    targetCpl: num(row?.targetCpl),
     dailyBudget: num(row?.dailyBudget),
     budgetCap: num(row?.budgetCap),
     blogsPerMonth: row?.blogsPerMonth ?? 5,
@@ -49,6 +52,7 @@ export async function updateSettings(
   }
   const data = {
     targetRoas: next.targetRoas.toFixed(2),
+    targetCpl: next.targetCpl == null ? null : next.targetCpl.toFixed(2),
     dailyBudget: next.dailyBudget == null ? null : next.dailyBudget.toFixed(2),
     budgetCap: next.budgetCap == null ? null : next.budgetCap.toFixed(2),
     blogsPerMonth: next.blogsPerMonth,

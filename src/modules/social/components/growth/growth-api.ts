@@ -43,6 +43,7 @@ export interface ShopifyStore {
 
 export interface GrowthSettings {
   targetRoas: number;
+  targetCpl: number | null;
   dailyBudget: number | null;
   budgetCap: number | null;
   blogsPerMonth: number;

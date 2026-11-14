@@ -200,6 +200,7 @@ function GoalsPanel({ canReview, onChange }: { canReview: boolean; onChange: () 
     try {
       await growthCall('/settings', 'PUT', {
         targetRoas: form!.targetRoas,
+        targetCpl: form!.targetCpl,
         dailyBudget: form!.dailyBudget,
         budgetCap: form!.budgetCap,
         blogsPerMonth: form!.blogsPerMonth,
@@ -220,6 +221,16 @@ function GoalsPanel({ canReview, onChange }: { canReview: boolean; onChange: () 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         <Field label="Target ROAS (x)">
           <Input type="number" step="0.5" min={0.1} value={form.targetRoas} disabled={!canReview} onChange={(e) => set('targetRoas', Number(e.target.value))} />
+        </Field>
+        <Field label="Target CPL (website)">
+          <Input
+            type="number"
+            min={0}
+            placeholder="200"
+            value={form.targetCpl ?? ''}
+            disabled={!canReview}
+            onChange={(e) => set('targetCpl', numOrNull(e.target.value))}
+          />
         </Field>
         <Field label="Daily budget">
           <Input type="number" min={0} value={form.dailyBudget ?? ''} disabled={!canReview} onChange={(e) => set('dailyBudget', numOrNull(e.target.value))} />
