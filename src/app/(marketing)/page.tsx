@@ -1,135 +1,211 @@
 import Link from 'next/link';
+import { ArrowRight, Bot, CheckCircle2 } from 'lucide-react';
+import { FaqSection } from '@/modules/marketing/components/faq-section';
+import { FinalCta } from '@/modules/marketing/components/final-cta';
+import { HeroVisual } from '@/modules/marketing/components/hero-visual';
+import { PricingGrid } from '@/modules/marketing/components/pricing-grid';
+import { legal } from '@/modules/marketing/config/legal';
 import {
-  BarChart3,
-  Bot,
-  CalendarClock,
-  CheckCircle2,
-  Inbox,
-  Megaphone,
-  PenLine,
-  ShieldCheck,
-  Target,
-  Users,
-} from 'lucide-react';
-import { HeroSceneLazy } from '@/modules/marketing/components/three/hero-scene-lazy';
+  API_BASE_URL,
+  FAQ_ITEMS,
+  FEATURE_PILLARS,
+  INDIA_EDGE,
+  PLATFORMS,
+  SITE_URL,
+} from '@/modules/marketing/config/site';
 import { Reveal, Stagger, StaggerItem } from '@/shared/components/motion/reveal';
 
-const features = [
-  { icon: PenLine, title: 'Write & publish everywhere', text: 'One composer for Facebook, Instagram, LinkedIn, YouTube and Google Business Profile, with captions tailored to each platform.' },
-  { icon: CalendarClock, title: 'Calendar autopilot', text: 'Podo AI plans next week from your brand kit and last month’s best posts. You approve, it schedules.' },
-  { icon: Inbox, title: 'Unified inbox', text: 'Comments, DMs, WhatsApp chats and reviews in one place. AI labels, prioritises and drafts every reply.' },
-  { icon: Target, title: 'Leads that score themselves', text: 'Meta and LinkedIn lead forms flow in, get scored 0–100 with reasons, and sync to PodoCRM.' },
-  { icon: Megaphone, title: 'Ads that watch themselves', text: 'Daily spend, CTR and fatigue checks. Pause/budget suggestions wait for your approval, never auto-applied.' },
-  { icon: BarChart3, title: 'Reports clients read', text: 'Weekly and monthly performance reports written in plain language: wins, losses, next steps.' },
-];
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@graph': [
+    {
+      '@type': 'SoftwareApplication',
+      name: 'Podo Social',
+      applicationCategory: 'BusinessApplication',
+      operatingSystem: 'Web',
+      url: SITE_URL,
+      offers: {
+        '@type': 'AggregateOffer',
+        priceCurrency: 'INR',
+        lowPrice: '1499',
+        highPrice: '19999',
+      },
+      provider: {
+        '@type': 'Organization',
+        name: legal.company,
+        url: SITE_URL,
+      },
+    },
+    {
+      '@type': 'FAQPage',
+      mainEntity: FAQ_ITEMS.map((item) => ({
+        '@type': 'Question',
+        name: item.q,
+        acceptedAnswer: { '@type': 'Answer', text: item.a },
+      })),
+    },
+  ],
+};
 
 const steps = [
-  { title: 'Connect', text: 'Link Pages, Instagram, WhatsApp and ad accounts in a few clicks.' },
-  { title: 'Teach', text: 'Fill in the brand kit: voice, audience, words to avoid, FAQs.' },
+  { title: 'Connect', text: 'Link Pages, Instagram, WhatsApp, Shopify, GA4 and ad accounts.' },
+  { title: 'Teach', text: 'Fill the brand kit: voice, audience, words to avoid, FAQs.' },
   { title: 'Approve', text: 'Podo AI drafts posts, replies and ad changes. You approve with one click.' },
 ];
 
 export default function LandingPage() {
   return (
     <>
-      {/* Hero */}
-      <section className="relative flex min-h-screen items-center overflow-hidden pt-24">
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(97,43,211,0.18),transparent_60%)]" />
-        <div className="relative mx-auto grid w-full max-w-6xl items-center gap-10 px-6 lg:grid-cols-2">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+      <section className="relative flex min-h-[90vh] items-center overflow-hidden pt-28 pb-16">
+        <div className="relative mx-auto grid w-full max-w-6xl items-center gap-12 px-6 lg:grid-cols-2">
           <div>
             <Reveal>
-              <span className="border-border bg-surface text-primary inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium">
-                <Bot className="size-3.5" /> Meet Podo AI, your social media marketing agent
-              </span>
-            </Reveal>
-            <Reveal delay={0.1}>
-              <h1 className="mt-6 text-5xl leading-[1.05] font-semibold tracking-tight md:text-6xl">
-                Social media that <span className="from-primary to-ai bg-gradient-to-r bg-clip-text text-transparent">runs itself</span>, with you in control.
+              <h1 className="text-4xl leading-[1.08] font-semibold tracking-tight md:text-5xl lg:text-[3.4rem]">
+                Social ops for Indian agencies — publish, reply, ads and reports in one desk.
               </h1>
             </Reveal>
-            <Reveal delay={0.2}>
-              <p className="mt-6 max-w-xl text-lg text-muted-foreground">
-                Podo AI plans content, writes on-brand posts, answers your inbox, scores leads and watches your
-                ads across every platform. Nothing goes live without your approval.
+            <Reveal delay={0.08}>
+              <p className="text-muted-foreground mt-6 max-w-xl text-lg leading-relaxed">
+                Plan, publish, reply, track ads and report for every client, from one place. Made for
+                Indian agencies.
               </p>
             </Reveal>
-            <Reveal delay={0.3} className="mt-8 flex flex-wrap gap-3">
+            <Reveal delay={0.16} className="mt-8 flex flex-wrap gap-3">
               <Link
                 href="/register"
-                className="bg-primary text-primary-foreground rounded-xl px-6 py-3 font-medium shadow-lg shadow-primary/30 hover:opacity-90"
+                className="bg-primary text-primary-foreground rounded-xl px-6 py-3 text-sm font-medium hover:opacity-90"
               >
-                Get started free
+                Start free
               </Link>
-              <Link href="#agent" className="border-border bg-surface hover:bg-surface-muted rounded-xl border px-6 py-3 font-medium">
-                See how it works
-              </Link>
+              <a
+                href={legal.whatsappLink}
+                target="_blank"
+                rel="noreferrer"
+                className="border-border bg-surface hover:bg-surface-muted rounded-xl border px-6 py-3 text-sm font-medium"
+              >
+                Book a WhatsApp demo
+              </a>
+            </Reveal>
+            <Reveal delay={0.24}>
+              <p className="text-muted-foreground mt-10 text-xs font-medium tracking-wide uppercase">
+                Platforms
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {PLATFORMS.map((p) => (
+                  <span
+                    key={p}
+                    className="border-border bg-surface rounded-full border px-3 py-1 text-xs font-medium"
+                  >
+                    {p}
+                  </span>
+                ))}
+              </div>
             </Reveal>
           </div>
-          <div className="relative h-[420px] md:h-[560px]">
-            <HeroSceneLazy />
-          </div>
+          <Reveal delay={0.12}>
+            <HeroVisual />
+          </Reveal>
         </div>
       </section>
 
-      {/* Features */}
-      <section id="features" className="mx-auto max-w-6xl px-6 py-28">
+      <section className="mx-auto max-w-6xl px-6 py-20" id="features">
         <Reveal className="max-w-2xl">
-          <h2 className="text-4xl font-semibold tracking-tight">Everything an agency does, now faster.</h2>
-          <p className="mt-4 text-muted-foreground">Built for agencies managing many clients, Pages and ad accounts.</p>
+          <h2 className="text-3xl font-semibold tracking-tight md:text-4xl">
+            Everything you run for clients, in six desks.
+          </h2>
+          <p className="text-muted-foreground mt-4">
+            Each pillar opens a full feature page. Forty-plus capabilities are already shipping —
+            not a teaser list of six.
+          </p>
         </Reveal>
-        <Stagger className="mt-14 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
-          {features.map((f) => (
-            <StaggerItem key={f.title} className="border-border bg-surface group rounded-2xl border p-6 transition hover:-translate-y-1 hover:border-primary">
-              <span className="flex size-11 items-center justify-center rounded-xl bg-primary/10 text-primary transition group-hover:bg-primary/20">
-                <f.icon className="size-5" />
-              </span>
-              <h3 className="mt-5 text-lg font-semibold">{f.title}</h3>
-              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{f.text}</p>
+        <Stagger className="mt-12 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {FEATURE_PILLARS.map((f) => (
+            <StaggerItem key={f.href}>
+              <Link
+                href={f.href}
+                className="border-border bg-surface hover:border-foreground/20 group flex h-full flex-col rounded-2xl border p-6 transition"
+              >
+                <h3 className="text-lg font-semibold tracking-tight">{f.title}</h3>
+                <p className="text-muted-foreground mt-2 flex-1 text-sm leading-relaxed">{f.text}</p>
+                <span className="text-primary mt-5 inline-flex items-center gap-1 text-sm font-medium">
+                  Explore <ArrowRight className="size-3.5 transition group-hover:translate-x-0.5" />
+                </span>
+              </Link>
             </StaggerItem>
           ))}
         </Stagger>
       </section>
 
-      {/* Agent */}
-      <section id="agent" className="relative py-28">
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(216,45,126,0.10),transparent_65%)]" />
-        <div className="relative mx-auto grid max-w-6xl items-center gap-14 px-6 lg:grid-cols-2">
+      <section className="bg-foreground text-background py-20">
+        <div className="mx-auto max-w-6xl px-6">
+          <h2 className="max-w-2xl text-3xl font-semibold tracking-tight md:text-4xl">
+            Made for India — the edge over Buffer and Hootsuite.
+          </h2>
+          <div className="mt-12 grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+            {INDIA_EDGE.map((item) => (
+              <div key={item.title}>
+                <h3 className="font-semibold">{item.title}</h3>
+                <p className="mt-2 text-sm leading-relaxed text-white/65">{item.text}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section id="agent" className="py-24">
+        <div className="mx-auto grid max-w-6xl items-center gap-14 px-6 lg:grid-cols-2">
           <Reveal>
-            <h2 className="text-4xl font-semibold tracking-tight">
-              An agent that works like <span className="from-primary to-ai bg-gradient-to-r bg-clip-text text-transparent">your best marketer</span>.
+            <h2 className="text-3xl font-semibold tracking-tight md:text-4xl">
+              Podo AI drafts. You approve. Nothing ships alone.
             </h2>
             <ol className="mt-10 space-y-6">
               {steps.map((s, i) => (
                 <li key={s.title} className="flex gap-4">
-                  <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground text-sm font-semibold">
+                  <span className="bg-primary text-primary-foreground flex size-9 shrink-0 items-center justify-center rounded-full text-sm font-semibold">
                     {i + 1}
                   </span>
                   <div>
                     <h3 className="font-semibold">{s.title}</h3>
-                    <p className="text-sm text-muted-foreground">{s.text}</p>
+                    <p className="text-muted-foreground text-sm">{s.text}</p>
                   </div>
                 </li>
               ))}
             </ol>
+            <p className="text-muted-foreground mt-8 text-sm">
+              Prefer a walkthrough?{' '}
+              <a href={legal.whatsappLink} className="text-foreground underline underline-offset-2">
+                Book a WhatsApp demo
+              </a>{' '}
+              — product demo video coming soon.
+            </p>
           </Reveal>
-          <Reveal delay={0.15} className="border-border bg-surface rounded-3xl border p-6 shadow-xl">
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Bot className="size-4 text-ai" /> Podo AI · Approval queue
+          <Reveal delay={0.12} className="border-border bg-surface rounded-3xl border p-6 shadow-sm">
+            <div className="text-muted-foreground flex items-center gap-2 text-sm">
+              <Bot className="size-4" /> Podo AI · Approval queue
             </div>
             <div className="mt-5 space-y-3">
               {[
                 ['Instagram post for Tue 7:30 PM', 'Diwali offer carousel, 3 captions drafted'],
-                ['Reply to comment on “Seed Funding”', '“Thanks! DM us your city and we’ll share the details.”'],
+                [
+                  'Reply to comment on “Seed Funding”',
+                  '“Thanks! DM us your city and we’ll share the details.”',
+                ],
                 ['Pause ad set “Retargeting 30d”', 'CTR fell 42% in 5 days: creative fatigue'],
               ].map(([title, text]) => (
                 <div key={title} className="border-border bg-background rounded-2xl border p-4">
                   <p className="text-sm font-medium">{title}</p>
-                  <p className="mt-1 text-sm text-muted-foreground">{text}</p>
+                  <p className="text-muted-foreground mt-1 text-sm">{text}</p>
                   <div className="mt-3 flex gap-2 text-xs">
-                    <span className="inline-flex items-center gap-1 rounded-lg bg-success/15 text-success px-2 py-1">
+                    <span className="bg-success/15 text-success inline-flex items-center gap-1 rounded-lg px-2 py-1">
                       <CheckCircle2 className="size-3.5" /> Approve
                     </span>
-                    <span className="bg-surface-muted text-muted-foreground rounded-lg px-2 py-1">Edit</span>
+                    <span className="bg-surface-muted text-muted-foreground rounded-lg px-2 py-1">
+                      Edit
+                    </span>
                   </div>
                 </div>
               ))}
@@ -138,43 +214,89 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Trust */}
-      <section className="mx-auto max-w-6xl px-6 pb-16">
-        <Stagger className="grid gap-5 md:grid-cols-3">
-          {[
-            { icon: ShieldCheck, title: 'You stay in control', text: 'Approval queue for anything public or paid. Full audit log.' },
-            { icon: Users, title: 'Built for agencies', text: 'Workspaces per client, brand kits, and a client API.' },
-            { icon: Bot, title: 'Powered by Claude', text: 'Anthropic’s Claude writes, reasons and analyses behind the scenes.' },
-          ].map((t) => (
-            <StaggerItem key={t.title} className="border-border rounded-2xl border p-6">
-              <t.icon className="size-5 text-ai" />
-              <h3 className="mt-4 font-semibold">{t.title}</h3>
-              <p className="mt-1 text-sm text-muted-foreground">{t.text}</p>
-            </StaggerItem>
-          ))}
-        </Stagger>
+      <section className="border-y border-[#E8E8E4] bg-surface py-20">
+        <div className="mx-auto max-w-6xl px-6">
+          <h2 className="text-3xl font-semibold tracking-tight md:text-4xl">Built for agencies</h2>
+          <p className="text-muted-foreground mt-4 max-w-2xl">
+            Client workspaces, per-client brand kits, Owner / Admin / Member roles, a client portal,
+            and white-label with a custom domain.
+          </p>
+          <div className="mt-10 grid gap-4 md:grid-cols-3">
+            {[
+              {
+                title: 'Client workspaces',
+                text: 'Switch clients without losing context. Templates speed up onboarding.',
+                href: '/features/agency',
+              },
+              {
+                title: 'Client portal',
+                text: 'Clients log in to approve content and download reports — only their data.',
+                href: '/features/client-portal',
+              },
+              {
+                title: 'White-label',
+                text: 'Portal title, brand colour and custom domain so it feels like your product.',
+                href: '/features/agency',
+              },
+            ].map((card) => (
+              <Link
+                key={card.title}
+                href={card.href}
+                className="border-border hover:border-foreground/20 rounded-2xl border p-6 transition"
+              >
+                <h3 className="font-semibold">{card.title}</h3>
+                <p className="text-muted-foreground mt-2 text-sm leading-relaxed">{card.text}</p>
+              </Link>
+            ))}
+          </div>
+        </div>
       </section>
 
-      {/* Bottom CTA */}
-      <section className="mx-auto max-w-6xl px-6 pb-28">
-        <Reveal className="border-border from-primary/10 to-ai/10 relative overflow-hidden rounded-3xl border bg-gradient-to-br px-8 py-14 text-center md:px-16">
-          <h2 className="text-3xl font-semibold tracking-tight md:text-4xl">Ready to try Podo Social?</h2>
-          <p className="text-muted-foreground mx-auto mt-3 max-w-lg">
-            Create a workspace in a minute. Connect your channels and let Podo AI draft the next week of content.
-          </p>
-          <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+      <section className="mx-auto max-w-6xl px-6 py-20">
+        <div className="grid items-start gap-10 lg:grid-cols-2">
+          <div>
+            <h2 className="text-3xl font-semibold tracking-tight md:text-4xl">Public API</h2>
+            <p className="text-muted-foreground mt-4 text-sm leading-relaxed">
+              Agency Pro keys (`ps_live_…`) with permissions, IP allowlists and daily limits. Create
+              keys in Dashboard → Social → API.
+            </p>
             <Link
-              href="/register"
-              className="bg-primary text-primary-foreground rounded-xl px-6 py-3 font-medium shadow-lg shadow-primary/30 hover:opacity-90"
+              href="/docs/api"
+              className="text-primary mt-6 inline-flex items-center gap-1 text-sm font-medium"
             >
-              Create free account
-            </Link>
-            <Link href="/login" className="border-border bg-surface hover:bg-surface-muted rounded-xl border px-6 py-3 font-medium">
-              Log in
+              Read the API docs <ArrowRight className="size-3.5" />
             </Link>
           </div>
-        </Reveal>
+          <pre className="border-border overflow-x-auto rounded-2xl border bg-[#111111] p-5 text-xs leading-relaxed text-white/85">
+            {`curl -X POST ${API_BASE_URL}/posts \\
+  -H "Authorization: Bearer ps_live_xxx" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "integrationId": "int_123",
+    "content": "Diwali sale is live",
+    "publishAt": "2026-11-20T13:30:00.000Z"
+  }'`}
+          </pre>
+        </div>
       </section>
+
+      <section className="mx-auto max-w-6xl px-6 py-16">
+        <div className="mb-10 flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <h2 className="text-3xl font-semibold tracking-tight md:text-4xl">Pricing</h2>
+            <p className="text-muted-foreground mt-3 text-sm">
+              Four plans in INR. GST invoices included.
+            </p>
+          </div>
+          <Link href="/pricing" className="text-primary text-sm font-medium">
+            Full pricing →
+          </Link>
+        </div>
+        <PricingGrid showCta={false} />
+      </section>
+
+      <FaqSection />
+      <FinalCta />
     </>
   );
 }

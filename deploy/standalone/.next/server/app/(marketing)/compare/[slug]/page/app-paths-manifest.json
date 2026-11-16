@@ -1,0 +1,3 @@
+{
+  "/(marketing)/compare/[slug]/page": "app/(marketing)/compare/[slug]/page.js"
+}

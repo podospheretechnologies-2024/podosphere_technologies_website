@@ -1,5 +1,6 @@
 import type { LucideIcon } from 'lucide-react';
 import {
+  Briefcase,
   CalendarDays,
   ChartColumn,
   CreditCard,
@@ -86,6 +87,12 @@ export const socialAppNav: SocialAppNavItem[] = [
     label: 'Growth',
     href: `${SOCIAL_BASE_PATH}/growth`,
     icon: TrendingUp,
+  },
+  {
+    key: 'ops',
+    label: 'Client Desk',
+    href: `${SOCIAL_BASE_PATH}/ops`,
+    icon: Briefcase,
   },
   {
     key: 'ads',

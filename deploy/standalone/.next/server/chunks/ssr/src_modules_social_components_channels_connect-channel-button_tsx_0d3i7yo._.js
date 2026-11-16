@@ -1,0 +1,3 @@
+module.exports=[2448,a=>{"use strict";var b=a.i(827373);a.s(["ConnectChannelButton",0,function({provider:a,label:c,className:d}){async function e(){let b=await fetch(`/api/social/integrations/connect/${a}`),c=await b.json();if(c.url){window.location.href=c.url;return}window.alert(c.error||"Could not start the connection")}return(0,b.jsx)("button",{type:"button",onClick:()=>void e(),className:d,children:c})}])}];
+
+//# sourceMappingURL=src_modules_social_components_channels_connect-channel-button_tsx_0d3i7yo._.js.map

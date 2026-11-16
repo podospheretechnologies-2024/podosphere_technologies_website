@@ -11,8 +11,8 @@ const HeroScene = dynamic(() => import('./hero-scene'), {
 
 function HeroFallback() {
   return (
-    <div className="absolute inset-0 flex items-center justify-center">
-      <div className="size-64 rounded-full bg-gradient-to-br from-primary/40 via-ai/30 to-transparent blur-2xl" />
+    <div className="border-border bg-surface absolute inset-0 flex items-center justify-center rounded-2xl border">
+      <div className="text-muted-foreground text-sm">Loading scene…</div>
     </div>
   );
 }

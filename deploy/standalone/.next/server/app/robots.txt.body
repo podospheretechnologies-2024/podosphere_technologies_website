@@ -8,3 +8,4 @@ Allow: /
 Disallow: /dashboard
 Disallow: /api
 
+Sitemap: https://social.podospheretechnologies.com/sitemap.xml

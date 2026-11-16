@@ -43,6 +43,11 @@ export const socialSections = {
     href: `${SOCIAL_BASE_PATH}/analytics`,
     description: 'Track channel and post performance.',
   },
+  ops: {
+    label: 'Client Desk',
+    href: `${SOCIAL_BASE_PATH}/ops`,
+    description: 'Track retainers, collections, renewals and service delivery (admins only).',
+  },
   ads: {
     label: 'Ads',
     href: `${SOCIAL_BASE_PATH}/ads`,

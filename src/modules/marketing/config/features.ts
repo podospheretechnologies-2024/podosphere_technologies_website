@@ -1,0 +1,746 @@
+export type FeatureBlock = { title: string; text: string; tag?: 'rolling out' };
+
+export type FeaturePageContent = {
+  slug: string;
+  title: string;
+  description: string;
+  headline: string;
+  sub: string;
+  blocks: FeatureBlock[];
+  howItWorks: { title: string; text: string }[];
+  faq?: { q: string; a: string }[];
+};
+
+export const FEATURES = {
+  publish: {
+    slug: 'publish',
+    title: 'Publish',
+    description:
+      'Compose and schedule posts for Facebook, Instagram, Threads, LinkedIn, YouTube, Pinterest and Google Business Profile — with calendar, evergreen, CSV bulk and a media library.',
+    headline: 'One composer for every client channel',
+    sub: 'Draft, schedule and evergreen posts across seven networks. Tags, signatures, sets, first comments and CSV bulk — the publishing desk Indian agencies actually need.',
+    blocks: [
+      {
+        title: 'Multi-platform composer',
+        text: 'Write once and publish to Facebook, Instagram, Threads, LinkedIn, YouTube, Pinterest and Google Business Profile. Per-channel previews so captions and media fit before they go live.',
+      },
+      {
+        title: 'Calendar, tags, signatures and sets',
+        text: 'Plan the month on a shared calendar. Reuse signatures, organise with tags, and group posts into sets so a Diwali campaign stays together across clients.',
+      },
+      {
+        title: 'First comment, repeat and evergreen',
+        text: 'Queue a first comment after publish for hashtags or CTAs. Repeat posts on a schedule, or run evergreen content that recycles without a fresh draft each time.',
+      },
+      {
+        title: 'CSV bulk and best time to post',
+        text: 'Import a CSV to schedule dozens of posts in one go. Best-time suggestions help you pick slots that match each channel’s recent performance.',
+      },
+      {
+        title: 'Media library and branded templates',
+        text: 'Store assets per client. AI alt text and auto-resize for platform sizes, plus branded image templates so creatives stay on-brand without opening Canva for every post.',
+      },
+    ],
+    howItWorks: [
+      {
+        title: 'Connect channels',
+        text: 'Link the client’s Facebook, Instagram, Threads, LinkedIn, YouTube, Pinterest or GBP accounts to the workspace.',
+      },
+      {
+        title: 'Compose or import',
+        text: 'Draft in the composer, pull from a set, or upload a CSV. Add media, tags, signatures and an optional first comment.',
+      },
+      {
+        title: 'Schedule and publish',
+        text: 'Pick a time, use best-time hints, or set evergreen/repeat. Approve if your workflow requires it — then it goes out on schedule.',
+      },
+    ],
+    faq: [
+      {
+        q: 'Which platforms can I publish to?',
+        a: 'Facebook, Instagram, Threads, LinkedIn, YouTube, Pinterest and Google Business Profile from the same composer.',
+      },
+      {
+        q: 'Can I schedule many posts at once?',
+        a: 'Yes. CSV bulk import maps caption, media and publish time so you can load a month of content in one pass.',
+      },
+      {
+        q: 'What is evergreen posting?',
+        a: 'Mark posts to recycle on a cadence so evergreen offers and tip content keep running without rewriting every week.',
+      },
+    ],
+  },
+
+  ai: {
+    slug: 'ai',
+    title: 'Podo AI',
+    description:
+      'Draft posts from briefs or URLs, image and tone presets, per-client brand kits, weekly plans, and a Copilot that waits for approval before acting. Usage tracked per client.',
+    headline: 'AI that drafts — you stay in control',
+    sub: 'Captions, threads, image presets and weekly plans tuned to each client’s brand kit. Copilot can propose actions; nothing ships until you approve.',
+    blocks: [
+      {
+        title: 'Posts, from URL and threads',
+        text: 'Generate single posts, expand a URL into social copy, or draft thread-style sequences. Built for the formats agencies ship every week.',
+      },
+      {
+        title: 'Image and tone presets',
+        text: 'Platform-sized image presets and caption tone presets so output matches the channel and the client’s voice without rewriting every line.',
+      },
+      {
+        title: 'Brand kit and weekly plan',
+        text: 'Store voice, products and do-not-say rules per client. Ask for a weekly content plan that respects the kit and your calendar gaps.',
+      },
+      {
+        title: 'Copilot agent',
+        text: 'Multi-turn Copilot that can propose posts, triage and other actions. Every action sits for your approval — no silent publishes or replies.',
+      },
+      {
+        title: 'AI usage per client',
+        text: 'See how much AI each client consumes so you can bill fairly and spot heavy accounts before the month closes.',
+      },
+    ],
+    howItWorks: [
+      {
+        title: 'Set the brand kit',
+        text: 'Add tone, offers and guardrails for the client so drafts stay on-brand from the first generation.',
+      },
+      {
+        title: 'Generate or plan',
+        text: 'Request a post, URL rewrite, thread, image preset or a week of ideas. Edit anything before it leaves the queue.',
+      },
+      {
+        title: 'Approve Copilot actions',
+        text: 'When Copilot suggests a publish or reply, review and approve — or edit — before anything goes live.',
+      },
+    ],
+    faq: [
+      {
+        q: 'Which model powers Podo AI?',
+        a: 'Claude by Anthropic for captions, triage, lead scores and report narratives. Usage is tracked per client.',
+      },
+      {
+        q: 'Can Copilot post without me?',
+        a: 'No. Copilot proposes actions; you approve or edit before anything publishes or replies.',
+      },
+      {
+        q: 'Can I limit AI by client?',
+        a: 'Usage is visible per client so your team can manage spend and pass costs through where needed.',
+      },
+    ],
+  },
+
+  inbox: {
+    slug: 'inbox',
+    title: 'Inbox',
+    description:
+      'Unified Facebook and Instagram comments and DMs — reply, hide, AI triage and drafts, saved replies, assign and SLA. Meta DM reply may be limited by App Review.',
+    headline: 'Comments and DMs in one queue',
+    sub: 'Facebook and Instagram engagement in a single inbox. Triage with AI, reply from saved templates, assign to the right person, and track SLA.',
+    blocks: [
+      {
+        title: 'FB and IG comments',
+        text: 'Pull comments into one queue. Reply or hide without hopping between Meta Business Suite and the client’s phone.',
+      },
+      {
+        title: 'Direct messages',
+        text: 'Instagram and Facebook DMs alongside comments so the team sees the full conversation thread for each client.',
+        tag: 'rolling out',
+      },
+      {
+        title: 'AI triage and draft replies',
+        text: 'AI ranks what needs attention and drafts a reply in the client’s tone. You edit and send — nothing auto-publishes.',
+      },
+      {
+        title: 'Saved replies, assign and SLA',
+        text: 'Reuse saved replies for FAQs. Assign threads to teammates and watch SLA so festival-week spikes do not bury a lead.',
+      },
+    ],
+    howItWorks: [
+      {
+        title: 'Connect pages',
+        text: 'Link the client’s Facebook Page and Instagram professional account so comments and DMs sync into the inbox.',
+      },
+      {
+        title: 'Triage the queue',
+        text: 'Use AI priority, filters and assignment so urgent threads surface first during sale or festival weeks.',
+      },
+      {
+        title: 'Reply and close',
+        text: 'Send a reply, use a saved reply, or hide spam. Track SLA so nothing sits unanswered past your SLA target.',
+      },
+    ],
+    faq: [
+      {
+        q: 'Which networks are in the social inbox?',
+        a: 'Facebook and Instagram comments and DMs. WhatsApp has its own inbox under the WhatsApp feature.',
+      },
+      {
+        q: 'Why is DM reply marked rolling out?',
+        a: 'Some Meta DM reply scopes depend on App Review. Comment workflows are available; DM reply rolls out as those permissions clear.',
+      },
+      {
+        q: 'Does AI send replies automatically?',
+        a: 'No. AI drafts and triages; a teammate reviews and sends.',
+      },
+    ],
+  },
+
+  whatsapp: {
+    slug: 'whatsapp',
+    title: 'WhatsApp',
+    description:
+      'WhatsApp Business inbox, message templates, broadcasts with per-message cost estimate, and keyword auto-replies — built for Indian agencies.',
+    headline: 'WhatsApp that belongs in the desk',
+    sub: 'Inbox, approved templates, broadcasts with a clear cost estimate, and keyword auto-replies. Not a bolted-on chat widget.',
+    blocks: [
+      {
+        title: 'WhatsApp inbox',
+        text: 'Client WhatsApp Business conversations in the same product your team already uses for social — no separate tab-hopping for every reply.',
+      },
+      {
+        title: 'Message templates',
+        text: 'Work with Meta-approved templates for outbound and utility messages so campaigns stay compliant when you leave the 24-hour window.',
+      },
+      {
+        title: 'Broadcasts with cost estimate',
+        text: 'Send broadcasts to segments and see an estimated per-message cost before you hit send. Meta bills template messages at their rate; we surface the estimate in-product.',
+      },
+      {
+        title: 'Keyword auto-replies',
+        text: 'Match keywords like PRICE or ADDRESS and send a saved reply so common questions do not wait for a human every time.',
+      },
+    ],
+    howItWorks: [
+      {
+        title: 'Connect WhatsApp Business',
+        text: 'Link the client’s WhatsApp Business account to the organisation workspace.',
+      },
+      {
+        title: 'Set templates and keywords',
+        text: 'Add approved templates for campaigns and keyword rules for FAQs that should answer themselves.',
+      },
+      {
+        title: 'Inbox or broadcast',
+        text: 'Reply in the inbox day to day, or run a broadcast with the cost estimate visible before send.',
+      },
+    ],
+    faq: [
+      {
+        q: 'What does a broadcast cost?',
+        a: 'Meta charges for template messages. The product shows an estimate (around ₹0.80/msg as a guide) so you know the rough bill before sending.',
+      },
+      {
+        q: 'Can I use keyword auto-replies?',
+        a: 'Yes. Match inbound keywords to saved replies for common questions outside campaign broadcasts.',
+      },
+      {
+        q: 'Is this separate from the social inbox?',
+        a: 'Yes. Facebook/Instagram live under Inbox; WhatsApp has its own inbox, templates and broadcasts.',
+      },
+    ],
+  },
+
+  leads: {
+    slug: 'leads',
+    title: 'Leads',
+    description:
+      'Pull Meta and LinkedIn lead forms into one pipeline, score 0–100 with AI reasons, and push qualified leads to PodoCRM.',
+    headline: 'Forms in. Scored. Ready for CRM.',
+    sub: 'Meta and LinkedIn lead ads land in one pipeline. AI scores each lead 0–100 with reasons, then you push keepers to PodoCRM.',
+    blocks: [
+      {
+        title: 'Meta and LinkedIn forms',
+        text: 'Ingest lead form submissions from Meta and LinkedIn so sales and account managers stop downloading CSVs from two ads managers.',
+      },
+      {
+        title: 'AI score 0–100',
+        text: 'Each lead gets a score with short reasons — fit, intent signals, completeness — so the team calls the right people first.',
+      },
+      {
+        title: 'Pipeline view',
+        text: 'Move leads through stages your agency already uses: new, contacted, qualified, won or lost — per client.',
+      },
+      {
+        title: 'Push to PodoCRM',
+        text: 'Send scored leads into PodoCRM when they are ready for sales follow-up, without retyping the form fields.',
+      },
+    ],
+    howItWorks: [
+      {
+        title: 'Connect lead forms',
+        text: 'Link Meta and LinkedIn lead forms for the client so new submissions sync automatically.',
+      },
+      {
+        title: 'Score and triage',
+        text: 'Run AI scoring, sort by score, and assign owners so high-intent leads get a call the same day.',
+      },
+      {
+        title: 'Push to CRM',
+        text: 'Move qualified leads to PodoCRM and keep the pipeline updated as status changes.',
+      },
+    ],
+    faq: [
+      {
+        q: 'Which lead sources are supported?',
+        a: 'Meta and LinkedIn lead forms. Scores and pipeline live inside Podo Social; CRM push goes to PodoCRM.',
+      },
+      {
+        q: 'How does the AI score work?',
+        a: 'Leads are scored 0–100 with short reasons so your team can trust the ranking without reading every field first.',
+      },
+      {
+        q: 'Do I have to use PodoCRM?',
+        a: 'Pipeline and scoring work in-product. Push to PodoCRM when you want sales to take over in CRM.',
+      },
+    ],
+  },
+
+  ads: {
+    slug: 'ads',
+    title: 'Ads',
+    description:
+      'Meta campaigns, ad sets and ads with spend, CTR and fatigue watch. Suggestions need approval. Creative helper is draft-only. Google Ads is read-only via MCC.',
+    headline: 'Ads visibility without silent changes',
+    sub: 'Sync Meta structure and performance, watch fatigue, and review suggestions before anything changes. Google Ads stays read-only through your MCC.',
+    blocks: [
+      {
+        title: 'Meta campaigns, ad sets and ads',
+        text: 'Sync campaign structure and see spend, CTR and delivery in one place per client — without living only in Ads Manager.',
+      },
+      {
+        title: 'Spend, CTR and fatigue watch',
+        text: 'Spot creatives and ad sets that are tiring so the team refreshes before CPA drifts. Numbers your account managers already argue about, in one view.',
+      },
+      {
+        title: 'Suggestions need approval',
+        text: 'When the system suggests a change, it waits in an approval queue. Nothing adjusts budgets or pauses ads until someone on your team confirms.',
+      },
+      {
+        title: 'Creative helper (draft-only)',
+        text: 'Draft ad copy and creative angles for review. Helper output stays draft — it does not publish ads on its own.',
+      },
+      {
+        title: 'Google Ads read-only MCC',
+        text: 'Connect Google Ads via MCC for spend, campaigns, ad groups and ads in read-only mode. Useful for reporting; not a second Ads Editor.',
+      },
+    ],
+    howItWorks: [
+      {
+        title: 'Connect ad accounts',
+        text: 'Link Meta ad accounts and, if needed, Google Ads via MCC for the client workspace.',
+      },
+      {
+        title: 'Review performance',
+        text: 'Check spend, CTR and fatigue signals. Open suggestions when the desk flags something worth changing.',
+      },
+      {
+        title: 'Approve before acting',
+        text: 'Accept, edit or reject suggestions. Creative helper drafts stay drafts until a human decides next steps in Ads Manager or your process.',
+      },
+    ],
+    faq: [
+      {
+        q: 'Can Podo Social change my Google Ads?',
+        a: 'No. Google Ads is read-only (spend, campaigns, ad groups, ads via MCC). Use it for visibility and reports.',
+      },
+      {
+        q: 'Do ad suggestions apply automatically?',
+        a: 'No. Meta-side suggestions wait for approval. Nothing goes live without your team.',
+      },
+      {
+        q: 'What does the creative helper do?',
+        a: 'It drafts copy and angles for review only. It does not publish ads by itself.',
+      },
+    ],
+  },
+
+  'growth-desk': {
+    slug: 'growth-desk',
+    title: 'Growth Desk',
+    description:
+      'Per-client Growth Desk: Today, ideas, review, performance, campaign plan, content, blogs (incl. Shopify publish), images, website, change log and reports — plus Shopify ROAS, GA4, Meta purchases and daily AI insights.',
+    headline: 'The per-client growth desk',
+    sub: 'One workspace per client for today\'s work, ideas, reviews, performance, plans, content, blogs, images, website notes, change log and reports — with Shopify, GA4 and Meta revenue in view.',
+    blocks: [
+      {
+        title: 'Today, ideas and review',
+        text: 'Start from Today’s queue, park ideas in the idea box, and run review so content and campaigns do not stall waiting for a WhatsApp ping.',
+      },
+      {
+        title: 'Performance, plan and content',
+        text: 'See performance next to the campaign plan and content calendar so creative and media decisions share the same desk.',
+      },
+      {
+        title: 'Blogs, images and website',
+        text: 'Draft blogs (including publish to Shopify), manage image work, and keep website notes alongside social — not in three scattered docs.',
+      },
+      {
+        title: 'Shopify, GA4 and Meta purchases',
+        text: 'Pull Shopify orders, revenue and ROAS, GA4 sessions and users, and Meta purchases/revenue so growth talk uses the same numbers as the client’s store.',
+      },
+      {
+        title: 'Change log, reports and daily AI insights',
+        text: 'Log what changed, pull desk reports, and get daily AI insights so account managers walk into client calls prepared.',
+      },
+    ],
+    howItWorks: [
+      {
+        title: 'Open the client desk',
+        text: 'Switch into the client’s Growth Desk. Today shows what needs attention across content, ads and store signals.',
+      },
+      {
+        title: 'Plan and produce',
+        text: 'Use idea box, campaign plan, content, blogs and images. Publish blogs to Shopify when that is part of the retainer.',
+      },
+      {
+        title: 'Measure and report',
+        text: 'Check Shopify ROAS, GA4 and Meta purchases, read daily AI insights, and send reports from the same desk.',
+      },
+    ],
+    faq: [
+      {
+        q: 'Is Growth Desk per client?',
+        a: 'Yes. Each client gets their own desk so ideas, plans and store metrics stay isolated.',
+      },
+      {
+        q: 'Can I publish blogs to Shopify?',
+        a: 'Yes. Blog drafts in the desk can publish to the connected Shopify store when that workflow is enabled for the client.',
+      },
+      {
+        q: 'Which commerce and analytics sources are included?',
+        a: 'Shopify orders/revenue/ROAS, GA4 sessions/users, and Meta purchases and revenue, plus daily AI insights.',
+      },
+    ],
+  },
+
+  analytics: {
+    slug: 'analytics',
+    title: 'Analytics',
+    description:
+      'Per-channel growth, reach, impressions, profile views and clicks, plus stories, 90-day backfill, and competitor recent posts with an AI summary.',
+    headline: 'Channel analytics your team can defend',
+    sub: 'Growth, reach, impressions, profile views and clicks per channel — including stories. Backfill up to 90 days. Competitor recent posts with an AI summary for client meetings.',
+    blocks: [
+      {
+        title: 'Channel growth and delivery',
+        text: 'Track growth, reach, impressions, profile views and clicks per connected channel so monthly reports are not a last-minute Ads Manager export.',
+      },
+      {
+        title: 'Stories included',
+        text: 'Story metrics sit with the rest of the channel view, not in a separate spreadsheet your intern forgot to update.',
+      },
+      {
+        title: '90-day backfill',
+        text: 'Pull recent history so a new client workspace is not empty on day one. Useful when you take over mid-quarter.',
+      },
+      {
+        title: 'Competitor posts and AI summary',
+        text: 'See competitors’ recent posts and an AI summary of what they are pushing — enough for a sharp client update, not a 40-slide deck.',
+      },
+    ],
+    howItWorks: [
+      {
+        title: 'Connect channels',
+        text: 'Link the client’s social accounts so insights sync into analytics.',
+      },
+      {
+        title: 'Backfill and monitor',
+        text: 'Run up to 90 days of history, then watch growth, reach, impressions, profile views, clicks and stories on an ongoing basis.',
+      },
+      {
+        title: 'Add competitors',
+        text: 'Follow competitor handles, review recent posts, and use the AI summary before a strategy or monthly call.',
+      },
+    ],
+    faq: [
+      {
+        q: 'How far back can I backfill?',
+        a: 'Up to 90 days, depending on what each network returns for the connected account.',
+      },
+      {
+        q: 'Do you cover stories?',
+        a: 'Yes. Story metrics are part of the channel analytics view where the platform provides them.',
+      },
+      {
+        q: 'What do competitor insights include?',
+        a: 'Recent posts plus an AI summary so account managers can brief clients without manual scrolling every competitor profile.',
+      },
+    ],
+  },
+
+  reports: {
+    slug: 'reports',
+    title: 'Reports',
+    description:
+      'Weekly and monthly PDF reports with an AI-written narrative — wins, losses and next steps — emailed automatically via Resend.',
+    headline: 'PDFs clients actually open',
+    sub: 'Weekly or monthly PDFs with an AI narrative covering wins, losses and next steps. Delivered by email through Resend so you are not chasing attachments on WhatsApp.',
+    blocks: [
+      {
+        title: 'Weekly and monthly PDFs',
+        text: 'Generate client-ready PDFs on a weekly or monthly cadence. Same structure every time so clients know where to look.',
+      },
+      {
+        title: 'AI narrative',
+        text: 'An AI-written section covers wins, losses and suggested next steps — edit before send if the account needs a sharper take.',
+      },
+      {
+        title: 'Email via Resend',
+        text: 'Send reports automatically through Resend so delivery is tracked and you are not manually mailing every PDF.',
+      },
+    ],
+    howItWorks: [
+      {
+        title: 'Pick cadence and client',
+        text: 'Choose weekly or monthly for the client and confirm which channels and metrics belong in the pack.',
+      },
+      {
+        title: 'Generate and edit',
+        text: 'Build the PDF, review the AI narrative, and adjust wording before it goes to the client.',
+      },
+      {
+        title: 'Send with Resend',
+        text: 'Email the report through Resend on schedule or on demand — no WhatsApp PDF ping-pong.',
+      },
+    ],
+    faq: [
+      {
+        q: 'What does the AI narrative include?',
+        a: 'Wins, losses and next steps based on the period’s data. You can edit before sending.',
+      },
+      {
+        q: 'How are reports delivered?',
+        a: 'As PDFs, emailed via Resend — on a weekly or monthly cadence or when you trigger a send.',
+      },
+      {
+        q: 'Can clients also see reports in the portal?',
+        a: 'Yes. The client portal has a Reports tab when you enable it for that client.',
+      },
+    ],
+  },
+
+  'client-portal': {
+    slug: 'client-portal',
+    title: 'Client portal',
+    description:
+      'Client login with email and password or magic link. Tabs for Overview, Content, Analytics, Ads, Leads, Sales, Reports, Channels and Requests — toggled per client, with hard data isolation.',
+    headline: 'A portal each client can trust',
+    sub: 'Clients sign in with email and password or a magic link. You choose which tabs they see. Every query stays scoped to their data only.',
+    blocks: [
+      {
+        title: 'Email, password or magic link',
+        text: 'Invite clients without forcing a shared agency login. Magic link when they forget the password on a festival-week Friday.',
+      },
+      {
+        title: 'Tabs that match the retainer',
+        text: 'Overview, Content (approve or request changes), Analytics, Ads, Leads, Sales, Reports, Channels and Requests — turn tabs on or off per client.',
+      },
+      {
+        title: 'Content approvals in-portal',
+        text: 'Clients approve posts or ask for changes in the Content tab so feedback is not buried in a 40-message WhatsApp thread.',
+      },
+      {
+        title: 'Hard isolation',
+        text: 'Each client only sees their own channels, ads, leads, sales and reports. No cross-client leakage in the UI or the queries underneath.',
+      },
+    ],
+    howItWorks: [
+      {
+        title: 'Invite the client',
+        text: 'Create portal access with email and password or send a magic link.',
+      },
+      {
+        title: 'Toggle tabs',
+        text: 'Enable only the tabs that match the scope of work — hide Ads or Sales if that is not part of the retainer.',
+      },
+      {
+        title: 'Client reviews in place',
+        text: 'They approve content, check analytics and reports, and raise requests without needing your dashboard login.',
+      },
+    ],
+    faq: [
+      {
+        q: 'Can two clients ever see each other’s data?',
+        a: 'No. Access and queries are scoped per client. Team members can also be limited to assigned clients.',
+      },
+      {
+        q: 'Which tabs are available?',
+        a: 'Overview, Content, Analytics, Ads, Leads, Sales, Reports, Channels and Requests. You choose which ones each client gets.',
+      },
+      {
+        q: 'How do clients sign in?',
+        a: 'Email and password, or a magic link — whichever fits how you onboard them.',
+      },
+    ],
+  },
+
+  agency: {
+    slug: 'agency',
+    title: 'Agency',
+    description:
+      'Client workspaces with a switcher, onboarding, templates, Owner/Admin/Member roles, white-label and custom domain, plus a notifications centre.',
+    headline: 'Built for multi-client agencies',
+    sub: 'Workspaces and a fast switcher, onboarding and templates, clear roles, white-label portal branding and custom domain, and a notifications centre for the team.',
+    blocks: [
+      {
+        title: 'Workspaces and switcher',
+        text: 'Keep every client in their own workspace and jump between them without reloading a different tool for each brand.',
+      },
+      {
+        title: 'Onboarding and templates',
+        text: 'Onboard new clients with a guided flow and reuse client templates so the tenth retainer does not start from a blank desk.',
+      },
+      {
+        title: 'Roles: Owner, Admin, Member',
+        text: 'Owner, Admin and Member permissions so freelancers and juniors only get what they need — not the billing settings.',
+      },
+      {
+        title: 'White-label and custom domain',
+        text: 'Agency plans support white-label portal title, brand colour and a custom domain so clients see your brand, not a generic SaaS shell.',
+      },
+      {
+        title: 'Notifications centre',
+        text: 'Approvals, publishes and alerts land in one notifications centre so the team does not miss a client comment on a busy day.',
+      },
+    ],
+    howItWorks: [
+      {
+        title: 'Create the workspace',
+        text: 'Add the client, run onboarding, and apply a template if you have a standard retainer setup.',
+      },
+      {
+        title: 'Invite the team',
+        text: 'Assign Owner, Admin or Member roles and limit people to the clients they work on.',
+      },
+      {
+        title: 'Brand the portal',
+        text: 'Set white-label title, colour and custom domain, then use the notifications centre to stay on top of approvals.',
+      },
+    ],
+    faq: [
+      {
+        q: 'What roles exist?',
+        a: 'Owner, Admin and Member — with permissions suited to agency teams, not a single-brand in-house social login.',
+      },
+      {
+        q: 'Can I use my own domain on the client portal?',
+        a: 'Yes on agency plans: white-label title, brand colour and custom domain for the portal.',
+      },
+      {
+        q: 'Do you support GST billing?',
+        a: 'Razorpay checkout in INR with GST invoices (CGST/SGST or IGST) for Indian agencies.',
+      },
+    ],
+  },
+
+  automation: {
+    slug: 'automation',
+    title: 'Automation',
+    description:
+      'RSS to posts, Google Sheets to the content calendar, webhooks with a test action, and autoposts — keep the desk moving without copy-paste.',
+    headline: 'Automations that stay inspectable',
+    sub: 'Turn RSS into posts, map Google Sheets into the calendar, fire webhooks you can test, and run autoposts — so routine publishing does not eat the day.',
+    blocks: [
+      {
+        title: 'RSS to posts',
+        text: 'Point at an RSS feed and draft or schedule posts when new items appear — useful for blogs, newsrooms and content engines.',
+      },
+      {
+        title: 'Google Sheets to calendar',
+        text: 'Map a sheet into the content calendar so planners who live in Sheets still land work in the same schedule your publishers use.',
+      },
+      {
+        title: 'Webhooks with test',
+        text: 'Send events to your own systems and run a test from the product so you know the endpoint works before trusting it in production.',
+      },
+      {
+        title: 'Autoposts',
+        text: 'Configure autopost rules for recurring sources so approved patterns keep publishing without a manual pass every morning.',
+      },
+    ],
+    howItWorks: [
+      {
+        title: 'Choose a source',
+        text: 'Connect an RSS feed, Google Sheet or set up the webhook/autopost rule for the client.',
+      },
+      {
+        title: 'Map and test',
+        text: 'Map fields into posts or calendar slots. Hit test on webhooks before you rely on them.',
+      },
+      {
+        title: 'Let it run',
+        text: 'New items draft or schedule per your rules. Review in the calendar or approval queue like any other post.',
+      },
+    ],
+    faq: [
+      {
+        q: 'Will RSS posts go live without review?',
+        a: 'You control whether items draft or schedule. Keep approval on if every post still needs a human check.',
+      },
+      {
+        q: 'Can I test webhooks?',
+        a: 'Yes. Send a test from the product so you confirm the endpoint before connecting real traffic.',
+      },
+      {
+        q: 'Does Sheets sync replace the calendar?',
+        a: 'No. Sheets feed the content calendar — publishers still work from the same calendar view.',
+      },
+    ],
+  },
+
+  'link-in-bio': {
+    slug: 'link-in-bio',
+    title: 'Link in bio',
+    description:
+      'Public bio pages at /b/[slug] and UTM short links at /l/[code] with click tracking — simple destinations for every client campaign.',
+    headline: 'Bio pages and tracked short links',
+    sub: 'Ship a /b/[slug] bio page per client and /l/[code] short links with UTM and click tracking. No extra tool just to put five links in Instagram.',
+    blocks: [
+      {
+        title: 'Bio pages at /b/[slug]',
+        text: 'Publish a public link-in-bio page per client slug. Update links when campaigns change without editing the Instagram bio every week.',
+      },
+      {
+        title: 'Short links at /l/[code]',
+        text: 'Create compact /l/[code] links for ads, WhatsApp and creatives — easier to read on stories than a raw UTM string.',
+      },
+      {
+        title: 'UTM and click tracking',
+        text: 'Attach UTMs and see clicks so you know which bio link or short link actually moved traffic for the client.',
+      },
+    ],
+    howItWorks: [
+      {
+        title: 'Create the page or link',
+        text: 'Pick a bio slug or generate a short code for the campaign destination.',
+      },
+      {
+        title: 'Add destinations and UTMs',
+        text: 'Point links at landing pages, WhatsApp or store URLs and set UTMs for clean reporting.',
+      },
+      {
+        title: 'Share and track',
+        text: 'Put /b/[slug] in the Instagram bio or drop /l/[code] into ads and creatives, then watch click tracking.',
+      },
+    ],
+    faq: [
+      {
+        q: 'What is the bio page URL shape?',
+        a: 'Public pages live at /b/[slug]. Choose a stable slug per client or campaign hub.',
+      },
+      {
+        q: 'How do short links work?',
+        a: 'Each short link is /l/[code] with optional UTM parameters and click tracking.',
+      },
+      {
+        q: 'Do I need a separate link-in-bio product?',
+        a: 'No. Bio pages and short links sit in the same workspace as publishing and analytics.',
+      },
+    ],
+  },
+} as const satisfies Record<string, FeaturePageContent>;
+
+export type FeatureSlug = keyof typeof FEATURES;
+
+export const FEATURE_SLUGS = Object.keys(FEATURES) as FeatureSlug[];

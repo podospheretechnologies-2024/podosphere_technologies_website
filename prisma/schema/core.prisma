@@ -72,6 +72,9 @@ model Organization {
   whatsappConnections   SocialWhatsAppConnection[]
   whatsappAutoReplies   SocialWhatsAppAutoReply[]
   portalRequests        SocialPortalRequest[]
+  opsClients            OpsClient[]
+  opsClientServices     OpsClientService[]
+  opsPayments           OpsPayment[]
 
   @@map("organizations")
 }

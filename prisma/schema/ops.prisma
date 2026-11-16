@@ -1,0 +1,79 @@
+// Client Ops Desk — agency-internal tracker for retainers, collections, and service lines.
+// Org-scoped only (OWNER/ADMIN). Optional link to SocialCustomer when the same brand is on Social.
+
+model OpsClient {
+  id               String    @id @default(uuid())
+  organizationId   String
+  /// Optional link to the social product client when they are the same brand.
+  socialCustomerId String?
+  name             String    @db.VarChar(160)
+  /// not_started | in_progress | active | on_hold | completed | lost
+  status           String    @default("not_started") @db.VarChar(24)
+  /// retainer | one_time | project
+  engagementType   String?   @db.VarChar(24)
+  monthlyFee       Decimal?  @db.Decimal(14, 2)
+  retainerStart    DateTime? @db.Date
+  retainerMonths   Int?
+  /// Display names of assigned team members (comma-separated for v1).
+  teamNames        String?   @db.VarChar(500)
+  notes            String?   @db.Text
+  /// Monthly delivery status label, e.g. "Not started", "In progress".
+  workStatus       String?   @db.VarChar(64)
+  /// Escalation label for the selected month, e.g. "None", "Client waiting".
+  escalation       String?   @db.VarChar(64)
+  category         String?   @db.VarChar(64)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  deletedAt        DateTime?
+
+  organization Organization       @relation(fields: [organizationId], references: [id])
+  services     OpsClientService[]
+  payments     OpsPayment[]
+
+  @@index([organizationId, status])
+  @@index([organizationId, deletedAt])
+  @@map("ops_clients")
+}
+
+model OpsClientService {
+  id             String   @id @default(uuid())
+  organizationId String
+  clientId       String
+  /// website | social_media | paid_ads | ecommerce | quick_commerce
+  category       String   @db.VarChar(32)
+  /// Free-form subtype shown in the Services breakdown (e.g. "Meta Ads", "Blinkit").
+  subtype        String   @db.VarChar(80)
+  /// Optional grouping label inside a category (e.g. "Platforms", "Scope").
+  groupLabel     String?  @db.VarChar(64)
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  client       OpsClient    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, category])
+  @@index([clientId])
+  @@map("ops_client_services")
+}
+
+model OpsPayment {
+  id             String    @id @default(uuid())
+  organizationId String
+  clientId       String
+  amount         Decimal?  @db.Decimal(14, 2)
+  description    String?   @db.VarChar(500)
+  dueDate        DateTime? @db.Date
+  paidAt         DateTime?
+  /// Billing month key YYYY-MM (defaults from dueDate or createdAt).
+  monthKey       String    @db.VarChar(7)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  client       OpsClient    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, monthKey])
+  @@index([organizationId, dueDate])
+  @@index([clientId])
+  @@map("ops_payments")
+}

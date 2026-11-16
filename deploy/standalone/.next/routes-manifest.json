@@ -482,6 +482,22 @@
       "namedRegex": "^/api/social/notifications/(?<nxtPid>[^/]+?)(?:/)?$"
     },
     {
+      "page": "/api/social/ops/clients/[id]",
+      "regex": "^/api/social/ops/clients/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/social/ops/clients/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/api/social/ops/payments/[id]",
+      "regex": "^/api/social/ops/payments/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/social/ops/payments/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
       "page": "/api/social/posts/[group]",
       "regex": "^/api/social/posts/([^/]+?)(?:/)?$",
       "routeKeys": {
@@ -594,12 +610,36 @@
       "namedRegex": "^/bl/(?<nxtPid>[^/]+?)(?:/)?$"
     },
     {
+      "page": "/compare/[slug]",
+      "regex": "^/compare/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPslug": "nxtPslug"
+      },
+      "namedRegex": "^/compare/(?<nxtPslug>[^/]+?)(?:/)?$"
+    },
+    {
       "page": "/dashboard/social/clients/[id]/onboarding",
       "regex": "^/dashboard/social/clients/([^/]+?)/onboarding(?:/)?$",
       "routeKeys": {
         "nxtPid": "nxtPid"
       },
       "namedRegex": "^/dashboard/social/clients/(?<nxtPid>[^/]+?)/onboarding(?:/)?$"
+    },
+    {
+      "page": "/features/[slug]",
+      "regex": "^/features/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPslug": "nxtPslug"
+      },
+      "namedRegex": "^/features/(?<nxtPslug>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/for/[slug]",
+      "regex": "^/for/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPslug": "nxtPslug"
+      },
+      "namedRegex": "^/for/(?<nxtPslug>[^/]+?)(?:/)?$"
     },
     {
       "page": "/l/[code]",
@@ -1224,6 +1264,30 @@
       "namedRegex": "^/api/social/notifications(?:/)?$"
     },
     {
+      "page": "/api/social/ops/clients",
+      "regex": "^/api/social/ops/clients(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/social/ops/clients(?:/)?$"
+    },
+    {
+      "page": "/api/social/ops/dashboard",
+      "regex": "^/api/social/ops/dashboard(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/social/ops/dashboard(?:/)?$"
+    },
+    {
+      "page": "/api/social/ops/payments",
+      "regex": "^/api/social/ops/payments(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/social/ops/payments(?:/)?$"
+    },
+    {
+      "page": "/api/social/ops/services",
+      "regex": "^/api/social/ops/services(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/social/ops/services(?:/)?$"
+    },
+    {
       "page": "/api/social/overview",
       "regex": "^/api/social/overview(?:/)?$",
       "routeKeys": {},
@@ -1536,6 +1600,12 @@
       "namedRegex": "^/dashboard/social/media(?:/)?$"
     },
     {
+      "page": "/dashboard/social/ops",
+      "regex": "^/dashboard/social/ops(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/dashboard/social/ops(?:/)?$"
+    },
+    {
       "page": "/dashboard/social/overview",
       "regex": "^/dashboard/social/overview(?:/)?$",
       "routeKeys": {},
@@ -1662,6 +1732,12 @@
       "namedRegex": "^/portal/sales(?:/)?$"
     },
     {
+      "page": "/pricing",
+      "regex": "^/pricing(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/pricing(?:/)?$"
+    },
+    {
       "page": "/privacy",
       "regex": "^/privacy(?:/)?$",
       "routeKeys": {},
@@ -1678,6 +1754,12 @@
       "regex": "^/robots\\.txt(?:/)?$",
       "routeKeys": {},
       "namedRegex": "^/robots\\.txt(?:/)?$"
+    },
+    {
+      "page": "/sitemap.xml",
+      "regex": "^/sitemap\\.xml(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/sitemap\\.xml(?:/)?$"
     },
     {
       "page": "/support",

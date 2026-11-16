@@ -104,6 +104,10 @@
       "static/media/caa3a2e1cccd8315-s.p.0wgildi0cnwt9.woff2",
       "static/media/797e433ab948586e-s.p.0r6juujl39pe6.woff2"
     ],
+    "[project]/src/app/(dashboard)/dashboard/social/ops/page": [
+      "static/media/caa3a2e1cccd8315-s.p.0wgildi0cnwt9.woff2",
+      "static/media/797e433ab948586e-s.p.0r6juujl39pe6.woff2"
+    ],
     "[project]/src/app/(dashboard)/dashboard/social/overview/page": [
       "static/media/caa3a2e1cccd8315-s.p.0wgildi0cnwt9.woff2",
       "static/media/797e433ab948586e-s.p.0r6juujl39pe6.woff2"
@@ -128,29 +132,55 @@
       "static/media/caa3a2e1cccd8315-s.p.0wgildi0cnwt9.woff2",
       "static/media/797e433ab948586e-s.p.0r6juujl39pe6.woff2"
     ],
+    "[project]/src/app/(marketing)/compare/[slug]/page": [
+      "static/media/caa3a2e1cccd8315-s.p.0wgildi0cnwt9.woff2",
+      "static/media/797e433ab948586e-s.p.0r6juujl39pe6.woff2",
+      "static/media/fba5a26ea33df6a3-s.p.18rizl4rsrl42.woff2"
+    ],
     "[project]/src/app/(marketing)/data-deletion/page": [
       "static/media/caa3a2e1cccd8315-s.p.0wgildi0cnwt9.woff2",
-      "static/media/797e433ab948586e-s.p.0r6juujl39pe6.woff2"
+      "static/media/797e433ab948586e-s.p.0r6juujl39pe6.woff2",
+      "static/media/fba5a26ea33df6a3-s.p.18rizl4rsrl42.woff2"
     ],
     "[project]/src/app/(marketing)/docs/api/page": [
       "static/media/caa3a2e1cccd8315-s.p.0wgildi0cnwt9.woff2",
-      "static/media/797e433ab948586e-s.p.0r6juujl39pe6.woff2"
+      "static/media/797e433ab948586e-s.p.0r6juujl39pe6.woff2",
+      "static/media/fba5a26ea33df6a3-s.p.18rizl4rsrl42.woff2"
+    ],
+    "[project]/src/app/(marketing)/features/[slug]/page": [
+      "static/media/caa3a2e1cccd8315-s.p.0wgildi0cnwt9.woff2",
+      "static/media/797e433ab948586e-s.p.0r6juujl39pe6.woff2",
+      "static/media/fba5a26ea33df6a3-s.p.18rizl4rsrl42.woff2"
+    ],
+    "[project]/src/app/(marketing)/for/[slug]/page": [
+      "static/media/caa3a2e1cccd8315-s.p.0wgildi0cnwt9.woff2",
+      "static/media/797e433ab948586e-s.p.0r6juujl39pe6.woff2",
+      "static/media/fba5a26ea33df6a3-s.p.18rizl4rsrl42.woff2"
     ],
     "[project]/src/app/(marketing)/page": [
       "static/media/caa3a2e1cccd8315-s.p.0wgildi0cnwt9.woff2",
-      "static/media/797e433ab948586e-s.p.0r6juujl39pe6.woff2"
+      "static/media/797e433ab948586e-s.p.0r6juujl39pe6.woff2",
+      "static/media/fba5a26ea33df6a3-s.p.18rizl4rsrl42.woff2"
+    ],
+    "[project]/src/app/(marketing)/pricing/page": [
+      "static/media/caa3a2e1cccd8315-s.p.0wgildi0cnwt9.woff2",
+      "static/media/797e433ab948586e-s.p.0r6juujl39pe6.woff2",
+      "static/media/fba5a26ea33df6a3-s.p.18rizl4rsrl42.woff2"
     ],
     "[project]/src/app/(marketing)/privacy/page": [
       "static/media/caa3a2e1cccd8315-s.p.0wgildi0cnwt9.woff2",
-      "static/media/797e433ab948586e-s.p.0r6juujl39pe6.woff2"
+      "static/media/797e433ab948586e-s.p.0r6juujl39pe6.woff2",
+      "static/media/fba5a26ea33df6a3-s.p.18rizl4rsrl42.woff2"
     ],
     "[project]/src/app/(marketing)/support/page": [
       "static/media/caa3a2e1cccd8315-s.p.0wgildi0cnwt9.woff2",
-      "static/media/797e433ab948586e-s.p.0r6juujl39pe6.woff2"
+      "static/media/797e433ab948586e-s.p.0r6juujl39pe6.woff2",
+      "static/media/fba5a26ea33df6a3-s.p.18rizl4rsrl42.woff2"
     ],
     "[project]/src/app/(marketing)/terms/page": [
       "static/media/caa3a2e1cccd8315-s.p.0wgildi0cnwt9.woff2",
-      "static/media/797e433ab948586e-s.p.0r6juujl39pe6.woff2"
+      "static/media/797e433ab948586e-s.p.0r6juujl39pe6.woff2",
+      "static/media/fba5a26ea33df6a3-s.p.18rizl4rsrl42.woff2"
     ],
     "[project]/src/app/(portal)/portal/ads/page": [
       "static/media/caa3a2e1cccd8315-s.p.0wgildi0cnwt9.woff2",
