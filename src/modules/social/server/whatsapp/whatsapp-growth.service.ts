@@ -190,6 +190,41 @@ export const whatsappOnboardingService = {
       verificationStatus: data.business_verification_status || 'UNKNOWN',
       namespace: data.message_template_namespace
     };
+  },
+
+  /**
+   * Messages sent and delivered per day for the connected number, straight from Meta
+   * (so it also counts sends made outside this dashboard). Read counts are not part of
+   * this report; Meta only exposes them per template after a one-way opt-in.
+   */
+  async messageStats(scope: ClientScope, days = 30) {
+    const env = getServerEnv();
+    const connection = await prisma.socialWhatsAppConnection.findFirst({ where: scopeWhere(scope) });
+    if (!connection) return { status: 'NOT_CONFIGURED' as const };
+
+    const end = Math.floor(Date.now() / 1000);
+    const start = end - days * 86_400;
+    const phone = connection.displayPhone?.replace(/\D/g, '');
+    const filters =
+      `analytics.start(${start}).end(${end}).granularity(DAY)` + (phone ? `.phone_numbers(["${phone}"])` : '');
+    const response = await fetch(
+      `https://graph.facebook.com/${env.META_GRAPH_VERSION}/${connection.wabaId}?fields=${encodeURIComponent(filters)}`,
+      { headers: { Authorization: `Bearer ${decrypt(connection.accessToken)}` } }
+    );
+    const payload = (await response.json().catch(() => ({}))) as {
+      analytics?: { data_points?: { start: number; sent?: number; delivered?: number }[] };
+      error?: { message?: string };
+    };
+    if (!response.ok) {
+      return { status: 'ERROR' as const, details: payload.error?.message ?? 'Could not fetch message stats' };
+    }
+    const points = payload.analytics?.data_points ?? [];
+    return {
+      status: 'OK' as const,
+      days,
+      sent: points.reduce((sum, point) => sum + (point.sent ?? 0), 0),
+      delivered: points.reduce((sum, point) => sum + (point.delivered ?? 0), 0),
+    };
   }
 };
 

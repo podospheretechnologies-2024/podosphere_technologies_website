@@ -1414,6 +1414,12 @@
       "namedRegex": "^/api/social/whatsapp/settings(?:/)?$"
     },
     {
+      "page": "/api/social/whatsapp/stats",
+      "regex": "^/api/social/whatsapp/stats(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/social/whatsapp/stats(?:/)?$"
+    },
+    {
       "page": "/api/social/whatsapp/templates",
       "regex": "^/api/social/whatsapp/templates(?:/)?$",
       "routeKeys": {},

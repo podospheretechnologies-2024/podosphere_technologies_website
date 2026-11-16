@@ -245,6 +245,7 @@
   "/api/social/whatsapp/messages/route": "app/api/social/whatsapp/messages/route.js",
   "/api/social/whatsapp/route": "app/api/social/whatsapp/route.js",
   "/api/social/whatsapp/settings/route": "app/api/social/whatsapp/settings/route.js",
+  "/api/social/whatsapp/stats/route": "app/api/social/whatsapp/stats/route.js",
   "/api/social/whatsapp/templates/route": "app/api/social/whatsapp/templates/route.js",
   "/api/sync/whatsapp/echo/route": "app/api/sync/whatsapp/echo/route.js",
   "/api/team/invitations/[id]/route": "app/api/team/invitations/[id]/route.js",

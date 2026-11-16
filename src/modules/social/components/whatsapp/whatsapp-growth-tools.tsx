@@ -35,7 +35,18 @@ type AccountHealth =
       namespace?: string;
     };
 
+type MessageStats =
+  | { status: 'NOT_CONFIGURED' }
+  | { status: 'ERROR'; details?: string }
+  | {
+      status: 'OK';
+      days: number;
+      sent: number;
+      delivered: number;
+    };
+
 export function WhatsAppGrowthTools() {
+  const [stats, setStats] = useState<MessageStats | null>(null);
   const [config, setConfig] = useState<SignupConfig | null>(null);
   const [broadcasts, setBroadcasts] = useState<BroadcastRow[]>([]);
   const [message, setMessage] = useState<string | null>(null);
@@ -80,6 +91,11 @@ export function WhatsAppGrowthTools() {
         .then((response) => response.json())
         .then((data: AccountHealth) => setHealth(data)),
     ]).finally(() => setLoading(false));
+    // Not part of the gate above: a slow or failed stats call must not hold up the page.
+    void fetch('/api/social/whatsapp/stats')
+      .then((response) => response.json())
+      .then((data: MessageStats) => setStats(data))
+      .catch(() => setStats(null));
   }
 
   useEffect(() => {
@@ -406,6 +422,36 @@ export function WhatsAppGrowthTools() {
               <span className="text-muted-foreground">{health.namespace || 'N/A'}</span>
             </div>
           </div>
+        )}
+
+        {stats?.status === 'OK' && (
+          <div className="bg-surface-muted/30 border-border rounded-xl border p-3 text-xs">
+            <p className="mb-2 font-semibold">Messages in the last {stats.days} days</p>
+            <div className="flex flex-wrap gap-6">
+              <div>
+                <span className="block text-lg font-semibold">{stats.sent}</span>
+                <span className="text-muted-foreground">Sent</span>
+              </div>
+              <div>
+                <span className="block text-lg font-semibold">{stats.delivered}</span>
+                <span className="text-muted-foreground">Delivered</span>
+              </div>
+              <div>
+                <span className="block text-lg font-semibold">
+                  {stats.sent > 0 ? `${Math.round((stats.delivered / stats.sent) * 100)}%` : '—'}
+                </span>
+                <span className="text-muted-foreground">Delivery rate</span>
+              </div>
+            </div>
+            <p className="text-muted-foreground mt-2">
+              Counted by Meta for this number, including messages sent from other tools.
+            </p>
+          </div>
+        )}
+        {stats?.status === 'ERROR' && (
+          <p className="text-muted-foreground text-xs">
+            Message stats unavailable: {stats.details ?? 'Meta did not return them.'}
+          </p>
         )}
 
         <div className="grid gap-3 md:grid-cols-2">
