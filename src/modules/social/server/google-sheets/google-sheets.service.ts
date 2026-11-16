@@ -27,8 +27,6 @@ const SCOPES = [
 ] as const;
 
 const MAX_ROWS_PER_SHEET = 2000;
-/** Google Sheets caps around 300 columns (KN). ZZ (702) is invalid and returns "Unable to parse range". */
-const MAX_COLS_A1 = 'KN';
 const AUTO_SYNC_MS = 15 * 60 * 1000;
 
 const DATE_HEADER_HINTS = [
@@ -357,7 +355,8 @@ async function fetchSpreadsheetRows(
     return { title, sheetNames: [], headers: [], rows: [] };
   }
 
-  const ranges = sheetNames.map((name) => `'${name.replace(/'/g, "''")}'!A1:${MAX_COLS_A1}${MAX_ROWS_PER_SHEET}`);
+  // Whole-sheet ranges avoid A1 end-column bugs (ZZ / KN both returned "Unable to parse range").
+  const ranges = sheetNames.map((name) => `'${name.replace(/'/g, "''")}'`);
   const params = new URLSearchParams();
   for (const range of ranges) params.append('ranges', range);
   params.set('majorDimension', 'ROWS');
@@ -365,7 +364,10 @@ async function fetchSpreadsheetRows(
 
   const batch = await googleFetch<{
     valueRanges?: Array<{ range?: string; values?: string[][] }>;
-  }>(`${SHEETS_API}/${spreadsheetId}/values:batchGet?${params}`, accessToken);
+  }>(
+    `${SHEETS_API}/${encodeURIComponent(spreadsheetId)}/values:batchGet?${params}`,
+    accessToken
+  );
 
   const allRows: GoogleSheetRow[] = [];
   const headersSet = new Set<string>();
@@ -380,7 +382,8 @@ async function fetchSpreadsheetRows(
       if (h) headersSet.add(h);
     });
 
-    for (let i = 1; i < values.length; i++) {
+    const lastDataRow = Math.min(values.length, MAX_ROWS_PER_SHEET);
+    for (let i = 1; i < lastDataRow; i++) {
       const cells = values[i].map((cell) => String(cell ?? ''));
       if (cells.every((cell) => !cell.trim())) continue;
       allRows.push(rowFromValues(sheetName, i + 1, headerRow, cells));
