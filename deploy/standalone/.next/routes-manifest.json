@@ -450,6 +450,14 @@
       "namedRegex": "^/api/social/leads/(?<nxtPid>[^/]+?)/score(?:/)?$"
     },
     {
+      "page": "/api/social/leads/[id]/whatsapp",
+      "regex": "^/api/social/leads/([^/]+?)/whatsapp(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/social/leads/(?<nxtPid>[^/]+?)/whatsapp(?:/)?$"
+    },
+    {
       "page": "/api/social/media/files/[...key]",
       "regex": "^/api/social/media/files/(.+?)(?:/)?$",
       "routeKeys": {
@@ -1246,6 +1254,12 @@
       "namedRegex": "^/api/social/leads(?:/)?$"
     },
     {
+      "page": "/api/social/leads/whatsapp",
+      "regex": "^/api/social/leads/whatsapp(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/social/leads/whatsapp(?:/)?$"
+    },
+    {
       "page": "/api/social/media",
       "regex": "^/api/social/media(?:/)?$",
       "routeKeys": {},
@@ -1378,6 +1392,18 @@
       "namedRegex": "^/api/social/whatsapp(?:/)?$"
     },
     {
+      "page": "/api/social/whatsapp/ad-chats",
+      "regex": "^/api/social/whatsapp/ad\\-chats(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/social/whatsapp/ad\\-chats(?:/)?$"
+    },
+    {
+      "page": "/api/social/whatsapp/agency-notify",
+      "regex": "^/api/social/whatsapp/agency\\-notify(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/social/whatsapp/agency\\-notify(?:/)?$"
+    },
+    {
       "page": "/api/social/whatsapp/auto-replies",
       "regex": "^/api/social/whatsapp/auto\\-replies(?:/)?$",
       "routeKeys": {},
@@ -1400,6 +1426,12 @@
       "regex": "^/api/social/whatsapp/embedded\\-signup(?:/)?$",
       "routeKeys": {},
       "namedRegex": "^/api/social/whatsapp/embedded\\-signup(?:/)?$"
+    },
+    {
+      "page": "/api/social/whatsapp/lead-flow",
+      "regex": "^/api/social/whatsapp/lead\\-flow(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/social/whatsapp/lead\\-flow(?:/)?$"
     },
     {
       "page": "/api/social/whatsapp/messages",
@@ -1736,6 +1768,12 @@
       "regex": "^/portal/sales(?:/)?$",
       "routeKeys": {},
       "namedRegex": "^/portal/sales(?:/)?$"
+    },
+    {
+      "page": "/portal/whatsapp",
+      "regex": "^/portal/whatsapp(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/portal/whatsapp(?:/)?$"
     },
     {
       "page": "/pricing",

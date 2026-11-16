@@ -11,6 +11,7 @@ type SettingsPayload = {
     hasAds: boolean;
     hasShopify: boolean;
     hasLeadSources: boolean;
+    hasWhatsApp: boolean;
   };
   effective: Record<string, boolean>;
   adSpendVisible: boolean;

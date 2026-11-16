@@ -36,6 +36,8 @@ export class FacebookProvider extends MetaProviderBase {
     'pages_manage_engagement',
     // Inbox DM replies (Messenger Send API).
     'pages_messaging',
+    // Lead-form answers (name, phone, email) for the Leads page and WhatsApp lead flow.
+    'leads_retrieval',
   ] as const;
   protected readonly noAccountsMessage =
     'No Facebook Page was shared. Reconnect and select at least one Page.';

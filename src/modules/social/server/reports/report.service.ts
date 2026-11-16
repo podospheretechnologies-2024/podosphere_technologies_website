@@ -483,6 +483,21 @@ export const reportService = {
       });
     }
 
+    // WhatsApp delivery is gated per client (switch + phone + agency report template).
+    const { agencyWhatsAppService } = await import('../whatsapp/agency-whatsapp.service');
+    const leadCount = metrics.leads || metrics.adLeads;
+    await agencyWhatsAppService.sendMonthlyReport({
+      organizationId,
+      customerId,
+      clientName: customer.name,
+      title: row.title,
+      periodLabel: periodLabel(periodStart, periodEnd),
+      pdfUrl: row.pdfUrl,
+      leads: leadCount,
+      spend: metrics.adSpend,
+      costPerLead: leadCount > 0 ? metrics.adSpend / leadCount : null,
+    });
+
     return {
       id: row.id,
       title: row.title,

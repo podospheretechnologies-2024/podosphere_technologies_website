@@ -71,6 +71,8 @@ model Organization {
   whatsappBroadcasts    WhatsAppBroadcast[]
   whatsappConnections   SocialWhatsAppConnection[]
   whatsappAutoReplies   SocialWhatsAppAutoReply[]
+  whatsappLeadFlows     SocialWhatsAppLeadFlow[]
+  whatsappAgencyNotify  SocialWhatsAppAgencyNotify?
   portalRequests        SocialPortalRequest[]
   opsClients            OpsClient[]
   opsClientServices     OpsClientService[]

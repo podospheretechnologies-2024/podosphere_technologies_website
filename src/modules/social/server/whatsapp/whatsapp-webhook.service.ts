@@ -4,6 +4,7 @@ import { prisma } from '@/shared/lib/prisma';
 import { HttpError } from '@/shared/server/http-error';
 import { podoCrmWhatsAppSyncService } from '../podocrm/podocrm-whatsapp-sync.service';
 import { autoReplyService } from './auto-reply.service';
+import { leadWhatsAppService } from './lead-whatsapp.service';
 import { whatsappChatRepository } from './whatsapp-chat.repository';
 import { verifyMetaHubSignature } from './meta-webhook-signature';
 
@@ -33,6 +34,15 @@ interface WebhookMessage {
   image?: { caption?: string };
   button?: { text?: string };
   interactive?: { button_reply?: { title?: string }; list_reply?: { title?: string } };
+  /** Present on the first message of a chat started from a click-to-WhatsApp ad. */
+  referral?: {
+    source_url?: string;
+    source_id?: string;
+    source_type?: string;
+    headline?: string;
+    body?: string;
+    ctwa_clid?: string;
+  };
 }
 
 interface WebhookStatus {
@@ -310,6 +320,28 @@ export const whatsappWebhookService = {
               where: { id: conversation.id },
               data: { optedOutAt: timestamp },
             });
+          }
+          if (!alreadyStored) {
+            // A reply stops the lead's follow-ups; a chat from an ad becomes a lead.
+            await leadWhatsAppService.onInbound(organizationId, message.from);
+            const referral = message.referral;
+            if (referral && !conversation.adSourceId) {
+              await prisma.whatsAppConversation.update({
+                where: { id: conversation.id },
+                data: {
+                  adSourceId: (referral.source_id || referral.ctwa_clid || 'ad').slice(0, 64),
+                  adHeadline: referral.headline?.slice(0, 255) ?? null,
+                  adSourceUrl: referral.source_url?.slice(0, 1024) ?? null,
+                },
+              });
+              await leadWhatsAppService.onAdChat({
+                organizationId,
+                customerId,
+                waId: message.from,
+                contactName: nameByWaId.get(message.from) ?? null,
+                referral: { ...referral },
+              });
+            }
           }
           stored += 1;
         }

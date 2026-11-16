@@ -4,6 +4,7 @@ import {
   FileText,
   LayoutDashboard,
   Megaphone,
+  MessageCircle,
   MessageSquarePlus,
   Palette,
   Plug,
@@ -24,6 +25,7 @@ export const PORTAL_TAB_IDS = [
   'channels',
   'brand',
   'requests',
+  'whatsapp',
 ] as const;
 
 export type PortalTabId = (typeof PORTAL_TAB_IDS)[number];
@@ -41,6 +43,7 @@ export type PortalClientFlags = {
   hasAds: boolean;
   hasShopify: boolean;
   hasLeadSources: boolean;
+  hasWhatsApp: boolean;
   portalTabs: PortalTabsConfig | null;
 };
 
@@ -73,6 +76,8 @@ function defaultEnabled(id: PortalTabId, client: PortalClientFlags): boolean {
       return client.hasShopify;
     case 'leads':
       return client.hasLeadSources;
+    case 'whatsapp':
+      return client.hasWhatsApp;
     default:
       return false;
   }
@@ -162,6 +167,14 @@ export const portalTabs: PortalTabDefinition[] = [
     href: `${PORTAL_BASE_PATH}/requests`,
     icon: MessageSquarePlus,
     enabled: (client) => isPortalTabEnabled('requests', client),
+  },
+  {
+    id: 'whatsapp',
+    label: 'WhatsApp',
+    href: `${PORTAL_BASE_PATH}/whatsapp`,
+    icon: MessageCircle,
+    enabled: (client) => isPortalTabEnabled('whatsapp', client),
+    defaultHint: 'On when a WhatsApp number is linked to this client',
   },
 ];
 

@@ -85,6 +85,7 @@ export const portalAdsService = {
             hasAds: metaAccounts.length > 0 || googleAccounts.length > 0,
             hasShopify: false,
             hasLeadSources: true,
+            hasWhatsApp: false,
             portalTabs: parsePortalTabsConfig(customer?.portalTabs),
           });
 

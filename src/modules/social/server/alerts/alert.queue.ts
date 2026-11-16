@@ -6,6 +6,9 @@ export const ALERT_QUEUE_NAME = 'social-alert-queue';
 export const ALERT_JOB = {
   evaluateRules: 'alerts.evaluate',
   slaSweep: 'alerts.slaSweep',
+  leadFollowUps: 'leads.whatsappFollowUps',
+  agencyApprovalReminders: 'agency.whatsappApprovals',
+  agencyPaymentReminders: 'agency.whatsappPayments',
 } as const;
 // Monthly PDF reports: social-reports-queue / REPORT_JOB.generateMonthly.
 

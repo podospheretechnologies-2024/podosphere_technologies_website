@@ -27,7 +27,12 @@ import { WhatsAppInbox } from './whatsapp-inbox';
 const templateKey = (template: WhatsAppTemplate) => `${template.name}:${template.language}`;
 
 function sendable(template: WhatsAppTemplate) {
-  return template.status === 'APPROVED' && !template.unsupportedReason;
+  return (
+    template.status === 'APPROVED' &&
+    !template.unsupportedReason &&
+    template.headerFormat !== 'DOCUMENT' &&
+    template.buttonUrlParamCount === 0
+  );
 }
 
 /** Body text with the typed values (or the placeholder names) filled in. */

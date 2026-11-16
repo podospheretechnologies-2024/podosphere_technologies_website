@@ -1,7 +1,7 @@
 :HL["/_next/static/chunks/3d-1vk5hzu5rq.css","style"]
-:HL["/_next/static/chunks/1d0yi3-0qmj-_.css","style"]
+:HL["/_next/static/chunks/30zhm92cq2d_c.css","style"]
 :HL["/_next/static/chunks/0m_m4ahoje9se.css","style"]
 :HL["/_next/static/media/797e433ab948586e-s.p.0r6juujl39pe6.woff2","font",{"crossOrigin":"","type":"font/woff2"}]
 :HL["/_next/static/media/caa3a2e1cccd8315-s.p.0wgildi0cnwt9.woff2","font",{"crossOrigin":"","type":"font/woff2"}]
 :HL["/_next/static/media/fba5a26ea33df6a3-s.p.18rizl4rsrl42.woff2","font",{"crossOrigin":"","type":"font/woff2"}]
-0:{"tree":{"name":"","param":null,"prefetchHints":4176,"slots":{"children":{"name":"(marketing)","param":null,"prefetchHints":4192,"slots":{"children":{"name":"for","param":null,"prefetchHints":4192,"slots":{"children":{"name":"slug","param":{"type":"d","key":"d2c-brands","siblings":[]},"prefetchHints":4192,"slots":{"children":{"name":"__PAGE__","param":null,"prefetchHints":4256,"slots":null}}}}}}}}},"staleTime":300,"buildId":"ewdwsXXKzz6pz08lIGwPf"}
+0:{"tree":{"name":"","param":null,"prefetchHints":4176,"slots":{"children":{"name":"(marketing)","param":null,"prefetchHints":4192,"slots":{"children":{"name":"for","param":null,"prefetchHints":4192,"slots":{"children":{"name":"slug","param":{"type":"d","key":"d2c-brands","siblings":[]},"prefetchHints":4192,"slots":{"children":{"name":"__PAGE__","param":null,"prefetchHints":4256,"slots":null}}}}}}}}},"staleTime":300,"buildId":"Gb0S1MIctUru6xE34oGWi"}

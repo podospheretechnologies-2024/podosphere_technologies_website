@@ -50,6 +50,7 @@ async function loadFlags(
     hasAds,
     hasShopify: shopify > 0,
     hasLeadSources: hasAds || whatsapp > 0,
+    hasWhatsApp: whatsapp > 0,
     portalTabs: parsePortalTabsConfig(portalTabsRaw),
   };
 }
@@ -66,6 +67,7 @@ function toSettingsDto(flags: PortalClientFlags): PortalTabsSettingsDto {
       hasAds: flags.hasAds,
       hasShopify: flags.hasShopify,
       hasLeadSources: flags.hasLeadSources,
+      hasWhatsApp: flags.hasWhatsApp,
     },
     effective,
     adSpendVisible: isPortalAdSpendVisible(flags),

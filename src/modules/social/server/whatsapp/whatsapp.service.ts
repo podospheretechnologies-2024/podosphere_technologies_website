@@ -156,18 +156,34 @@ function placeholdersOf(text: string): string[] {
   return [...new Set(names)];
 }
 
+function headerFormatOf(
+  components: GraphTemplateComponent[]
+): WhatsAppTemplate['headerFormat'] {
+  const header = components.find((component) => component.type === 'HEADER');
+  if (!header?.format) return null;
+  if (header.format === 'TEXT') return 'TEXT';
+  if (header.format === 'DOCUMENT') return 'DOCUMENT';
+  if (header.format === 'IMAGE') return 'IMAGE';
+  if (header.format === 'VIDEO') return 'VIDEO';
+  if (header.format === 'LOCATION') return 'LOCATION';
+  return null;
+}
+
+function buttonUrlParamCountOf(components: GraphTemplateComponent[]): number {
+  const buttons = components.find((component) => component.type === 'BUTTONS')?.buttons ?? [];
+  return buttons.filter((button) => button.url && placeholdersOf(button.url).length > 0).length;
+}
+
 function unsupportedReason(components: GraphTemplateComponent[]): string | null {
   const header = components.find((component) => component.type === 'HEADER');
-  if (header && header.format && header.format !== 'TEXT') {
-    return `Needs a ${header.format.toLowerCase()} header`;
+  const format = headerFormatOf(components);
+  if (format === 'IMAGE' || format === 'VIDEO' || format === 'LOCATION') {
+    return `Needs a ${format.toLowerCase()} header`;
   }
   if (header?.text && placeholdersOf(header.text).length > 0) {
     return 'Header has variables';
   }
-  const buttons = components.find((component) => component.type === 'BUTTONS')?.buttons ?? [];
-  if (buttons.some((button) => button.url && placeholdersOf(button.url).length > 0)) {
-    return 'Button URL has variables';
-  }
+  // DOCUMENT headers and dynamic URL buttons are supported when the caller passes values.
   return null;
 }
 
@@ -182,6 +198,8 @@ function toTemplate(template: GraphTemplate): WhatsAppTemplate {
     body,
     variables: placeholdersOf(body),
     parameterFormat: template.parameter_format ?? 'POSITIONAL',
+    headerFormat: headerFormatOf(template.components),
+    buttonUrlParamCount: buttonUrlParamCountOf(template.components),
     unsupportedReason: unsupportedReason(template.components),
   };
 }
@@ -235,6 +253,7 @@ function toConversationItem(
     lastPreview: row.lastPreview,
     unreadCount: row.unreadCount,
     withinWindow: withinWindow(row.lastInboundAt),
+    adHeadline: row.adSourceId ? row.adHeadline || 'WhatsApp ad' : null,
   };
 }
 
@@ -361,6 +380,26 @@ export const whatsappService = {
     };
   },
 
+  /** Templates of the number connected for this scope; empty when nothing is connected. */
+  async templates(scope: ClientScope): Promise<WhatsAppTemplate[]> {
+    const creds = await resolveCredentials(scope);
+    return creds ? listTemplates(creds) : [];
+  },
+
+  /** Chat with one contact, without marking it read. Null when there is no chat yet. */
+  async conversationByWaId(
+    organizationId: string,
+    waId: string
+  ): Promise<WhatsAppConversationDetail | null> {
+    const conversation = await whatsappChatRepository.findConversation(organizationId, waId);
+    if (!conversation) return null;
+    const messages = await whatsappChatRepository.listMessages(organizationId, conversation.id);
+    return {
+      conversation: toConversationItem(conversation),
+      messages: messages.map(toChatMessage),
+    };
+  },
+
   async send(
     scope: ClientScope,
     input: SendWhatsAppInput,
@@ -435,18 +474,59 @@ async function templatePayload(
     if (template.variables.length !== input.variables.length) {
       throw new HttpError(400, `This template needs ${template.variables.length} variable(s)`);
     }
+    if (template.headerFormat === 'DOCUMENT' && !input.headerDocumentUrl) {
+      throw new HttpError(400, 'This template needs a document URL for the header');
+    }
+    if (
+      template.buttonUrlParamCount > 0 &&
+      (input.buttonUrlParams?.length ?? 0) !== template.buttonUrlParamCount
+    ) {
+      throw new HttpError(
+        400,
+        `This template needs ${template.buttonUrlParamCount} button URL value(s)`
+      );
+    }
   }
 
   const named = template?.parameterFormat === 'NAMED';
-  const parameters = input.variables.map((text, index) => ({
+  const bodyParameters = input.variables.map((text, index) => ({
     type: 'text',
     text,
-    ...(named ? { parameter_name: template.variables[index] } : {}),
+    ...(named ? { parameter_name: template!.variables[index] } : {}),
   }));
+
+  const components: Record<string, unknown>[] = [];
+  if (input.headerDocumentUrl) {
+    components.push({
+      type: 'header',
+      parameters: [
+        {
+          type: 'document',
+          document: {
+            link: input.headerDocumentUrl,
+            ...(input.headerDocumentFilename
+              ? { filename: input.headerDocumentFilename }
+              : {}),
+          },
+        },
+      ],
+    });
+  }
+  if (bodyParameters.length) {
+    components.push({ type: 'body', parameters: bodyParameters });
+  }
+  for (const [index, text] of (input.buttonUrlParams ?? []).entries()) {
+    components.push({
+      type: 'button',
+      sub_type: 'url',
+      index: String(index),
+      parameters: [{ type: 'text', text }],
+    });
+  }
 
   return {
     name: input.templateName,
     language: { code: input.language },
-    ...(parameters.length ? { components: [{ type: 'body', parameters }] } : {}),
+    ...(components.length ? { components } : {}),
   };
 }

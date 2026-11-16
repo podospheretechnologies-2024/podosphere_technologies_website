@@ -9,9 +9,12 @@ import { integrationService } from '../integrations/integration.service';
 import { notificationService } from '../notifications/notification.service';
 import {
   GraphApiError,
+  graphGet,
   graphPost,
   type GraphConfig,
 } from '../integrations/providers/meta/graph-client';
+import { leadWhatsAppService } from '../whatsapp/lead-whatsapp.service';
+import { toWaId } from '../whatsapp/wa-id';
 import { podoCrmLeadSyncService } from '../podocrm/podocrm-lead-sync.service';
 import {
   DEFAULT_INBOX_SLA_HOURS,
@@ -120,6 +123,88 @@ async function ownerForPage(pageId: string): Promise<{ organizationId: string; c
   return fallback ? { organizationId: fallback.id, customerId: null } : null;
 }
 
+interface LeadFormDetails {
+  name: string | null;
+  email: string | null;
+  phone: string | null;
+  /** Answers plus ad / campaign names, merged into the lead's payload. */
+  extra: Record<string, unknown>;
+}
+
+/**
+ * Meta's leadgen webhook only carries ids. The person's answers (name, phone, email) have to be
+ * read from the lead itself (needs the leads_retrieval permission). The Page token is tried
+ * first; Pages connected before that permission was requested fall back to the agency's
+ * system-user token, which already reads leads for the Ads page.
+ * Returns null when neither works; the lead is then saved without contact details.
+ */
+async function fetchLeadFormDetails(pageId: string, leadgenId: string): Promise<LeadFormDetails | null> {
+  try {
+    const integration = await prisma.socialIntegration.findFirst({
+      where: { internalId: pageId, providerIdentifier: 'facebook', deletedAt: null },
+    });
+    const tokens: string[] = [];
+    if (integration) {
+      tokens.push(await integrationService.getAccessToken(integration).catch(() => ''));
+    }
+    tokens.push(getServerEnv().META_SYSTEM_USER_TOKEN ?? '');
+
+    type GraphLeadDetails = {
+      field_data?: { name: string; values?: string[] }[];
+      ad_name?: string;
+      campaign_name?: string;
+      form_id?: string;
+    };
+    let lead: GraphLeadDetails | null = null;
+    let lastError: unknown = new Error('no token can read leads for this Page');
+    for (const token of tokens.filter(Boolean)) {
+      try {
+        lead = await graphGet<GraphLeadDetails>(graphConfig(), leadgenId, token, {
+          fields:
+            'field_data,ad_id,ad_name,adset_name,campaign_id,campaign_name,form_id,created_time',
+        });
+        break;
+      } catch (error) {
+        lastError = error;
+      }
+    }
+    if (!lead) throw lastError;
+
+    const answers: Record<string, string> = {};
+    for (const field of lead.field_data ?? []) {
+      const value = field.values?.[0]?.trim();
+      if (value) answers[field.name.toLowerCase()] = value;
+    }
+    const pick = (test: (key: string) => boolean) =>
+      Object.entries(answers).find(([key]) => test(key))?.[1] ?? null;
+    const fullName =
+      pick((key) => key === 'full_name' || key === 'name') ??
+      ([answers.first_name, answers.last_name].filter(Boolean).join(' ') || null);
+
+    const extra: Record<string, unknown> = { ...lead, answers };
+    delete extra.field_data;
+    return {
+      name: fullName ?? pick((key) => key.includes('name')),
+      email: pick((key) => key.includes('email')),
+      phone: pick((key) => key.includes('phone') || key.includes('mobile') || key.includes('whatsapp')),
+      extra,
+    };
+  } catch (error) {
+    console.error(
+      `[inbox] could not read lead ${leadgenId}: ${error instanceof Error ? error.message : 'unknown'}`
+    );
+    return null;
+  }
+}
+
+/** Ad or campaign a lead came from, when Meta told us. */
+function leadAdName(payload: unknown): string | null {
+  if (!payload || typeof payload !== 'object') return null;
+  const data = payload as Record<string, unknown>;
+  const name = data.ad_name ?? data.campaign_name ?? data.headline;
+  return typeof name === 'string' && name.trim() ? name.trim() : null;
+}
+
 function mapThread(row: {
   id: string;
   platform: string;
@@ -179,6 +264,12 @@ function mapLead(row: {
   crmExternalId?: string | null;
   assigneeId?: string | null;
   assignee?: { id: string; name: string } | null;
+  waStep?: number;
+  waLastSentAt?: Date | null;
+  waNextAt?: Date | null;
+  waRepliedAt?: Date | null;
+  waError?: string | null;
+  payload?: unknown;
   createdAt: Date;
 }) {
   return {
@@ -195,6 +286,12 @@ function mapLead(row: {
     crmExternalId: row.crmExternalId ?? null,
     assigneeId: row.assigneeId ?? null,
     assigneeName: row.assignee?.name ?? null,
+    adName: leadAdName(row.payload),
+    waStep: row.waStep ?? 0,
+    waLastSentAt: row.waLastSentAt?.toISOString() ?? null,
+    waNextAt: row.waNextAt?.toISOString() ?? null,
+    waRepliedAt: row.waRepliedAt?.toISOString() ?? null,
+    waError: row.waError ?? null,
     createdAt: row.createdAt.toISOString(),
   };
 }
@@ -791,20 +888,24 @@ export const inboxService = {
           const value = change.value;
           const leadgenId = String(value.leadgen_id ?? '');
           if (!leadgenId) continue;
-          const payload = JSON.parse(JSON.stringify(value)) as object;
+          const details = await fetchLeadFormDetails(entry.id, leadgenId);
+          const payload = JSON.parse(JSON.stringify({ ...value, ...details?.extra })) as object;
           const name =
-            typeof value.full_name === 'string'
+            details?.name ??
+            (typeof value.full_name === 'string'
               ? value.full_name
               : typeof value.name === 'string'
                 ? value.name
-                : null;
-          const email = typeof value.email === 'string' ? value.email : null;
+                : null);
+          const email = details?.email ?? (typeof value.email === 'string' ? value.email : null);
           const phone =
-            typeof value.phone_number === 'string'
+            details?.phone ??
+            (typeof value.phone_number === 'string'
               ? value.phone_number
               : typeof value.phone === 'string'
                 ? value.phone
-                : null;
+                : null);
+          const waId = toWaId(phone);
           const scored = computeLeadScore({
             stage: 'new',
             name,
@@ -836,6 +937,7 @@ export const inboxService = {
               name,
               email,
               phone,
+              waId,
               stage: 'new',
               score: scored.score,
               scoreReasons: scoreReasonsToJson(scored.reasons),
@@ -847,6 +949,7 @@ export const inboxService = {
               ...(name ? { name } : {}),
               ...(email ? { email } : {}),
               ...(phone ? { phone } : {}),
+              ...(waId ? { waId } : {}),
               score: scored.score,
               scoreReasons: scoreReasonsToJson(scored.reasons),
               scoredAt: new Date(),
@@ -856,6 +959,8 @@ export const inboxService = {
             void notificationService
               .newLead(organizationId, platform, lead.id)
               .catch((err) => console.error('[inbox] new_lead notify failed', err));
+            // Welcome template + team alert on WhatsApp (never blocks webhook ingest).
+            void leadWhatsAppService.onNewLead(lead.id);
           }
           // Soft push when CRM linked (never block webhook ingest).
           void podoCrmLeadSyncService

@@ -105,6 +105,18 @@ model SocialCustomer {
   portalTabs     Json?
   // Portal goals / budget (Phase 5). Shape: { leadsPerMonth?, postsPerMonth?, adBudgetPerMonth? }.
   portalGoals    Json?
+  // Agency → client WhatsApp (Phase 2): contact number + per-feature switches.
+  whatsappPhone            String?   @map("whatsapp_phone") @db.VarChar(32)
+  whatsappReportEnabled    Boolean   @default(false) @map("whatsapp_report_enabled")
+  whatsappApprovalEnabled  Boolean   @default(false) @map("whatsapp_approval_enabled")
+  whatsappPaymentEnabled   Boolean   @default(false) @map("whatsapp_payment_enabled")
+  whatsappApprovalLastAt   DateTime? @map("whatsapp_approval_last_at")
+  /// How many approval reminders sent for the current waiting-post set (cap 3).
+  whatsappApprovalRemindCount Int @default(0) @map("whatsapp_approval_remind_count")
+  /// Fingerprint of pending CLIENT posts; when it changes the remind count resets.
+  whatsappApprovalRemindKey String? @map("whatsapp_approval_remind_key") @db.VarChar(120)
+  /// Last payment reminder key (`paymentId:kind`) so we do not double-send.
+  whatsappPaymentLastKey   String?   @map("whatsapp_payment_last_key") @db.VarChar(80)
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
   deletedAt      DateTime?
@@ -131,6 +143,7 @@ model SocialCustomer {
   whatsappBroadcasts    WhatsAppBroadcast[]
   whatsappConnections   SocialWhatsAppConnection[]
   whatsappAutoReplies   SocialWhatsAppAutoReply[]
+  whatsappLeadFlows     SocialWhatsAppLeadFlow[]
   apiClients            SocialApiClient[]
   aiUsages              SocialAiUsage[]
   aiThreads             SocialAiThread[]
@@ -677,6 +690,10 @@ model WhatsAppConversation {
   unreadCount    Int       @default(0)
   /// Set when the contact texts STOP / UNSUBSCRIBE (broadcast opt-out).
   optedOutAt     DateTime?
+  /// Click-to-WhatsApp ad that started this chat (from the first message's referral).
+  adSourceId     String?   @map("ad_source_id") @db.VarChar(64)
+  adHeadline     String?   @map("ad_headline") @db.VarChar(255)
+  adSourceUrl    String?   @map("ad_source_url") @db.VarChar(1024)
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
@@ -1178,12 +1195,24 @@ model SocialLead {
   crmSyncedAt    DateTime? @map("crm_synced_at")
   crmExternalId  String?   @map("crm_external_id") @db.VarChar(128)
   assigneeId     String?   @map("assignee_id")
+  // WhatsApp lead flow. waId = phone as WhatsApp wants it (digits with country code).
+  waId           String?   @map("wa_id") @db.VarChar(32)
+  // Messages of the automatic sequence already sent: 0 none, 1 welcome, 2 first follow-up, 3 second.
+  waStep         Int       @default(0) @map("wa_step")
+  waLastSentAt   DateTime? @map("wa_last_sent_at")
+  // When the next follow-up is due; null when the sequence is finished or stopped.
+  waNextAt       DateTime? @map("wa_next_at")
+  waRepliedAt    DateTime? @map("wa_replied_at")
+  waError        String?   @map("wa_error") @db.VarChar(500)
   payload        Json
   createdAt      DateTime  @default(now())
 
   organization Organization    @relation(fields: [organizationId], references: [id])
   customer     SocialCustomer? @relation(fields: [customerId], references: [id])
   assignee     User?           @relation(fields: [assigneeId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, waId])
+  @@index([waNextAt])
 
   @@unique([organizationId, source, externalId])
   @@index([organizationId, createdAt])
@@ -1325,6 +1354,54 @@ model SocialWhatsAppConnection {
 
   @@index([organizationId, customerId])
   @@map("social_whatsapp_connections")
+}
+
+// Org-level templates for agency → client WhatsApp (reports, approval, payment reminders).
+model SocialWhatsAppAgencyNotify {
+  id                 String   @id @default(uuid())
+  organizationId     String   @unique
+  reportTemplate     String?  @map("report_template") @db.VarChar(120)
+  reportLanguage     String?  @map("report_language") @db.VarChar(16)
+  approvalTemplate   String?  @map("approval_template") @db.VarChar(120)
+  approvalLanguage   String?  @map("approval_language") @db.VarChar(16)
+  paymentTemplate    String?  @map("payment_template") @db.VarChar(120)
+  paymentLanguage    String?  @map("payment_language") @db.VarChar(16)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@map("social_whatsapp_agency_notify")
+}
+
+// Automatic WhatsApp messages to new leads: welcome template, up to two follow-ups while the
+// lead has not replied, and an alert template to the sales person. One row per client
+// (customerId null = whole workspace).
+model SocialWhatsAppLeadFlow {
+  id                  String   @id @default(uuid())
+  organizationId      String
+  customerId          String?
+  enabled             Boolean  @default(false)
+  welcomeTemplate     String?  @map("welcome_template") @db.VarChar(120)
+  welcomeLanguage     String?  @map("welcome_language") @db.VarChar(16)
+  followUp1Template   String?  @map("follow_up1_template") @db.VarChar(120)
+  followUp1Language   String?  @map("follow_up1_language") @db.VarChar(16)
+  // Hours after the previous message.
+  followUp1AfterHours Int      @default(24) @map("follow_up1_after_hours")
+  followUp2Template   String?  @map("follow_up2_template") @db.VarChar(120)
+  followUp2Language   String?  @map("follow_up2_language") @db.VarChar(16)
+  followUp2AfterHours Int      @default(48) @map("follow_up2_after_hours")
+  alertPhone          String?  @map("alert_phone") @db.VarChar(32)
+  alertTemplate       String?  @map("alert_template") @db.VarChar(120)
+  alertLanguage       String?  @map("alert_language") @db.VarChar(16)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  organization Organization    @relation(fields: [organizationId], references: [id])
+  customer     SocialCustomer? @relation(fields: [customerId], references: [id])
+
+  @@index([organizationId, customerId])
+  @@map("social_whatsapp_lead_flows")
 }
 
 // Keyword / regex auto-replies for inbound WhatsApp (F15).

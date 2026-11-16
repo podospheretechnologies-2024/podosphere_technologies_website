@@ -23,7 +23,11 @@ export interface WhatsAppTemplate {
   variables: string[];
   /** POSITIONAL ({{1}}) or NAMED ({{first_name}}). */
   parameterFormat: 'POSITIONAL' | 'NAMED';
-  /** Set when the template needs a header image/video or button values we can't fill in yet. */
+  /** DOCUMENT / IMAGE / VIDEO when the header is media; null for text or no header. */
+  headerFormat: 'TEXT' | 'DOCUMENT' | 'IMAGE' | 'VIDEO' | 'LOCATION' | null;
+  /** How many dynamic suffixes the URL buttons need (template URL ends with {{1}}). */
+  buttonUrlParamCount: number;
+  /** Set when the template needs a header or button values we can't fill in yet. */
   unsupportedReason: string | null;
 }
 
@@ -44,6 +48,11 @@ export type SendWhatsAppInput =
       language: string;
       /** Values for the body placeholders, in the template's order. */
       variables: string[];
+      /** Public HTTPS URL for a DOCUMENT header (PDF reports). */
+      headerDocumentUrl?: string;
+      headerDocumentFilename?: string;
+      /** Dynamic suffixes for URL buttons, in button order (template URL ends with {{1}}). */
+      buttonUrlParams?: string[];
     };
 
 export interface SendWhatsAppResult {
@@ -62,6 +71,8 @@ export interface WhatsAppConversationItem {
   unreadCount: number;
   /** True when free-form text can still be sent (customer messaged within 24h). */
   withinWindow: boolean;
+  /** Headline of the click-to-WhatsApp ad that started the chat, when there was one. */
+  adHeadline: string | null;
 }
 
 export interface WhatsAppChatMessage {

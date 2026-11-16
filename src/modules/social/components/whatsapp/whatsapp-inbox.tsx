@@ -435,6 +435,14 @@ export function WhatsAppInbox({ number }: { number: WhatsAppNumber }) {
                           <span className="min-w-0 flex-1 truncate text-[15px] font-medium">
                             {item.contactName || `+${item.waId}`}
                           </span>
+                          {item.adHeadline && (
+                            <span
+                              className="border-border text-muted-foreground max-w-28 shrink-0 truncate rounded border px-1 text-[10px]"
+                              title={`Came from the ad: ${item.adHeadline}`}
+                            >
+                              Ad: {item.adHeadline}
+                            </span>
+                          )}
                           <span
                             className={cn(
                               'shrink-0 text-[11px] tabular-nums',

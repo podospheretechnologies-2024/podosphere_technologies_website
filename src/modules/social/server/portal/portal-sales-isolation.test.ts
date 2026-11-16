@@ -17,6 +17,7 @@ vi.mock('./portal-tabs.service', () => ({
       hasAds: true,
       hasShopify: true,
       hasLeadSources: true,
+      hasWhatsApp: false,
       portalTabs: null,
     }),
   },

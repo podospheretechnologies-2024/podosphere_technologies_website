@@ -28,12 +28,60 @@ export const whatsappOnboardingService = {
     const row = await prisma.socialWhatsAppConnection.findFirst({ where: scopeWhere(scope) });
     if (!row) return null;
     return {
+      id: row.id,
       wabaId: row.wabaId,
       phoneNumberId: row.phoneNumberId,
       displayPhone: row.displayPhone,
       businessName: row.businessName,
+      customerId: row.customerId,
       connectedAt: row.createdAt.toISOString(),
     };
+  },
+
+  /** All numbers for this org (Phase 6.3) — assign each to a client or leave agency-shared. */
+  async listConnections(organizationId: string) {
+    const rows = await prisma.socialWhatsAppConnection.findMany({
+      where: { organizationId },
+      orderBy: { createdAt: 'asc' },
+      select: {
+        id: true,
+        wabaId: true,
+        phoneNumberId: true,
+        displayPhone: true,
+        businessName: true,
+        customerId: true,
+        createdAt: true,
+      },
+    });
+    return rows.map((row) => ({
+      id: row.id,
+      wabaId: row.wabaId,
+      phoneNumberId: row.phoneNumberId,
+      displayPhone: row.displayPhone,
+      businessName: row.businessName,
+      customerId: row.customerId,
+      connectedAt: row.createdAt.toISOString(),
+    }));
+  },
+
+  async assignConnection(
+    organizationId: string,
+    connectionId: string,
+    customerId: string | null
+  ) {
+    if (customerId) {
+      const client = await prisma.socialCustomer.findFirst({
+        where: { id: customerId, organizationId, deletedAt: null },
+        select: { id: true },
+      });
+      if (!client) throw new HttpError(404, 'Client not found');
+    }
+    const updated = await prisma.socialWhatsAppConnection.updateMany({
+      where: { id: connectionId, organizationId },
+      data: { customerId },
+    });
+    if (updated.count === 0) throw new HttpError(404, 'WhatsApp connection not found');
+    return this.listConnections(organizationId);
   },
 
   async completeSignup(
@@ -146,30 +194,73 @@ export const whatsappOnboardingService = {
     return await response.json();
   },
 
-  async configureWebhooks(_scope: ClientScope, webhookUrl: string) {
+  /**
+   * Subscribe only the WhatsApp Business Account object to our WhatsApp webhook.
+   * Merges existing WABA fields so we never drop template/account updates.
+   * Never touches the `page` object (Meta/Instagram inbox webhooks).
+   * Callback is always `${APP_URL}/api/webhooks/whatsapp` — never a client-supplied URL.
+   */
+  async configureWebhooks(_scope: ClientScope) {
     const env = getServerEnv();
     if (!env.META_APP_ID || !env.META_APP_SECRET || !env.META_WEBHOOK_VERIFY_TOKEN) {
       throw new HttpError(400, 'App ID, Secret, and Verify Token are required in .env');
     }
-    
-    // Get App Token
-    const appTokenRes = await fetch(`https://graph.facebook.com/oauth/access_token?client_id=${env.META_APP_ID}&client_secret=${env.META_APP_SECRET}&grant_type=client_credentials`);
-    const { access_token: appToken } = await appTokenRes.json();
+
+    const webhookUrl = `${env.APP_URL.replace(/\/$/, '')}/api/webhooks/whatsapp`;
+    if (!webhookUrl.startsWith('https://') && process.env.NODE_ENV === 'production') {
+      throw new HttpError(400, 'APP_URL must be HTTPS in production for Meta webhooks');
+    }
+
+    const appTokenRes = await fetch(
+      `https://graph.facebook.com/oauth/access_token?client_id=${env.META_APP_ID}&client_secret=${env.META_APP_SECRET}&grant_type=client_credentials`
+    );
+    const { access_token: appToken } = (await appTokenRes.json()) as { access_token?: string };
     if (!appToken) throw new HttpError(502, 'Could not generate App Token');
 
-    // Subscribe Webhook
-    const response = await fetch(`https://graph.facebook.com/${env.META_GRAPH_VERSION}/${env.META_APP_ID}/subscriptions`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${appToken}`, 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        object: 'whatsapp_business_account',
-        callback_url: webhookUrl,
-        verify_token: env.META_WEBHOOK_VERIFY_TOKEN,
-        fields: 'messages'
-      })
-    });
-    if (!response.ok) throw new HttpError(502, 'Could not subscribe webhook on Meta');
-    return { success: true };
+    const requiredFields = [
+      'messages',
+      'message_template_status_update',
+      'account_update',
+      'phone_number_name_update',
+      'phone_number_quality_update',
+    ];
+
+    // Read current WABA subscription fields and merge — POST replaces the whole field list.
+    const listRes = await fetch(
+      `https://graph.facebook.com/${env.META_GRAPH_VERSION}/${env.META_APP_ID}/subscriptions`,
+      { headers: { Authorization: `Bearer ${appToken}` } }
+    );
+    const listPayload = (await listRes.json().catch(() => ({}))) as {
+      data?: { object?: string; fields?: { name?: string }[] }[];
+    };
+    const existing =
+      listPayload.data
+        ?.find((row) => row.object === 'whatsapp_business_account')
+        ?.fields?.map((field) => field.name)
+        .filter((name): name is string => Boolean(name)) ?? [];
+    const fields = [...new Set([...existing, ...requiredFields])].join(',');
+
+    const response = await fetch(
+      `https://graph.facebook.com/${env.META_GRAPH_VERSION}/${env.META_APP_ID}/subscriptions`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${appToken}`,
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: new URLSearchParams({
+          object: 'whatsapp_business_account',
+          callback_url: webhookUrl,
+          verify_token: env.META_WEBHOOK_VERIFY_TOKEN,
+          fields,
+        }),
+      }
+    );
+    if (!response.ok) {
+      const detail = (await response.json().catch(() => ({}))) as { error?: { message?: string } };
+      throw new HttpError(502, detail.error?.message || 'Could not subscribe WhatsApp webhook on Meta');
+    }
+    return { success: true, callbackUrl: webhookUrl, fields: fields.split(',') };
   },
 
   async getAccountHealth(scope: ClientScope) {

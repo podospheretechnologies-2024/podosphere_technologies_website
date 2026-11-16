@@ -4,17 +4,23 @@ import { MessageCircle } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/shared/components/ui/button';
 
+interface WaConnection {
+  id: string;
+  wabaId: string;
+  phoneNumberId: string;
+  displayPhone: string | null;
+  businessName: string | null;
+  customerId: string | null;
+  connectedAt?: string;
+}
+
 interface SignupConfig {
   configured: boolean;
   appId: string | null;
   configId: string | null;
   graphVersion: string;
-  connection: {
-    wabaId: string;
-    phoneNumberId: string;
-    displayPhone: string | null;
-    businessName: string | null;
-  } | null;
+  connection: WaConnection | null;
+  connections?: WaConnection[];
 }
 
 interface BroadcastRow {
@@ -75,6 +81,7 @@ export function WhatsAppGrowthTools() {
   const [health, setHealth] = useState<AccountHealth | null>(null);
   const [webhookUrl, setWebhookUrl] = useState('');
   const [loading, setLoading] = useState(true);
+  const [clients, setClients] = useState<{ id: string; name: string }[]>([]);
 
   const connected = Boolean(config?.connection);
 
@@ -101,7 +108,31 @@ export function WhatsAppGrowthTools() {
   useEffect(() => {
     reload();
     setWebhookUrl(`${window.location.origin}/api/webhooks/whatsapp`);
+    void fetch('/api/social/client-scope')
+      .then((response) => response.json())
+      .then((data: { clients?: { id: string; name: string }[] } | { id: string; name: string }[]) => {
+        const list = Array.isArray(data) ? data : (data.clients ?? []);
+        setClients(list.map((row) => ({ id: row.id, name: row.name })));
+      })
+      .catch(() => setClients([]));
   }, []);
+
+  async function assignConnection(connectionId: string, customerId: string | null) {
+    const response = await fetch('/api/social/whatsapp/embedded-signup', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ connectionId, customerId }),
+    });
+    const payload = (await response.json()) as { error?: string; connections?: WaConnection[] };
+    if (!response.ok) {
+      setMessage(payload.error || 'Could not assign number');
+      return;
+    }
+    setConfig((prev) =>
+      prev ? { ...prev, connections: payload.connections ?? prev.connections } : prev
+    );
+    setMessage('Number assigned.');
+  }
 
   useEffect(() => {
     if (!config?.appId || document.getElementById('facebook-jssdk')) return;
@@ -325,15 +356,15 @@ export function WhatsAppGrowthTools() {
   }
 
   async function configureWebhook() {
-    const response = await fetch('/api/social/whatsapp/settings', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ webhookUrl }),
-    });
-    const payload = await response.json();
+    const response = await fetch('/api/social/whatsapp/settings', { method: 'POST' });
+    const payload = (await response.json()) as {
+      error?: string;
+      callbackUrl?: string;
+    };
+    if (response.ok && payload.callbackUrl) setWebhookUrl(payload.callbackUrl);
     setMessage(
       response.ok
-        ? 'Webhook successfully configured!'
+        ? `WhatsApp webhook set to ${payload.callbackUrl ?? webhookUrl}`
         : payload.error || 'Failed to configure webhook'
     );
   }
@@ -399,9 +430,39 @@ export function WhatsAppGrowthTools() {
             </p>
           </div>
           <Button type="button" variant="secondary" onClick={() => void connect()}>
-            Reconnect
+            Reconnect / add number
           </Button>
         </div>
+
+        {(config?.connections?.length ?? 0) > 0 && (
+          <ul className="border-border divide-y rounded-xl border text-xs">
+            {(config?.connections ?? []).map((row) => (
+              <li
+                key={row.id}
+                className="flex flex-wrap items-center justify-between gap-2 px-3 py-2"
+              >
+                <span>
+                  {row.displayPhone || row.phoneNumberId}
+                  {row.businessName ? ` · ${row.businessName}` : ''}
+                </span>
+                <select
+                  className="border-border h-8 rounded-lg border bg-transparent px-2"
+                  value={row.customerId ?? ''}
+                  onChange={(event) =>
+                    void assignConnection(row.id, event.target.value || null)
+                  }
+                >
+                  <option value="">Agency (shared)</option>
+                  {clients.map((client) => (
+                    <option key={client.id} value={client.id}>
+                      {client.name}
+                    </option>
+                  ))}
+                </select>
+              </li>
+            ))}
+          </ul>
+        )}
 
         {health?.status === 'CONFIGURED' && (
           <div className="bg-surface-muted/30 border-border flex flex-wrap gap-4 rounded-xl border p-3 text-xs">
@@ -537,20 +598,20 @@ export function WhatsAppGrowthTools() {
         </div>
 
         <div className="border-border mt-4 border-t pt-4">
-          <p className="mb-2 text-xs font-semibold">Automated Webhook Configuration</p>
+          <p className="mb-2 text-xs font-semibold">WhatsApp webhook</p>
           <div className="flex gap-2">
             <input
-              className="border-border h-10 w-full rounded-xl border px-3 text-sm"
-              placeholder="https://domain.com/api/webhooks/whatsapp"
+              className="border-border bg-surface-muted h-10 w-full rounded-xl border px-3 text-sm"
+              readOnly
               value={webhookUrl}
-              onChange={(event) => setWebhookUrl(event.target.value)}
             />
             <Button type="button" variant="secondary" onClick={() => void configureWebhook()}>
               1-Click Connect
             </Button>
           </div>
           <p className="text-muted-foreground mt-2 text-xs">
-            Automatically subscribe to WhatsApp message events directly to this URL.
+            Always uses APP_URL/api/webhooks/whatsapp. Merges WABA fields only; does not change
+            Meta/Instagram page webhooks.
           </p>
         </div>
 
