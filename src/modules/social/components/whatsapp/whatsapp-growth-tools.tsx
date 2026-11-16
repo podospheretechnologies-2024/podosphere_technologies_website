@@ -1,7 +1,7 @@
 'use client';
 
 import { MessageCircle } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/shared/components/ui/button';
 
 interface SignupConfig {
@@ -104,7 +104,74 @@ export function WhatsAppGrowthTools() {
     document.body.appendChild(script);
   }, [config?.appId, config?.graphVersion]);
 
+  // Meta delivers the two halves of Embedded Signup separately: the WABA and
+  // phone number IDs arrive as a window message from the popup, the code
+  // arrives in the FB.login callback. Hold each until both are here.
+  const signupCode = useRef<string | null>(null);
+  const signupSession = useRef<{ wabaId: string; phoneNumberId: string } | null>(null);
+
+  function submitSignupIfReady() {
+    const code = signupCode.current;
+    const session = signupSession.current;
+    if (!code || !session) return;
+    signupCode.current = null;
+    signupSession.current = null;
+    void fetch('/api/social/whatsapp/embedded-signup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code, ...session }),
+    })
+      .then(async (result) => {
+        const payload = (await result.json()) as { error?: string };
+        if (!result.ok) throw new Error(payload.error || 'Connect failed');
+        setMessage('WhatsApp number connected.');
+        reload();
+      })
+      .catch((error: Error) => setMessage(error.message));
+  }
+
+  useEffect(() => {
+    function onMessage(event: MessageEvent) {
+      let host = '';
+      try {
+        host = new URL(event.origin).hostname;
+      } catch {
+        return;
+      }
+      if (host !== 'facebook.com' && !host.endsWith('.facebook.com')) return;
+      let data: {
+        type?: string;
+        event?: string;
+        data?: { waba_id?: string; phone_number_id?: string; error_message?: string };
+      };
+      try {
+        data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
+      } catch {
+        return;
+      }
+      if (data?.type !== 'WA_EMBEDDED_SIGNUP') return;
+      const info = data.data;
+      if (info?.waba_id && info.phone_number_id) {
+        signupSession.current = { wabaId: info.waba_id, phoneNumberId: info.phone_number_id };
+        submitSignupIfReady();
+      } else if (data.event === 'CANCEL') {
+        setMessage(
+          info?.error_message
+            ? `Meta signup failed: ${info.error_message}`
+            : 'Meta signup was closed before it finished. Try again and complete every step.'
+        );
+      } else if (info?.waba_id) {
+        setMessage('Meta signup finished without a phone number. Run it again and add a number.');
+      }
+    }
+    window.addEventListener('message', onMessage);
+    return () => window.removeEventListener('message', onMessage);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   async function connect() {
+    signupCode.current = null;
+    signupSession.current = null;
     if (!config?.appId || !config.configId) {
       setMessage('Set META_APP_ID and WHATSAPP_EMBEDDED_SIGNUP_CONFIG_ID first.');
       return;
@@ -128,32 +195,20 @@ export function WhatsAppGrowthTools() {
     sdk.login(
       (response) => {
         const code = response.authResponse?.code;
-        const session = (
-          response as {
-            authResponse?: { code?: string };
-            sessionInfo?: { waba_id?: string; phone_number_id?: string };
-          }
-        ).sessionInfo;
-        if (!code || !session?.waba_id || !session.phone_number_id) {
-          setMessage('Embedded Signup did not return a code and WABA. Finish the Meta popup and try again.');
+        if (!code) {
+          setMessage('Meta did not return a sign-in code. Finish the Meta popup and try again.');
           return;
         }
-        void fetch('/api/social/whatsapp/embedded-signup', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            code,
-            wabaId: session.waba_id,
-            phoneNumberId: session.phone_number_id,
-          }),
-        })
-          .then(async (result) => {
-            const payload = (await result.json()) as { error?: string };
-            if (!result.ok) throw new Error(payload.error || 'Connect failed');
-            setMessage('WhatsApp number connected.');
-            reload();
-          })
-          .catch((error: Error) => setMessage(error.message));
+        signupCode.current = code;
+        submitSignupIfReady();
+        // The popup's message normally lands first; give it a moment if not.
+        window.setTimeout(() => {
+          if (signupCode.current === code) {
+            setMessage(
+              'Meta returned a code but no WhatsApp account or number. Finish every step of the popup and try again.'
+            );
+          }
+        }, 5000);
       },
       {
         config_id: config.configId,
