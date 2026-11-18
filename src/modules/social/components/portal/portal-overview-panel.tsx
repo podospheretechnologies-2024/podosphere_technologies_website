@@ -1,4 +1,16 @@
-import { portalOverviewService } from '@/modules/social/server/portal/portal-overview.service';
+import Link from 'next/link';
+import {
+  CalendarClock,
+  Contact,
+  FileCheck2,
+  Inbox,
+  IndianRupee,
+  UserRound,
+} from 'lucide-react';
+import {
+  portalOverviewService,
+  type PortalOverviewTileId,
+} from '@/modules/social/server/portal/portal-overview.service';
 
 function money(value: number, currency: string) {
   try {
@@ -11,6 +23,15 @@ function money(value: number, currency: string) {
     return `${currency} ${value.toFixed(0)}`;
   }
 }
+
+const TILE_ICONS: Record<PortalOverviewTileId, typeof CalendarClock> = {
+  postsDue: CalendarClock,
+  waitingApproval: FileCheck2,
+  leads: Contact,
+  inboxWaiting: Inbox,
+  spend30d: IndianRupee,
+  followers: UserRound,
+};
 
 export async function PortalOverviewPanel({
   organizationId,
@@ -31,27 +52,24 @@ export async function PortalOverviewPanel({
         </p>
       </div>
 
-      {data.stats.length > 0 ? (
-        <div className="mb-10 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          {data.stats.map((stat) => (
-            <div
-              key={stat.label}
-              className="border-border bg-surface-muted/40 flex flex-col gap-3 rounded-xl border p-4"
+      <div className="mb-10 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        {data.stats.map((stat) => {
+          const Icon = TILE_ICONS[stat.id];
+          return (
+            <Link
+              key={stat.id}
+              href={stat.href}
+              className="border-border bg-surface-muted/40 hover:bg-surface-muted/70 flex flex-col gap-3 rounded-xl border p-4 transition"
             >
-              <div className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+              <div className="text-muted-foreground flex items-center gap-2 text-xs font-medium tracking-wide uppercase">
+                <Icon className="size-3.5" />
                 {stat.label}
               </div>
               <p className="text-2xl font-semibold tabular-nums">{stat.value}</p>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <div className="mb-10 rounded-xl border border-border bg-surface p-8 text-center text-muted-foreground">
-          {data.hasChannels
-            ? 'Your channels are connected. Stats will appear here as soon as the first metrics sync in.'
-            : 'Connect a channel to see audience, reach, and recent posts here.'}
-        </div>
-      )}
+            </Link>
+          );
+        })}
+      </div>
 
       {data.thisMonth.length > 0 ? (
         <section className="mb-10">

@@ -3,6 +3,7 @@ import type { Prisma } from '@/generated/prisma/client';
 import { prisma } from '@/shared/lib/prisma';
 import { HttpError } from '@/shared/server/http-error';
 import type { ClientScope } from '@/shared/server/client-scope';
+import { parsePortalTabsConfig } from '../../config/portal-tabs';
 import { planService } from '../billing/plan.service';
 import { integrationRegistry } from '../integrations/core/integration.registry';
 import { groupAssets, type GroupableAsset } from './client-grouping';
@@ -13,6 +14,19 @@ import {
   type CreateClientBody,
   type UpdateClientLinksBody,
 } from './customer.schema';
+
+/** Copy Organization.portalTabDefaults onto a new SocialCustomer when set. */
+async function portalTabsFromOrgDefaults(
+  tx: Prisma.TransactionClient,
+  organizationId: string
+): Promise<Prisma.InputJsonValue | undefined> {
+  const org = await tx.organization.findFirst({
+    where: { id: organizationId },
+    select: { portalTabDefaults: true },
+  });
+  const config = parsePortalTabsConfig(org?.portalTabDefaults);
+  return config ? (config as Prisma.InputJsonValue) : undefined;
+}
 
 const clientListInclude = {
   approvers: { select: { id: true, name: true, email: true } },
@@ -181,11 +195,13 @@ export const customerService = {
     const links = clientLinksFromCreate(body);
 
     return prisma.$transaction(async (tx) => {
+      const portalTabs = await portalTabsFromOrgDefaults(tx, organizationId);
       const customer = await tx.socialCustomer.create({
         data: {
           organizationId,
           name: body.name,
           onboardingStep: 'created',
+          ...(portalTabs !== undefined ? { portalTabs } : {}),
         },
       });
 
@@ -361,8 +377,14 @@ export const customerService = {
           const nameKey = group.newClientName.toLowerCase();
           customerId = createdByName.get(nameKey) ?? null;
           if (!customerId) {
+            const portalTabs = await portalTabsFromOrgDefaults(tx, organizationId);
             const customer = await tx.socialCustomer.create({
-              data: { organizationId, name: group.newClientName, onboardingStep: 'created' },
+              data: {
+                organizationId,
+                name: group.newClientName,
+                onboardingStep: 'created',
+                ...(portalTabs !== undefined ? { portalTabs } : {}),
+              },
             });
             customerId = customer.id;
             createdByName.set(nameKey, customerId);

@@ -29,6 +29,11 @@ export type PortalTabsSettingsDto = {
   adSpendVisible: boolean;
 };
 
+export type OrgPortalTabDefaultsDto = {
+  exists: boolean;
+  config: PortalTabsConfig | null;
+};
+
 const LEVEL_RANK: Record<PortalAccessLevel, number> = { off: 0, view: 1, act: 2 };
 
 function toStoredJson(config: PortalTabsConfig): Prisma.InputJsonValue | typeof Prisma.DbNull {
@@ -211,5 +216,51 @@ export const portalTabsService = {
       data: { portalTabs: toStoredJson(parsePortalTabsConfig(source.portalTabs) ?? {}) },
     });
     return { updated: result.count };
+  },
+
+  /** Org-wide default applied when creating new clients. Scoped to this organization only. */
+  async getOrgDefaults(organizationId: string): Promise<OrgPortalTabDefaultsDto> {
+    const org = await prisma.organization.findFirst({
+      where: { id: organizationId, deletedAt: null },
+      select: { portalTabDefaults: true },
+    });
+    if (!org) throw new HttpError(404, 'Organization not found');
+    const config = parsePortalTabsConfig(org.portalTabDefaults);
+    return { exists: config !== null, config };
+  },
+
+  /**
+   * Store org default portal tab config (tabs / order / adSpend / WhatsApp caps).
+   * Does not change existing clients — only new ones created after this.
+   */
+  async saveOrgDefaults(
+    organizationId: string,
+    config: PortalTabsConfig
+  ): Promise<OrgPortalTabDefaultsDto> {
+    const org = await prisma.organization.findFirst({
+      where: { id: organizationId, deletedAt: null },
+      select: { id: true },
+    });
+    if (!org) throw new HttpError(404, 'Organization not found');
+
+    const stored = toStoredJson(parsePortalTabsConfig(config) ?? config);
+    await prisma.organization.update({
+      where: { id: organizationId },
+      data: { portalTabDefaults: stored },
+    });
+    return this.getOrgDefaults(organizationId);
+  },
+
+  /** Copy one client's current portalTabs into Organization.portalTabDefaults. */
+  async saveClientAsOrgDefaults(
+    organizationId: string,
+    customerId: string
+  ): Promise<OrgPortalTabDefaultsDto> {
+    const customer = await prisma.socialCustomer.findFirst({
+      where: { id: customerId, organizationId, deletedAt: null },
+      select: { portalTabs: true },
+    });
+    if (!customer) throw new HttpError(404, 'Client not found');
+    return this.saveOrgDefaults(organizationId, parsePortalTabsConfig(customer.portalTabs) ?? {});
   },
 };

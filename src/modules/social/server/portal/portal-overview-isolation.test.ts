@@ -22,6 +22,8 @@ vi.mock('@/shared/lib/prisma', () => {
       socialAdPlanItem: model(),
       socialPortalRequest: model(),
       shopifyDailyMetric: model(),
+      socialPost: model(),
+      socialInboxThread: model(),
     },
   };
 });
@@ -35,20 +37,20 @@ const CLIENT_A = 'client-a';
 type Mocked = Record<string, Record<string, ReturnType<typeof vi.fn>>>;
 const db = prisma as unknown as Mocked;
 
-function whereOf(fn: ReturnType<typeof vi.fn>) {
-  return (fn.mock.calls[0]?.[0] as { where: Record<string, unknown> }).where;
+function whereOf(fn: ReturnType<typeof vi.fn>, callIndex = 0) {
+  return (fn.mock.calls[callIndex]?.[0] as { where: Record<string, unknown> }).where;
 }
 
 describe('portal overview tenant isolation', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it('scopes channels, ads, leads, requests, and goals to session org + client', async () => {
+  it('scopes channels, posts, inbox, ads, leads, requests, and goals to session org + client', async () => {
     db.socialCustomer.findFirst.mockResolvedValueOnce({
       portalTabs: null,
       portalGoals: { leadsPerMonth: 100 },
     });
 
-    await portalOverviewService.get({ organizationId: ORG, customerId: CLIENT_A });
+    const dto = await portalOverviewService.get({ organizationId: ORG, customerId: CLIENT_A });
 
     expect(whereOf(db.socialIntegration.findMany)).toMatchObject({
       organizationId: ORG,
@@ -63,7 +65,29 @@ describe('portal overview tenant isolation', () => {
       organizationId: ORG,
       customerId: CLIENT_A,
     });
-    expect(whereOf(db.socialLead.count)).toMatchObject({
+
+    expect(whereOf(db.socialPost.count, 0)).toMatchObject({
+      organizationId: ORG,
+      customerId: CLIENT_A,
+      state: 'QUEUE',
+    });
+    expect(whereOf(db.socialPost.count, 1)).toMatchObject({
+      organizationId: ORG,
+      customerId: CLIENT_A,
+      state: 'DRAFT',
+      approvalStep: 'CLIENT',
+    });
+
+    expect(whereOf(db.socialInboxThread.findMany)).toEqual({
+      organizationId: ORG,
+      customerId: CLIENT_A,
+    });
+
+    expect(whereOf(db.socialLead.count, 0)).toMatchObject({
+      organizationId: ORG,
+      customerId: CLIENT_A,
+    });
+    expect(whereOf(db.socialLead.count, 1)).toMatchObject({
       organizationId: ORG,
       customerId: CLIENT_A,
     });
@@ -75,5 +99,32 @@ describe('portal overview tenant isolation', () => {
       organizationId: ORG,
       customerId: CLIENT_A,
     });
+
+    expect(dto.stats.map((s) => s.id)).toEqual([
+      'postsDue',
+      'waitingApproval',
+      'leads',
+      'inboxWaiting',
+      'spend30d',
+      'followers',
+    ]);
+  });
+
+  it('omits ad spend tile when portalTabs.adSpendVisible is false', async () => {
+    db.socialCustomer.findFirst.mockResolvedValueOnce({
+      portalTabs: { adSpendVisible: false },
+      portalGoals: null,
+    });
+
+    const dto = await portalOverviewService.get({ organizationId: ORG, customerId: CLIENT_A });
+
+    expect(dto.stats.map((s) => s.id)).toEqual([
+      'postsDue',
+      'waitingApproval',
+      'leads',
+      'inboxWaiting',
+      'followers',
+    ]);
+    expect(dto.stats.some((s) => s.id === 'spend30d')).toBe(false);
   });
 });

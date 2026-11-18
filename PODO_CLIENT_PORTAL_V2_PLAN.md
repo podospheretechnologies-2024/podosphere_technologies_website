@@ -1,9 +1,11 @@
 # Client Portal v2 plan — same tabs as admin, client's data only, admin controls it
 
-Written 2026-11-17. Status: **Phases 1–5 built 2026-11-17 (not deployed, not committed).**
-Phase 6 open (phone pass + deploy on request). Build with `/client-portal`.
+Written 2026-11-17. Status: **Phases 1–5 done and mostly deployed/committed** (Inbox, Agent, Plugs,
+Media/Growth view, Can-act actions, Portal control). WhatsApp + Growth desks can act (see
+`PODO_PORTAL_WHATSAPP_GROWTH_PLAN.md`). **Phase 6 phone-width pass done 2026-11-18.** Save-as-default
+(`Organization.portalTabDefaults`) landed 2026-11-18. Deploy only on request. Build with
+`/client-portal`.
 Follows `PODO_CLIENT_PORTAL_PLAN.md` (phases 1–5 done: login, `/portal` shell, 11 tabs, on/off toggles).
-Next: `PODO_PORTAL_WHATSAPP_GROWTH_PLAN.md` (2026-11-18) — full WhatsApp and Growth tabs for clients.
 
 ## 1. What the user asked
 
@@ -16,17 +18,18 @@ Next: `PODO_PORTAL_WHATSAPP_GROWTH_PLAN.md` (2026-11-18) — full WhatsApp and G
 
 | Thing | Today | Gap |
 |---|---|---|
-| Look | `/portal` has its own coloured sidebar (`portal-shell.tsx`), different from admin (`social-shell.tsx` + `icon-rail.tsx`) | Does not look like the admin app |
-| Tabs | 11: Overview, Content, Analytics, Ads, Leads, Sales, Reports, Channels, Brand kit, Requests, WhatsApp | Admin has 18. Missing: Inbox, Media, Growth, Plugs, Agent, Billing |
-| Functions | Mostly read-only. Client can approve posts, add notes, reconnect channels, send requests | Admin tabs can do more (reply, edit, create) |
-| Admin control | Checkbox list inside Clients → Portal access modal. Only on/off + "show ad spend" | No access level, no order, no preview on the same screen, no copy to other clients |
+| Look | `/portal` uses admin-style shell (`portal-shell.tsx` + shared `IconRail`), theme tokens, Light/Dark switch, phone top bar + bottom bar | Dark mode polish on edge panels if anything still looks off |
+| Tabs | Same ids as before; labels match admin (Calendar, Media, Integrations, Growth). **Inbox, Plugs, Agent** exist (Agent off by default). Billing skipped | Billing only if we ever bill clients in-app |
+| Functions | View + Can act where planned: approve/notes/request post, inbox reply, lead stage, media upload, WhatsApp reply/send, Growth campaign/blog act | Agency still owns publish/spend; stay that way |
+| Admin control | Clients → **Portal control**: Hidden / View / Can act, up/down order, live menu preview, Open as client, Copy to other clients, **Save as default**, WhatsApp reminders | Drag reorder not required (up/down is enough) |
 | Data safety | Every portal service filters by session `customerId` + `organizationId`, with isolation tests | Keep exactly this |
+| Phone | Phase 6 pass: no horizontal page scroll; tab bars scroll-x; tables → stacked cards under `sm:`; chat list/detail stack on narrow screens | Re-check after large new desk UI |
 
 ## 3. Tab map (admin tab → client tab)
 
 | Admin tab | Client tab | Today | v2 work |
 |---|---|---|---|
-| Overview | Overview | exists | Same stat tiles as admin (posts due, waiting approval, leads, inbox waiting, ad spend, followers) |
+| Overview | Overview | **done** | Same stat tiles as admin (posts due, waiting approval, leads, inbox waiting, ad spend if visible, followers) — session client only |
 | Calendar | Calendar | exists as "Content" | Rename. Same month view as admin. Act: approve / ask changes / request a post |
 | Agent | Agent | missing | New, off by default (AI cost). Chat limited to this client's data |
 | Analytics | Analytics | exists | Restyle only |
@@ -136,7 +139,12 @@ Org default lives in one new Json field `Organization.portalTabDefaults` (one sm
 
 **Phase 6 — Finish**
 - ✅ Full portal isolation suite: 67 tests passing (2026-11-17).
-- Phone check of every tab still open; deploy only on request.
+- ✅ Save as default for new clients (`Organization.portalTabDefaults`, portal control button,
+  createClient / bulk-assign copy) — 2026-11-18.
+- ✅ Phone-width pass (2026-11-18): shell full-width / no page overflow; Inbox + WhatsApp + Agent
+  list/detail stack; Growth/Ads tables → stacked cards under `sm:`; tab bars scroll-x; touch-friendly
+  Calendar / Leads / Media / Integrations controls.
+- Deploy only on request.
 
 ## 5b. What was built (2026-11-17) and what changed from the plan
 
@@ -159,11 +167,14 @@ Org default lives in one new Json field `Organization.portalTabDefaults` (one sm
   `/api/portal/*` data route, `/api/approver/posts/[group]`, `/api/approver/channels`, and the
   channel connect flow (`current-organization-or-client.ts`).
 - Agency page: Clients → **Portal control** (`/dashboard/social/clients/[id]/portal`): level per
-  tab, up/down order (not drag), menu preview, Open as client, Copy to other clients
+  tab, up/down order (not drag — plan allowed), menu preview, Open as client, Copy to other clients
   (`POST .../portal-tabs/copy`), and this client's **WhatsApp reminders** (number + approval /
   payment / monthly report switches; uses the existing `agency-notify` API, no new sending code).
-- **Not built:** "Save as default for new clients" (needs a migration on `Organization`). Use
-  Copy to other clients for now.
+- ✅ **Save as default for new clients** (2026-11-18): `Organization.portalTabDefaults` Json +
+  migration `20261118180000_org_portal_tab_defaults`. Portal control button copies that client's
+  `portalTabs` via `POST .../portal-tabs/defaults`; org GET/PUT at
+  `/api/social/clients/portal-tabs/defaults` (OWNER/ADMIN). `createClient` + bulk-assign new
+  clients copy the org default into `SocialCustomer.portalTabs`. Existing clients unchanged.
 
 ## 6. Decisions needed (my pick first)
 

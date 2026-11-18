@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { ArrowDown, ArrowLeft, ArrowUp, Copy, ExternalLink } from 'lucide-react';
+import { ArrowDown, ArrowLeft, ArrowUp, Bookmark, Copy, ExternalLink } from 'lucide-react';
 import { Button } from '@/shared/components/ui/button';
 import { Input } from '@/shared/components/ui/input';
 import { SegmentedControl } from '@/shared/components/ui/segmented-control';
@@ -72,16 +72,21 @@ export function PortalControl({ clientId }: { clientId: string }) {
   const [notice, setNotice] = useState<string | null>(null);
   const [copyOpen, setCopyOpen] = useState(false);
   const [copyTargets, setCopyTargets] = useState<string[]>([]);
+  const [orgDefaultExists, setOrgDefaultExists] = useState(false);
 
   const load = useCallback(async () => {
     setError(null);
     try {
-      const [tabs, clientList] = await Promise.all([
+      const [tabs, clientList, orgDefaults] = await Promise.all([
         apiFetch<SettingsPayload>(tabsUrl),
         apiFetch<ClientRow[]>('/api/social/clients'),
+        apiFetch<{ exists: boolean }>('/api/social/clients/portal-tabs/defaults').catch(() => ({
+          exists: false,
+        })),
       ]);
       setSettings(tabs);
       setClients(clientList.map((row) => ({ id: row.id, name: row.name })));
+      setOrgDefaultExists(orgDefaults.exists);
     } catch (err) {
       setError(message(err, 'Could not load portal settings.'));
     }
@@ -186,6 +191,32 @@ export function PortalControl({ clientId }: { clientId: string }) {
     }
   }
 
+  async function saveAsOrgDefault() {
+    const confirmMsg = orgDefaultExists
+      ? `Replace the current org default with ${clientName}'s portal tabs? New clients will get these settings; existing clients stay as they are.`
+      : `Save ${clientName}'s portal tabs as the default for new clients? Existing clients stay as they are.`;
+    if (!window.confirm(confirmMsg)) return;
+
+    setBusy('default');
+    setError(null);
+    setNotice(null);
+    try {
+      const res = await apiFetch<{ exists: boolean }>(`${tabsUrl}/defaults`, {
+        method: 'POST',
+      });
+      setOrgDefaultExists(res.exists);
+      setNotice(
+        res.exists
+          ? 'Saved as default for new clients.'
+          : 'Default cleared (this client had no tab overrides).'
+      );
+    } catch (err) {
+      setError(message(err, 'Could not save the org default.'));
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function saveNotify(patch: Partial<WhatsAppClientNotify>, key: string) {
     if (!notify) return;
     setBusy(key);
@@ -254,8 +285,23 @@ export function PortalControl({ clientId }: { clientId: string }) {
               <Copy className="size-3.5" />
               Copy to other clients
             </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              disabled={busy === 'default' || !settings}
+              onClick={() => void saveAsOrgDefault()}
+            >
+              <Bookmark className="size-3.5" />
+              {busy === 'default' ? 'Saving…' : 'Save as default for new clients'}
+            </Button>
           </div>
         </div>
+        <p className="text-muted-foreground mt-2 text-xs">
+          {orgDefaultExists
+            ? 'An org default is set — new clients get those tab levels, order and ad-spend settings.'
+            : 'No org default yet — new clients start with automatic tab defaults until you save one.'}
+        </p>
       </div>
 
       {error ? <p className="text-danger text-sm">{error}</p> : null}

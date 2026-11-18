@@ -330,6 +330,14 @@
       "namedRegex": "^/api/social/clients/(?<nxtPid>[^/]+?)/portal\\-tabs/copy(?:/)?$"
     },
     {
+      "page": "/api/social/clients/[id]/portal-tabs/defaults",
+      "regex": "^/api/social/clients/([^/]+?)/portal\\-tabs/defaults(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/social/clients/(?<nxtPid>[^/]+?)/portal\\-tabs/defaults(?:/)?$"
+    },
+    {
       "page": "/api/social/clients/[id]/revoke-link",
       "regex": "^/api/social/clients/([^/]+?)/revoke\\-link(?:/)?$",
       "routeKeys": {
@@ -1268,6 +1276,12 @@
       "regex": "^/api/social/clients/assignable(?:/)?$",
       "routeKeys": {},
       "namedRegex": "^/api/social/clients/assignable(?:/)?$"
+    },
+    {
+      "page": "/api/social/clients/portal-tabs/defaults",
+      "regex": "^/api/social/clients/portal\\-tabs/defaults(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/social/clients/portal\\-tabs/defaults(?:/)?$"
     },
     {
       "page": "/api/social/clients/sort",

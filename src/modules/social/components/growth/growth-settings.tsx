@@ -4,7 +4,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { Button } from '@/shared/components/ui/button';
 import { Input } from '@/shared/components/ui/input';
 import { cn } from '@/shared/lib/cn';
-import { SHOPIFY_ALL_SCOPES, SHOPIFY_SCOPE_STRING } from '@/modules/social/config/shopify-scopes';
+import { SHOPIFY_PASTE_SCOPES, SHOPIFY_SCOPE_STRING } from '@/modules/social/config/shopify-scopes';
 import { errorText, growthCall, useGrowth, type GrowthSettings, type ShopifyStore } from './growth-api';
 import { ErrorLine, Field, Panel, Pill, textareaClass } from './growth-ui';
 import { Ga4Panel } from './growth-ga4';
@@ -321,14 +321,14 @@ function ScopeListBox() {
   return (
     <div className="border-border flex flex-col gap-2 rounded-lg border p-2">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-xs font-medium">Permissions to paste in the Shopify app ({SHOPIFY_ALL_SCOPES.length})</p>
+        <p className="text-xs font-medium">Permissions to paste in the Shopify app ({SHOPIFY_PASTE_SCOPES.length})</p>
         <Button size="sm" variant="secondary" onClick={copy}>
           {copied ? 'Copied' : 'Copy list'}
         </Button>
       </div>
       <code className="text-muted-foreground text-[11px] break-all select-all">{SHOPIFY_SCOPE_STRING}</code>
       <p className="text-muted-foreground text-xs">
-        All read-only except publishing blogs. Also turn on protected customer data (name, phone, email, address), or phone numbers arrive blank.
+        All read-only except publishing blogs. Orders older than 60 days (read_all_orders) need Shopify&apos;s approval first, so they are not in this list. Also turn on protected customer data (name, phone, email, address), or phone numbers arrive blank.
       </p>
     </div>
   );

@@ -19,6 +19,7 @@ vi.mock('@/shared/lib/prisma', () => {
       socialGoogleAdsAccount: model(),
       socialShopifyStore: model(),
       socialWhatsAppConnection: model(),
+      organization: model(),
     },
   };
 });
@@ -105,6 +106,65 @@ describe('portal tabs tenant isolation', () => {
       where: { id: { in: [CLIENT_B] }, organizationId: ORG, deletedAt: null },
       data: { portalTabs: { tabs: { ads: 'view' }, order: ['reports', 'overview'] } },
     });
+  });
+
+  it('reads and saves org portal defaults only for that organization', async () => {
+    db.organization.findFirst.mockResolvedValueOnce({
+      portalTabDefaults: { tabs: { ads: 'view' }, adSpendVisible: false },
+    });
+    const loaded = await portalTabsService.getOrgDefaults(ORG);
+    expect(loaded.exists).toBe(true);
+    expect(loaded.config).toMatchObject({ tabs: { ads: 'view' }, adSpendVisible: false });
+    expect(whereOf(db.organization.findFirst)).toEqual({ id: ORG, deletedAt: null });
+
+    db.organization.findFirst.mockResolvedValueOnce({ id: ORG });
+    db.organization.update.mockResolvedValueOnce({});
+    db.organization.findFirst.mockResolvedValueOnce({
+      portalTabDefaults: { tabs: { inbox: 'act' }, order: ['overview', 'inbox'] },
+    });
+
+    const saved = await portalTabsService.saveOrgDefaults(ORG, {
+      tabs: { inbox: 'act' },
+      order: ['overview', 'inbox'],
+    });
+    expect(db.organization.update.mock.calls[0]?.[0]).toEqual({
+      where: { id: ORG },
+      data: { portalTabDefaults: { tabs: { inbox: 'act' }, order: ['overview', 'inbox'] } },
+    });
+    expect(saved.exists).toBe(true);
+  });
+
+  it('copies a client portalTabs into org defaults without touching other orgs', async () => {
+    const ORG_B = 'org-b';
+    db.socialCustomer.findFirst.mockResolvedValueOnce({
+      portalTabs: { tabs: { agent: 'off' }, whatsappDailyCap: 20 },
+    });
+    db.organization.findFirst.mockResolvedValueOnce({ id: ORG });
+    db.organization.update.mockResolvedValueOnce({});
+    db.organization.findFirst.mockResolvedValueOnce({
+      portalTabDefaults: { tabs: { agent: 'off' }, whatsappDailyCap: 20 },
+    });
+
+    await portalTabsService.saveClientAsOrgDefaults(ORG, CLIENT_A);
+
+    expect(whereOf(db.socialCustomer.findFirst)).toEqual({
+      id: CLIENT_A,
+      organizationId: ORG,
+      deletedAt: null,
+    });
+    expect(db.organization.update.mock.calls[0]?.[0]).toMatchObject({
+      where: { id: ORG },
+      data: { portalTabDefaults: { tabs: { agent: 'off' }, whatsappDailyCap: 20 } },
+    });
+    expect(db.organization.update.mock.calls[0]?.[0].where.id).not.toBe(ORG_B);
+  });
+
+  it('refuses saveClientAsOrgDefaults when the client is not in the org', async () => {
+    db.socialCustomer.findFirst.mockResolvedValueOnce(null);
+    await expect(portalTabsService.saveClientAsOrgDefaults(ORG, CLIENT_B)).rejects.toThrow(
+      /Client not found/
+    );
+    expect(db.organization.update).not.toHaveBeenCalled();
   });
 });
 

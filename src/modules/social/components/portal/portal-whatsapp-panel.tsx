@@ -814,8 +814,12 @@ export function PortalWhatsAppPanel({
               No approved templates on your number yet.
             </div>
           ) : (
-            <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-              <ul className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-surface">
+            <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+              <ul
+                className={`divide-y divide-border overflow-hidden rounded-xl border border-border bg-surface ${
+                  selectedTemplate ? 'hidden lg:block' : 'block'
+                }`}
+              >
                 {templates.map((template) => {
                   const active =
                     selectedTemplate?.name === template.name &&
@@ -829,7 +833,9 @@ export function PortalWhatsAppPanel({
                           active ? 'bg-surface-muted' : 'hover:bg-surface-muted'
                         }`}
                       >
-                        <p className="text-sm font-medium text-foreground">{template.name}</p>
+                        <p className="truncate text-sm font-medium text-foreground">
+                          {template.name}
+                        </p>
                         <p className="mt-0.5 text-xs text-muted-foreground">
                           {template.language} · {template.category}
                           {template.variablesCount > 0
@@ -847,12 +853,27 @@ export function PortalWhatsAppPanel({
                 })}
               </ul>
 
-              <div className="min-w-0 rounded-xl border border-border bg-surface p-4">
+              <div
+                className={`min-w-0 rounded-xl border border-border bg-surface p-4 ${
+                  selectedTemplate ? 'block' : 'hidden lg:block'
+                }`}
+              >
                 {!selectedTemplate ? (
                   <p className="text-sm text-muted-foreground">Select a template to preview and send.</p>
                 ) : (
                   <>
-                    <p className="text-sm font-semibold text-foreground">{selectedTemplate.name}</p>
+                    <div className="mb-3 flex items-start justify-between gap-3 lg:mb-0">
+                      <p className="min-w-0 truncate text-sm font-semibold text-foreground">
+                        {selectedTemplate.name}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedTemplate(null)}
+                        className="min-h-10 shrink-0 px-2 text-sm font-medium text-muted-foreground hover:text-foreground lg:hidden"
+                      >
+                        Back
+                      </button>
+                    </div>
                     <p className="mt-1 whitespace-pre-wrap break-words text-sm text-muted-foreground">
                       {selectedTemplate.bodyPreview}
                     </p>

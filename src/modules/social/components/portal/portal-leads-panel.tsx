@@ -103,10 +103,10 @@ export function PortalLeadsPanel({
                   {lead.source}
                 </p>
               </div>
-              <div className="flex shrink-0 flex-wrap items-center gap-3 text-xs text-muted-foreground">
+              <div className="flex w-full shrink-0 flex-wrap items-center gap-3 text-xs text-muted-foreground sm:w-auto">
                 {canAct ? (
                   <select
-                    className="rounded-lg border border-border bg-surface px-2 py-1 text-xs font-medium text-foreground"
+                    className="min-h-10 w-full rounded-lg border border-border bg-surface px-2 py-1 text-xs font-medium text-foreground sm:w-auto"
                     value={lead.stage}
                     disabled={pendingId === lead.id}
                     onChange={(event) => void changeStage(lead.id, event.target.value)}

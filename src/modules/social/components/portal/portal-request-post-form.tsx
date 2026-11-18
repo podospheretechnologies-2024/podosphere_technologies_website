@@ -79,11 +79,11 @@ export function PortalRequestPostForm() {
             onChange={(event) => setDueDate(event.target.value)}
           />
         </label>
-        <div className="flex items-end">
+        <div className="flex items-end sm:col-span-1">
           <button
             type="submit"
             disabled={saving || title.trim().length < 3}
-            className="rounded-lg bg-foreground px-4 py-2 text-sm font-medium text-background hover:opacity-90 disabled:opacity-50"
+            className="min-h-11 w-full rounded-lg bg-foreground px-4 py-2 text-sm font-medium text-background hover:opacity-90 disabled:opacity-50 sm:w-auto"
           >
             {saving ? 'Sending…' : 'Send request'}
           </button>

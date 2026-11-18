@@ -23,6 +23,11 @@ model Organization {
   primaryColor       String?            @map("themeColor") @db.VarChar(7)
   /** Optional portal heading; falls back to organization name. */
   portalTitle        String?            @db.VarChar(120)
+  /**
+   * Default portal tab config for newly created clients (same shape as SocialCustomer.portalTabs).
+   * Set from Clients → Portal control → Save as default for new clients.
+   */
+  portalTabDefaults  Json?
   /** Optional white-label hostname (e.g. portal.client.com). Caddy on-demand TLS ask checks this. */
   customDomain       String?            @unique @db.VarChar(253)
   /** Buyer GSTIN captured at billing checkout; copied onto invoices. */

@@ -114,10 +114,10 @@ export function PortalBrandPanel({ canAct = true }: { canAct?: boolean }) {
       {error ? <p className="text-danger mb-4 text-sm">{error}</p> : null}
 
       <section className="mb-10">
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+        <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
           <h3 className="text-lg font-semibold text-foreground">Media library</h3>
           {canAct ? (
-            <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2 text-sm font-medium text-foreground hover:bg-surface-muted">
+            <label className="inline-flex min-h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-border bg-surface px-3 py-2 text-sm font-medium text-foreground hover:bg-surface-muted sm:w-auto">
               <input
                 type="file"
                 accept="image/*,video/mp4"
@@ -131,7 +131,7 @@ export function PortalBrandPanel({ canAct = true }: { canAct?: boolean }) {
             <button
               type="button"
               disabled
-              className="cursor-not-allowed rounded-lg border border-border bg-surface-muted px-3 py-2 text-sm font-medium text-muted-foreground"
+              className="min-h-11 w-full cursor-not-allowed rounded-lg border border-border bg-surface-muted px-3 py-2 text-sm font-medium text-muted-foreground sm:w-auto"
             >
               Upload
             </button>

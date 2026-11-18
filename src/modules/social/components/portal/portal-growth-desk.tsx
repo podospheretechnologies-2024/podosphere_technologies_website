@@ -91,7 +91,7 @@ export function PortalGrowthDesk({
         ) : null}
       </div>
 
-      <div className="-mx-1 mb-6 flex flex-wrap gap-2 overflow-x-auto pb-1 [scrollbar-width:thin]">
+      <div className="-mx-1 mb-6 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:thin]">
         {TABS.map((t) => (
           <button
             key={t.id}
@@ -238,30 +238,43 @@ function PerformancePanel({
           {shopify.days.length === 0 ? (
             <Empty>No order data in this period yet.</Empty>
           ) : (
-            <div className="overflow-x-auto rounded-xl border border-border bg-surface">
-              <table className="min-w-full text-left text-sm">
-                <thead className="border-b border-border bg-surface-muted text-xs font-medium text-muted-foreground">
-                  <tr>
-                    <th className="px-4 py-3">Date</th>
-                    <th className="px-4 py-3">Orders</th>
-                    <th className="px-4 py-3">Sales</th>
-                    {shopify.showSpend ? <th className="px-4 py-3">Ad spend</th> : null}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {[...shopify.days].reverse().map((day) => (
-                    <tr key={day.date}>
-                      <td className="px-4 py-2.5 text-foreground">{day.date}</td>
-                      <td className="px-4 py-2.5">{day.orders}</td>
-                      <td className="px-4 py-2.5">{money(day.sales, currency)}</td>
-                      {shopify.showSpend ? (
-                        <td className="px-4 py-2.5">{money(day.spend, currency)}</td>
-                      ) : null}
+            <>
+              <ul className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-surface sm:hidden">
+                {[...shopify.days].reverse().map((day) => (
+                  <li key={day.date} className="flex flex-col gap-1 px-4 py-3">
+                    <p className="text-sm font-medium text-foreground">{day.date}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {day.orders} orders · {money(day.sales, currency)}
+                      {shopify.showSpend ? ` · spend ${money(day.spend, currency)}` : ''}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+              <div className="hidden overflow-hidden rounded-xl border border-border bg-surface sm:block">
+                <table className="w-full text-left text-sm">
+                  <thead className="border-b border-border bg-surface-muted text-xs font-medium text-muted-foreground">
+                    <tr>
+                      <th className="px-4 py-3">Date</th>
+                      <th className="px-4 py-3">Orders</th>
+                      <th className="px-4 py-3">Sales</th>
+                      {shopify.showSpend ? <th className="px-4 py-3">Ad spend</th> : null}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {[...shopify.days].reverse().map((day) => (
+                      <tr key={day.date}>
+                        <td className="px-4 py-2.5 text-foreground">{day.date}</td>
+                        <td className="px-4 py-2.5">{day.orders}</td>
+                        <td className="px-4 py-2.5">{money(day.sales, currency)}</td>
+                        {shopify.showSpend ? (
+                          <td className="px-4 py-2.5">{money(day.spend, currency)}</td>
+                        ) : null}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
         </section>
       ) : null}

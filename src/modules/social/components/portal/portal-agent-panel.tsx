@@ -45,11 +45,19 @@ export function PortalAgentPanel({
   const [loadingThread, setLoadingThread] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [aiReady, setAiReady] = useState(configured);
+  /** On phone, show either the thread list or the chat pane — not both. */
+  const [mobilePane, setMobilePane] = useState<'list' | 'chat'>(
+    initialThreads.length === 0 ? 'chat' : 'list'
+  );
 
   async function openThread(id: string) {
-    if (id === activeId && messages.length > 0) return;
+    if (id === activeId && messages.length > 0) {
+      setMobilePane('chat');
+      return;
+    }
     setLoadingThread(true);
     setError(null);
+    setMobilePane('chat');
     try {
       const res = await apiFetch<{ thread: ThreadPayload }>(`/api/portal/agent/threads/${id}`);
       setActiveId(res.thread.id);
@@ -66,6 +74,11 @@ export function PortalAgentPanel({
     setMessages([]);
     setMessage('');
     setError(null);
+    setMobilePane('chat');
+  }
+
+  function backToList() {
+    setMobilePane('list');
   }
 
   async function send() {
@@ -145,15 +158,19 @@ export function PortalAgentPanel({
         ) : null}
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[220px_minmax(0,1fr)]">
-        <aside className="rounded-xl border border-border bg-surface p-3 shadow-sm">
+      <div className="grid min-w-0 gap-4 lg:grid-cols-[220px_minmax(0,1fr)]">
+        <aside
+          className={`rounded-xl border border-border bg-surface p-3 shadow-sm ${
+            mobilePane === 'chat' ? 'hidden lg:block' : 'block'
+          }`}
+        >
           <p className="mb-2 px-1 text-xs font-medium tracking-wide text-muted-foreground uppercase">
             Recent
           </p>
           {threads.length === 0 ? (
             <p className="px-1 py-4 text-sm text-muted-foreground">No chats yet.</p>
           ) : (
-            <ul className="space-y-1">
+            <ul className="max-h-[60vh] space-y-1 overflow-y-auto lg:max-h-none">
               {threads.map((row) => (
                 <li key={row.id}>
                   <button
@@ -161,8 +178,8 @@ export function PortalAgentPanel({
                     onClick={() => void openThread(row.id)}
                     className={
                       row.id === activeId
-                        ? 'w-full rounded-lg bg-foreground px-3 py-2 text-left text-sm font-medium text-background'
-                        : 'w-full rounded-lg px-3 py-2 text-left text-sm text-foreground hover:bg-surface-muted'
+                        ? 'min-h-11 w-full rounded-lg bg-foreground px-3 py-2 text-left text-sm font-medium text-background'
+                        : 'min-h-11 w-full rounded-lg px-3 py-2 text-left text-sm text-foreground hover:bg-surface-muted'
                     }
                   >
                     <span className="line-clamp-2">{row.title?.trim() || 'Untitled chat'}</span>
@@ -171,10 +188,43 @@ export function PortalAgentPanel({
               ))}
             </ul>
           )}
+          {canAct ? (
+            <button
+              type="button"
+              onClick={startNewChat}
+              disabled={busy}
+              className="mt-3 min-h-11 w-full rounded-lg border border-border px-3 py-2 text-sm font-medium text-foreground hover:bg-surface-muted disabled:opacity-50 lg:hidden"
+            >
+              New chat
+            </button>
+          ) : null}
         </aside>
 
-        <section className="flex min-h-[420px] flex-col rounded-xl border border-border bg-surface shadow-sm">
-          <div className="flex-1 space-y-3 overflow-y-auto p-4">
+        <section
+          className={`flex min-h-[320px] min-w-0 flex-col rounded-xl border border-border bg-surface shadow-sm sm:min-h-[420px] ${
+            mobilePane === 'list' ? 'hidden lg:flex' : 'flex'
+          }`}
+        >
+          <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-2 lg:hidden">
+            <button
+              type="button"
+              onClick={backToList}
+              className="min-h-10 px-2 text-sm font-medium text-muted-foreground hover:text-foreground"
+            >
+              Chats
+            </button>
+            {canAct && (activeId || messages.length > 0) ? (
+              <button
+                type="button"
+                onClick={startNewChat}
+                disabled={busy}
+                className="min-h-10 px-2 text-sm font-medium text-foreground disabled:opacity-50"
+              >
+                New
+              </button>
+            ) : null}
+          </div>
+          <div className="flex-1 space-y-3 overflow-x-hidden overflow-y-auto p-4">
             {loadingThread ? (
               <p className="text-sm text-muted-foreground">Loading chat…</p>
             ) : messages.length === 0 ? (
@@ -196,7 +246,7 @@ export function PortalAgentPanel({
                   <p className="mb-1 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
                     {row.role === 'user' ? 'You' : 'Agent'}
                   </p>
-                  <p className="whitespace-pre-wrap">{row.text || '(no text)'}</p>
+                  <p className="whitespace-pre-wrap break-words">{row.text || '(no text)'}</p>
                 </div>
               ))
             )}
@@ -224,7 +274,7 @@ export function PortalAgentPanel({
                   type="button"
                   onClick={() => void send()}
                   disabled={busy || !message.trim()}
-                  className="rounded-lg bg-foreground px-4 py-2 text-sm font-medium text-background hover:opacity-90 disabled:opacity-50"
+                  className="min-h-11 w-full rounded-lg bg-foreground px-4 py-2 text-sm font-medium text-background hover:opacity-90 disabled:opacity-50 sm:w-auto"
                 >
                   {busy ? 'Working…' : 'Send'}
                 </button>

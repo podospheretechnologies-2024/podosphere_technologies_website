@@ -23,32 +23,55 @@ function CampaignTable({
     );
   }
   return (
-    <div className="overflow-x-auto rounded-xl border border-border bg-surface">
-      <table className="w-full min-w-[480px] text-left text-sm">
-        <thead className="border-b border-border bg-surface-muted text-xs text-muted-foreground">
-          <tr>
-            <th className="px-4 py-3 font-medium">Campaign</th>
-            {showSpend ? <th className="px-4 py-3 font-medium">Spend</th> : null}
-            <th className="px-4 py-3 font-medium">Impr.</th>
-            <th className="px-4 py-3 font-medium">Clicks</th>
-            <th className="px-4 py-3 font-medium">Results</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row) => (
-            <tr key={row.name} className="border-b border-border last:border-0">
-              <td className="px-4 py-3 font-medium text-foreground">{row.name}</td>
+    <>
+      <ul className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-surface sm:hidden">
+        {rows.map((row) => (
+          <li key={row.name} className="space-y-2 px-4 py-3">
+            <p className="text-sm font-medium text-foreground">{row.name}</p>
+            <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-muted-foreground">
               {showSpend && row.spend != null ? (
-                <td className="px-4 py-3">{money.format(row.spend)}</td>
+                <>
+                  <dt>Spend</dt>
+                  <dd className="text-right tabular-nums text-foreground">{money.format(row.spend)}</dd>
+                </>
               ) : null}
-              <td className="px-4 py-3">{nf.format(row.impressions)}</td>
-              <td className="px-4 py-3">{nf.format(row.clicks)}</td>
-              <td className="px-4 py-3">{nf.format(row.leads)}</td>
+              <dt>Impressions</dt>
+              <dd className="text-right tabular-nums text-foreground">{nf.format(row.impressions)}</dd>
+              <dt>Clicks</dt>
+              <dd className="text-right tabular-nums text-foreground">{nf.format(row.clicks)}</dd>
+              <dt>Results</dt>
+              <dd className="text-right tabular-nums text-foreground">{nf.format(row.leads)}</dd>
+            </dl>
+          </li>
+        ))}
+      </ul>
+      <div className="hidden overflow-hidden rounded-xl border border-border bg-surface sm:block">
+        <table className="w-full text-left text-sm">
+          <thead className="border-b border-border bg-surface-muted text-xs text-muted-foreground">
+            <tr>
+              <th className="px-4 py-3 font-medium">Campaign</th>
+              {showSpend ? <th className="px-4 py-3 font-medium">Spend</th> : null}
+              <th className="px-4 py-3 font-medium">Impr.</th>
+              <th className="px-4 py-3 font-medium">Clicks</th>
+              <th className="px-4 py-3 font-medium">Results</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row.name} className="border-b border-border last:border-0">
+                <td className="px-4 py-3 font-medium text-foreground">{row.name}</td>
+                {showSpend && row.spend != null ? (
+                  <td className="px-4 py-3">{money.format(row.spend)}</td>
+                ) : null}
+                <td className="px-4 py-3">{nf.format(row.impressions)}</td>
+                <td className="px-4 py-3">{nf.format(row.clicks)}</td>
+                <td className="px-4 py-3">{nf.format(row.leads)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </>
   );
 }
 

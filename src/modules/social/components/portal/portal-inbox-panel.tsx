@@ -124,8 +124,12 @@ export function PortalInboxPanel({
           No messages yet for your brand.
         </div>
       ) : (
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
-          <ul className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-surface max-h-[70vh] overflow-y-auto">
+        <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
+          <ul
+            className={`max-h-[70vh] divide-y divide-border overflow-x-hidden overflow-y-auto rounded-xl border border-border bg-surface ${
+              selectedId ? 'hidden lg:block' : 'block'
+            }`}
+          >
             {threads.map((thread) => {
               const active = thread.id === selectedId;
               return (
@@ -133,12 +137,12 @@ export function PortalInboxPanel({
                   <button
                     type="button"
                     onClick={() => void openThread(thread.id)}
-                    className={`flex w-full flex-col gap-1 px-4 py-3 text-left transition-colors ${
+                    className={`flex min-h-14 w-full flex-col gap-1 px-4 py-3 text-left transition-colors ${
                       active ? 'bg-surface-muted' : 'hover:bg-surface-muted'
                     }`}
                   >
                     <div className="flex items-start justify-between gap-3">
-                      <p className="truncate text-sm font-medium text-foreground">
+                      <p className="min-w-0 truncate text-sm font-medium text-foreground">
                         {thread.contactName || 'Unknown contact'}
                       </p>
                       <span className="shrink-0 text-xs text-muted-foreground">
@@ -168,7 +172,11 @@ export function PortalInboxPanel({
             })}
           </ul>
 
-          <div className="rounded-xl border border-border bg-surface">
+          <div
+            className={`min-w-0 rounded-xl border border-border bg-surface ${
+              selectedId ? 'block' : 'hidden lg:block'
+            }`}
+          >
             {!selectedId ? (
               <div className="p-8 text-center text-sm text-muted-foreground">
                 Select a conversation to read the messages.
@@ -191,13 +199,13 @@ export function PortalInboxPanel({
                   <button
                     type="button"
                     onClick={closeThread}
-                    className="shrink-0 text-xs font-medium text-muted-foreground hover:text-foreground lg:hidden"
+                    className="min-h-10 shrink-0 px-2 text-sm font-medium text-muted-foreground hover:text-foreground lg:hidden"
                   >
-                    Close
+                    Back
                   </button>
                 </div>
 
-                <div className="flex-1 space-y-3 overflow-y-auto px-4 py-4 max-h-[50vh]">
+                <div className="max-h-[50vh] flex-1 space-y-3 overflow-x-hidden overflow-y-auto px-4 py-4">
                   {messages.length === 0 ? (
                     <p className="text-sm text-muted-foreground">No messages in this thread.</p>
                   ) : (
@@ -249,7 +257,7 @@ export function PortalInboxPanel({
                       type="button"
                       onClick={() => void sendReply()}
                       disabled={sending || !replyText.trim()}
-                      className="mt-2 w-full rounded-lg bg-foreground px-3 py-2 text-sm font-medium text-background disabled:opacity-50"
+                      className="mt-2 min-h-11 w-full rounded-lg bg-foreground px-3 py-2 text-sm font-medium text-background disabled:opacity-50"
                     >
                       {sending ? 'Sending…' : 'Send reply'}
                     </button>

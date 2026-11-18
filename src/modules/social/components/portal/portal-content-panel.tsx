@@ -105,18 +105,18 @@ export async function PortalContentPanel({
       </section>
 
       <section>
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
           <h3 className="text-lg font-semibold text-foreground">Calendar · {monthLabel}</h3>
-          <div className="flex gap-2 text-sm">
+          <div className="flex w-full gap-2 text-sm sm:w-auto">
             <Link
               href={`/portal/content?month=${prev}`}
-              className="rounded-lg border border-border bg-surface px-3 py-1.5 hover:bg-surface-muted"
+              className="inline-flex min-h-10 flex-1 items-center justify-center rounded-lg border border-border bg-surface px-3 py-1.5 hover:bg-surface-muted sm:flex-none"
             >
               Previous
             </Link>
             <Link
               href={`/portal/content?month=${next}`}
-              className="rounded-lg border border-border bg-surface px-3 py-1.5 hover:bg-surface-muted"
+              className="inline-flex min-h-10 flex-1 items-center justify-center rounded-lg border border-border bg-surface px-3 py-1.5 hover:bg-surface-muted sm:flex-none"
             >
               Next
             </Link>

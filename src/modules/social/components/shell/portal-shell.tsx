@@ -248,7 +248,7 @@ export function PortalShell({ branding, nav, clientName, children }: Props) {
           }
         />
 
-        <div className="md:bg-border flex min-w-0 flex-1 flex-col gap-px overflow-hidden md:rounded-xl">
+        <div className="md:bg-border flex min-w-0 flex-1 flex-col gap-px overflow-x-hidden md:rounded-xl">
           {/* Desktop header — same as the agency app, with the client's name instead of the switcher */}
           <header className="bg-surface hidden h-16 shrink-0 items-center gap-4 px-5 md:flex">
             <Link href={homeHref} className="flex shrink-0 items-center gap-2.5 font-semibold">
@@ -261,23 +261,23 @@ export function PortalShell({ branding, nav, clientName, children }: Props) {
               {current?.label ?? 'Client portal'}
             </h1>
             <ThemeSwitch theme={theme} onChange={changeTheme} />
-            <div className="text-right leading-tight">
-              <p className="text-sm font-medium">{clientName || 'Client portal'}</p>
-              <p className="text-muted-foreground text-xs">{branding.name}</p>
+            <div className="min-w-0 text-right leading-tight">
+              <p className="truncate text-sm font-medium">{clientName || 'Client portal'}</p>
+              <p className="text-muted-foreground truncate text-xs">{branding.name}</p>
             </div>
             <button
               type="button"
               onClick={() => void logout()}
               disabled={loggingOut}
               title="Sign out"
-              className="text-muted-foreground hover:bg-surface-muted hover:text-foreground rounded-lg p-2 transition"
+              className="text-muted-foreground hover:bg-surface-muted hover:text-foreground shrink-0 rounded-lg p-2 transition"
             >
               <LogOut className="size-4" />
             </button>
           </header>
 
-          <main className="bg-surface min-w-0 flex-1 p-4 pb-24 md:p-5 md:pb-5">
-            {children}
+          <main className="bg-surface min-w-0 flex-1 overflow-x-hidden p-4 pb-24 md:p-5 md:pb-5">
+            <div className="mx-auto w-full min-w-0 max-w-full">{children}</div>
           </main>
         </div>
       </div>

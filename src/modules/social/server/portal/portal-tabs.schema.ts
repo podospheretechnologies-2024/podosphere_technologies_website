@@ -28,3 +28,14 @@ export const copyPortalTabsSchema = z.object({
 });
 
 export type CopyPortalTabsBody = z.infer<typeof copyPortalTabsSchema>;
+
+/** Full replace of org default portal tab config (new clients only). */
+export const saveOrgPortalDefaultsSchema = z.object({
+  tabs: z.partialRecord(z.enum(PORTAL_TAB_IDS), z.enum(PORTAL_ACCESS_LEVELS)).optional(),
+  order: z.array(z.enum(PORTAL_TAB_IDS)).max(PORTAL_TAB_IDS.length).optional(),
+  adSpendVisible: z.boolean().optional(),
+  whatsappDailyCap: z.number().int().min(1).max(10_000).nullable().optional(),
+  whatsappBroadcastNeedsApproval: z.boolean().nullable().optional(),
+});
+
+export type SaveOrgPortalDefaultsBody = z.infer<typeof saveOrgPortalDefaultsSchema>;

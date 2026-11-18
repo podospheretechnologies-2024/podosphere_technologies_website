@@ -27,7 +27,9 @@ describe('shopify scopes', () => {
         'read_publications',
       ].sort()
     );
-    expect(SHOPIFY_SCOPE_STRING.split(',')).toHaveLength(15);
+    // read_all_orders is rejected by Shopify's form until approved, so it is not in the paste list.
+    expect(SHOPIFY_SCOPE_STRING.split(',')).toHaveLength(14);
+    expect(SHOPIFY_SCOPE_STRING).not.toContain('read_all_orders');
   });
 
   it('has no duplicates and only one write permission', () => {

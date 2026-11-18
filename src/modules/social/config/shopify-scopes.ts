@@ -41,8 +41,15 @@ export const SHOPIFY_LIVE_EVENT_SCOPES: readonly string[] = scopesOf('core');
 export const SHOPIFY_GROWTH_SCOPES: readonly string[] = scopesOf('growth');
 /** Every permission to tick on the app. */
 export const SHOPIFY_ALL_SCOPES: readonly string[] = SHOPIFY_ACCESS_CHECKS.flatMap((row) => [...row.scopes]);
+/**
+ * Shopify's app form rejects these as "invalid scopes" until Shopify has approved them for the
+ * app (Dev Dashboard access request). They are checked, but kept out of the paste list.
+ */
+export const SHOPIFY_APPROVAL_SCOPES: readonly string[] = ['read_all_orders'];
+/** Scopes that can be pasted in the app's access list straight away. */
+export const SHOPIFY_PASTE_SCOPES: readonly string[] = SHOPIFY_ALL_SCOPES.filter((s) => !SHOPIFY_APPROVAL_SCOPES.includes(s));
 /** Comma-separated list, ready to paste in the app's access list. */
-export const SHOPIFY_SCOPE_STRING = SHOPIFY_ALL_SCOPES.join(',');
+export const SHOPIFY_SCOPE_STRING = SHOPIFY_PASTE_SCOPES.join(',');
 
 /**
  * Shopify leaves out `read_x` from the granted list when `write_x` was granted, because write

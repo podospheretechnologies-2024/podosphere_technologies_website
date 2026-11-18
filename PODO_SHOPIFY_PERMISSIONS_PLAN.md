@@ -1,4 +1,4 @@
-# Podo Social: Shopify app permissions for social media marketing
+sta# Podo Social: Shopify app permissions for social media marketing
 
 Written 18 Nov 2026. Status: plan only, nothing built.
 Checked against Shopify's access-scopes page and protected-customer-data page on 18 Nov 2026.
@@ -14,8 +14,11 @@ products, prices or customers.
 Paste this in the app's access list (Dev Dashboard → app → Versions → Scopes):
 
 ```
-read_orders,read_all_orders,read_customers,read_products,read_inventory,read_locations,read_discounts,read_reports,read_content,write_content,read_fulfillments,read_returns,read_marketing_events,read_files,read_publications
+read_orders,read_customers,read_products,read_inventory,read_locations,read_discounts,read_reports,read_content,write_content,read_fulfillments,read_returns,read_marketing_events,read_files,read_publications
 ```
+
+`read_all_orders` is the 15th. Shopify's form rejects it until it is approved for the app
+(section 5), so it is added afterwards in a new version.
 
 ## 2. Permissions to give
 
@@ -79,7 +82,7 @@ Without this Shopify sends orders with the name, phone, email and address blank.
 
 | Item | Approval needed |
 | --- | --- |
-| `read_all_orders` | None when the app sits in the store owner's own Shopify organisation. If the app sits in a Partner organisation: Dev Dashboard → Settings → Access requests → Read all orders |
+| `read_all_orders` | **Needed (found 18 Nov 2026).** The Create app form rejected it: "Contains invalid scopes: read_all_orders". Leave it out of the pasted list, create the app, request it in the Dev Dashboard (app → Settings → Access requests → Read all orders), then add it in a new version |
 | Protected customer data | See section 4 |
 | Everything else in section 2 | None |
 
