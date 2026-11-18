@@ -31,6 +31,38 @@
       "namedRegex": "^/api/approver/posts/(?<nxtPgroup>[^/]+?)(?:/)?$"
     },
     {
+      "page": "/api/portal/agent/threads/[id]",
+      "regex": "^/api/portal/agent/threads/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/portal/agent/threads/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/api/portal/inbox/[threadId]",
+      "regex": "^/api/portal/inbox/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPthreadId": "nxtPthreadId"
+      },
+      "namedRegex": "^/api/portal/inbox/(?<nxtPthreadId>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/api/portal/inbox/[threadId]/reply",
+      "regex": "^/api/portal/inbox/([^/]+?)/reply(?:/)?$",
+      "routeKeys": {
+        "nxtPthreadId": "nxtPthreadId"
+      },
+      "namedRegex": "^/api/portal/inbox/(?<nxtPthreadId>[^/]+?)/reply(?:/)?$"
+    },
+    {
+      "page": "/api/portal/leads/[id]/stage",
+      "regex": "^/api/portal/leads/([^/]+?)/stage(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/portal/leads/(?<nxtPid>[^/]+?)/stage(?:/)?$"
+    },
+    {
       "page": "/api/social/ads/accounts/[id]",
       "regex": "^/api/social/ads/accounts/([^/]+?)(?:/)?$",
       "routeKeys": {
@@ -256,6 +288,14 @@
         "nxtPid": "nxtPid"
       },
       "namedRegex": "^/api/social/clients/(?<nxtPid>[^/]+?)/portal\\-tabs(?:/)?$"
+    },
+    {
+      "page": "/api/social/clients/[id]/portal-tabs/copy",
+      "regex": "^/api/social/clients/([^/]+?)/portal\\-tabs/copy(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/social/clients/(?<nxtPid>[^/]+?)/portal\\-tabs/copy(?:/)?$"
     },
     {
       "page": "/api/social/clients/[id]/revoke-link",
@@ -586,6 +626,22 @@
       "namedRegex": "^/api/social/whatsapp/conversations/(?<nxtPid>[^/]+?)(?:/)?$"
     },
     {
+      "page": "/api/social/whatsapp/order-flows/[flowKey]",
+      "regex": "^/api/social/whatsapp/order\\-flows/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPflowKey": "nxtPflowKey"
+      },
+      "namedRegex": "^/api/social/whatsapp/order\\-flows/(?<nxtPflowKey>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/api/social/whatsapp/order-flows/[flowKey]/test",
+      "regex": "^/api/social/whatsapp/order\\-flows/([^/]+?)/test(?:/)?$",
+      "routeKeys": {
+        "nxtPflowKey": "nxtPflowKey"
+      },
+      "namedRegex": "^/api/social/whatsapp/order\\-flows/(?<nxtPflowKey>[^/]+?)/test(?:/)?$"
+    },
+    {
       "page": "/api/team/invitations/[id]",
       "regex": "^/api/team/invitations/([^/]+?)(?:/)?$",
       "routeKeys": {
@@ -632,6 +688,14 @@
         "nxtPid": "nxtPid"
       },
       "namedRegex": "^/dashboard/social/clients/(?<nxtPid>[^/]+?)/onboarding(?:/)?$"
+    },
+    {
+      "page": "/dashboard/social/clients/[id]/portal",
+      "regex": "^/dashboard/social/clients/([^/]+?)/portal(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/dashboard/social/clients/(?<nxtPid>[^/]+?)/portal(?:/)?$"
     },
     {
       "page": "/features/[slug]",
@@ -780,6 +844,24 @@
       "namedRegex": "^/api/portal/ads(?:/)?$"
     },
     {
+      "page": "/api/portal/agent",
+      "regex": "^/api/portal/agent(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/portal/agent(?:/)?$"
+    },
+    {
+      "page": "/api/portal/agent/messages",
+      "regex": "^/api/portal/agent/messages(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/portal/agent/messages(?:/)?$"
+    },
+    {
+      "page": "/api/portal/agent/threads",
+      "regex": "^/api/portal/agent/threads(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/portal/agent/threads(?:/)?$"
+    },
+    {
       "page": "/api/portal/brand",
       "regex": "^/api/portal/brand(?:/)?$",
       "routeKeys": {},
@@ -790,6 +872,18 @@
       "regex": "^/api/portal/brand/media(?:/)?$",
       "routeKeys": {},
       "namedRegex": "^/api/portal/brand/media(?:/)?$"
+    },
+    {
+      "page": "/api/portal/content/request-post",
+      "regex": "^/api/portal/content/request\\-post(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/portal/content/request\\-post(?:/)?$"
+    },
+    {
+      "page": "/api/portal/inbox",
+      "regex": "^/api/portal/inbox(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/portal/inbox(?:/)?$"
     },
     {
       "page": "/api/portal/leads",
@@ -814,6 +908,12 @@
       "regex": "^/api/portal/password(?:/)?$",
       "routeKeys": {},
       "namedRegex": "^/api/portal/password(?:/)?$"
+    },
+    {
+      "page": "/api/portal/plugs",
+      "regex": "^/api/portal/plugs(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/portal/plugs(?:/)?$"
     },
     {
       "page": "/api/portal/requests",
@@ -1194,10 +1294,34 @@
       "namedRegex": "^/api/social/growth/shopify(?:/)?$"
     },
     {
+      "page": "/api/social/growth/shopify/recheck",
+      "regex": "^/api/social/growth/shopify/recheck(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/social/growth/shopify/recheck(?:/)?$"
+    },
+    {
       "page": "/api/social/growth/shopify/sync",
       "regex": "^/api/social/growth/shopify/sync(?:/)?$",
       "routeKeys": {},
       "namedRegex": "^/api/social/growth/shopify/sync(?:/)?$"
+    },
+    {
+      "page": "/api/social/growth/shopify/webhooks",
+      "regex": "^/api/social/growth/shopify/webhooks(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/social/growth/shopify/webhooks(?:/)?$"
+    },
+    {
+      "page": "/api/social/growth/shopify/webhooks/disable",
+      "regex": "^/api/social/growth/shopify/webhooks/disable(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/social/growth/shopify/webhooks/disable(?:/)?$"
+    },
+    {
+      "page": "/api/social/growth/shopify/webhooks/enable",
+      "regex": "^/api/social/growth/shopify/webhooks/enable(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/social/growth/shopify/webhooks/enable(?:/)?$"
     },
     {
       "page": "/api/social/growth/summary",
@@ -1440,6 +1564,24 @@
       "namedRegex": "^/api/social/whatsapp/messages(?:/)?$"
     },
     {
+      "page": "/api/social/whatsapp/order-flows",
+      "regex": "^/api/social/whatsapp/order\\-flows(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/social/whatsapp/order\\-flows(?:/)?$"
+    },
+    {
+      "page": "/api/social/whatsapp/order-flows/activity",
+      "regex": "^/api/social/whatsapp/order\\-flows/activity(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/social/whatsapp/order\\-flows/activity(?:/)?$"
+    },
+    {
+      "page": "/api/social/whatsapp/order-flows/results",
+      "regex": "^/api/social/whatsapp/order\\-flows/results(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/social/whatsapp/order\\-flows/results(?:/)?$"
+    },
+    {
       "page": "/api/social/whatsapp/settings",
       "regex": "^/api/social/whatsapp/settings(?:/)?$",
       "routeKeys": {},
@@ -1510,6 +1652,12 @@
       "regex": "^/api/webhooks/razorpay(?:/)?$",
       "routeKeys": {},
       "namedRegex": "^/api/webhooks/razorpay(?:/)?$"
+    },
+    {
+      "page": "/api/webhooks/shopify",
+      "regex": "^/api/webhooks/shopify(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/webhooks/shopify(?:/)?$"
     },
     {
       "page": "/api/webhooks/whatsapp",
@@ -1716,6 +1864,12 @@
       "namedRegex": "^/portal/ads(?:/)?$"
     },
     {
+      "page": "/portal/agent",
+      "regex": "^/portal/agent(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/portal/agent(?:/)?$"
+    },
+    {
       "page": "/portal/analytics",
       "regex": "^/portal/analytics(?:/)?$",
       "routeKeys": {},
@@ -1740,6 +1894,12 @@
       "namedRegex": "^/portal/content(?:/)?$"
     },
     {
+      "page": "/portal/inbox",
+      "regex": "^/portal/inbox(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/portal/inbox(?:/)?$"
+    },
+    {
       "page": "/portal/leads",
       "regex": "^/portal/leads(?:/)?$",
       "routeKeys": {},
@@ -1750,6 +1910,12 @@
       "regex": "^/portal/overview(?:/)?$",
       "routeKeys": {},
       "namedRegex": "^/portal/overview(?:/)?$"
+    },
+    {
+      "page": "/portal/plugs",
+      "regex": "^/portal/plugs(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/portal/plugs(?:/)?$"
     },
     {
       "page": "/portal/reports",

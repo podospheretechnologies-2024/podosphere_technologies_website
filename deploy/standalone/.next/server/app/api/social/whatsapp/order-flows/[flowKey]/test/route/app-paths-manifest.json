@@ -1,0 +1,3 @@
+{
+  "/api/social/whatsapp/order-flows/[flowKey]/test/route": "app/api/social/whatsapp/order-flows/[flowKey]/test/route.js"
+}

@@ -1,0 +1,3 @@
+{
+  "/api/portal/inbox/[threadId]/route": "app/api/portal/inbox/[threadId]/route.js"
+}

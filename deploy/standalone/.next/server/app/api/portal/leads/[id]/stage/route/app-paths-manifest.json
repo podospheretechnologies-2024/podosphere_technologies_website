@@ -1,0 +1,3 @@
+{
+  "/api/portal/leads/[id]/stage/route": "app/api/portal/leads/[id]/stage/route.js"
+}

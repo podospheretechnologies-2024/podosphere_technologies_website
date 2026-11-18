@@ -1,6 +1,6 @@
 var R=require("../../../../../chunks/[turbopack]_runtime.js")("server/app/api/social/whatsapp/agency-notify/route.js")
-R.c("server/chunks/[externals]__00cibgx._.js")
-R.c("server/chunks/[root-of-the-server]__0uq2rzz._.js")
+R.c("server/chunks/[externals]__0-ap3c7._.js")
+R.c("server/chunks/[root-of-the-server]__0hc43y-._.js")
 R.c("server/chunks/06bi_zod_v4_1air0r0._.js")
 R.c("server/chunks/_1np73c7._.js")
 R.c("server/chunks/src_modules_social_server_130ylzt._.js")
