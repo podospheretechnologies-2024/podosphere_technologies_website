@@ -110,12 +110,12 @@ export function PortalAgentPanel({
     return (
       <>
         <div className="mb-8">
-          <h2 className="text-2xl font-bold text-gray-900">Agent</h2>
-          <p className="mt-1 text-gray-500">Ask about your posts, analytics, and leads.</p>
+          <h2 className="text-2xl font-bold text-foreground">Agent</h2>
+          <p className="mt-1 text-muted-foreground">Ask about your posts, analytics, and leads.</p>
         </div>
-        <div className="rounded-xl border border-gray-200 bg-white p-8 text-center shadow-sm">
-          <p className="text-base font-medium text-gray-900">AI is not set up yet</p>
-          <p className="mt-2 text-sm text-gray-500">
+        <div className="rounded-xl border border-border bg-surface p-8 text-center shadow-sm">
+          <p className="text-base font-medium text-foreground">AI is not set up yet</p>
+          <p className="mt-2 text-sm text-muted-foreground">
             Your agency still needs to connect an AI provider. Chat will appear here once that is
             done — nothing is wrong on your side.
           </p>
@@ -128,8 +128,8 @@ export function PortalAgentPanel({
     <>
       <div className="mb-8 flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">Agent</h2>
-          <p className="mt-1 text-gray-500">
+          <h2 className="text-2xl font-bold text-foreground">Agent</h2>
+          <p className="mt-1 text-muted-foreground">
             Chat about your channels, posts, and leads. Answers stay limited to your account.
           </p>
         </div>
@@ -138,7 +138,7 @@ export function PortalAgentPanel({
             type="button"
             onClick={startNewChat}
             disabled={busy}
-            className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 disabled:opacity-50"
+            className="rounded-lg border border-border bg-surface px-3 py-2 text-sm font-medium text-foreground shadow-sm hover:bg-surface-muted disabled:opacity-50"
           >
             New chat
           </button>
@@ -146,12 +146,12 @@ export function PortalAgentPanel({
       </div>
 
       <div className="grid gap-4 lg:grid-cols-[220px_minmax(0,1fr)]">
-        <aside className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm">
-          <p className="mb-2 px-1 text-xs font-medium tracking-wide text-gray-500 uppercase">
+        <aside className="rounded-xl border border-border bg-surface p-3 shadow-sm">
+          <p className="mb-2 px-1 text-xs font-medium tracking-wide text-muted-foreground uppercase">
             Recent
           </p>
           {threads.length === 0 ? (
-            <p className="px-1 py-4 text-sm text-gray-500">No chats yet.</p>
+            <p className="px-1 py-4 text-sm text-muted-foreground">No chats yet.</p>
           ) : (
             <ul className="space-y-1">
               {threads.map((row) => (
@@ -161,8 +161,8 @@ export function PortalAgentPanel({
                     onClick={() => void openThread(row.id)}
                     className={
                       row.id === activeId
-                        ? 'w-full rounded-lg bg-gray-900 px-3 py-2 text-left text-sm font-medium text-white'
-                        : 'w-full rounded-lg px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50'
+                        ? 'w-full rounded-lg bg-foreground px-3 py-2 text-left text-sm font-medium text-background'
+                        : 'w-full rounded-lg px-3 py-2 text-left text-sm text-foreground hover:bg-surface-muted'
                     }
                   >
                     <span className="line-clamp-2">{row.title?.trim() || 'Untitled chat'}</span>
@@ -173,12 +173,12 @@ export function PortalAgentPanel({
           )}
         </aside>
 
-        <section className="flex min-h-[420px] flex-col rounded-xl border border-gray-200 bg-white shadow-sm">
+        <section className="flex min-h-[420px] flex-col rounded-xl border border-border bg-surface shadow-sm">
           <div className="flex-1 space-y-3 overflow-y-auto p-4">
             {loadingThread ? (
-              <p className="text-sm text-gray-500">Loading chat…</p>
+              <p className="text-sm text-muted-foreground">Loading chat…</p>
             ) : messages.length === 0 ? (
-              <p className="py-10 text-center text-sm text-gray-500">
+              <p className="py-10 text-center text-sm text-muted-foreground">
                 {canAct
                   ? 'Ask a question about your posts, analytics, or leads to start.'
                   : 'No messages in this chat yet. Ask your agency for chat access to send one.'}
@@ -189,11 +189,11 @@ export function PortalAgentPanel({
                   key={row.id}
                   className={
                     row.role === 'assistant'
-                      ? 'rounded-lg bg-gray-50 px-3 py-2 text-sm text-gray-900'
-                      : 'px-1 text-sm text-gray-900'
+                      ? 'rounded-lg bg-surface-muted px-3 py-2 text-sm text-foreground'
+                      : 'px-1 text-sm text-foreground'
                   }
                 >
-                  <p className="mb-1 text-[11px] font-medium tracking-wide text-gray-500 uppercase">
+                  <p className="mb-1 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
                     {row.role === 'user' ? 'You' : 'Agent'}
                   </p>
                   <p className="whitespace-pre-wrap">{row.text || '(no text)'}</p>
@@ -203,14 +203,14 @@ export function PortalAgentPanel({
           </div>
 
           {canAct ? (
-            <div className="border-t border-gray-100 p-4">
+            <div className="border-t border-border p-4">
               {error ? <p className="mb-2 text-sm text-red-600">{error}</p> : null}
               <textarea
                 value={message}
                 onChange={(event) => setMessage(event.target.value)}
                 rows={3}
                 placeholder="e.g. How did our Instagram posts perform this month?"
-                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-gray-400"
+                className="w-full rounded-lg border border-border px-3 py-2 text-sm outline-none focus:border-foreground/40"
                 disabled={busy}
                 onKeyDown={(event) => {
                   if (event.key === 'Enter' && !event.shiftKey) {
@@ -224,14 +224,14 @@ export function PortalAgentPanel({
                   type="button"
                   onClick={() => void send()}
                   disabled={busy || !message.trim()}
-                  className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50"
+                  className="rounded-lg bg-foreground px-4 py-2 text-sm font-medium text-background hover:opacity-90 disabled:opacity-50"
                 >
                   {busy ? 'Working…' : 'Send'}
                 </button>
               </div>
             </div>
           ) : (
-            <div className="border-t border-gray-100 px-4 py-3 text-sm text-gray-500">
+            <div className="border-t border-border px-4 py-3 text-sm text-muted-foreground">
               View only — ask your agency to set Agent to &quot;Can act&quot; if you need to chat.
               {error ? <p className="mt-1 text-red-600">{error}</p> : null}
             </div>

@@ -179,6 +179,9 @@ Status: plan only. Steps 1 to 4 need no new code.
 ### Access list for the app
 
 Tick all of these when creating the app, so the app does not have to be reinstalled later.
+**Newer, complete list:** `PODO_SHOPIFY_PERMISSIONS_PLAN.md` (18 Nov 2026). It replaces this
+table: `read_analytics` is not a current Shopify permission, and returns, stock locations,
+files and marketing events are added.
 
 | Access | Used for | In the dashboard today |
 | --- | --- | --- |

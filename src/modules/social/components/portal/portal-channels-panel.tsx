@@ -29,7 +29,7 @@ export async function PortalChannelsPanel({
       <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold">Integrations</h2>
-          <p className="mt-1 text-gray-500">
+          <p className="mt-1 text-muted-foreground">
             {hasChannels
               ? 'These social accounts are connected to your portal.'
               : canAct
@@ -42,26 +42,26 @@ export async function PortalChannelsPanel({
             <ConnectChannelButton
               provider="facebook"
               label="Connect Facebook"
-              className="rounded-lg bg-black px-4 py-2 text-sm font-medium text-white transition hover:bg-gray-800"
+              className="rounded-lg bg-foreground px-4 py-2 text-sm font-medium text-background transition hover:opacity-90"
             />
             <ConnectChannelButton
               provider="instagram"
               label="Connect Instagram"
-              className="rounded-lg bg-black px-4 py-2 text-sm font-medium text-white transition hover:bg-gray-800"
+              className="rounded-lg bg-foreground px-4 py-2 text-sm font-medium text-background transition hover:opacity-90"
             />
           </div>
         ) : null}
       </div>
 
       {!hasChannels ? (
-        <div className="rounded-xl border border-gray-200 bg-white p-12 text-center">
-          <h3 className="mb-1 text-lg font-medium text-gray-900">No channels connected</h3>
-          <p className="mb-4 text-gray-500">No social media accounts are connected yet.</p>
+        <div className="rounded-xl border border-border bg-surface p-12 text-center">
+          <h3 className="mb-1 text-lg font-medium text-foreground">No channels connected</h3>
+          <p className="mb-4 text-muted-foreground">No social media accounts are connected yet.</p>
           {canAct ? (
             <ConnectChannelButton
               provider="facebook"
               label="Connect Account"
-              className="inline-flex rounded-lg bg-black px-4 py-2 text-sm font-medium text-white transition hover:bg-gray-800"
+              className="inline-flex rounded-lg bg-foreground px-4 py-2 text-sm font-medium text-background transition hover:opacity-90"
             />
           ) : null}
         </div>
@@ -70,7 +70,7 @@ export async function PortalChannelsPanel({
           {integrations.map((integration) => (
             <div
               key={integration.id}
-              className="flex items-center justify-between rounded-xl border border-gray-200 bg-white p-6"
+              className="flex items-center justify-between rounded-xl border border-border bg-surface p-6"
             >
               <div className="flex items-center gap-4">
                 {integration.picture ? (
@@ -78,14 +78,14 @@ export async function PortalChannelsPanel({
                   <img
                     src={integration.picture}
                     alt=""
-                    className="h-12 w-12 rounded-full border border-gray-100"
+                    className="h-12 w-12 rounded-full border border-border"
                   />
                 ) : (
-                  <div className="h-12 w-12 rounded-full bg-gray-100" />
+                  <div className="h-12 w-12 rounded-full bg-surface-muted" />
                 )}
                 <div>
-                  <div className="font-semibold text-gray-900">{integration.name}</div>
-                  <div className="text-sm text-gray-500 capitalize">
+                  <div className="font-semibold text-foreground">{integration.name}</div>
+                  <div className="text-sm text-muted-foreground capitalize">
                     {integration.providerIdentifier}
                   </div>
                 </div>

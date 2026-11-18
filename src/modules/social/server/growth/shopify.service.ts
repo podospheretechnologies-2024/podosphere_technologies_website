@@ -6,6 +6,13 @@ import { HttpError } from '@/shared/server/http-error';
 import type { SocialShopifyStore } from '@/generated/prisma/client';
 import { SHOPIFY_ORDER_FLOW_TOPICS } from '@/modules/social/config/order-flows';
 import {
+  SHOPIFY_ACCESS_CHECKS,
+  SHOPIFY_ALL_SCOPES,
+  SHOPIFY_LIVE_EVENT_SCOPES,
+  hasShopifyScope,
+  type ShopifyAccessGroup,
+} from '@/modules/social/config/shopify-scopes';
+import {
   ShopifyApiError,
   createWebhook,
   deleteWebhook,
@@ -35,27 +42,21 @@ const ORDER_LOOKBACK_DAYS = 60;
 const TRAFFIC_BREAKDOWN_DAYS = 30;
 const WEBHOOK_STALE_MS = 24 * 60 * 60 * 1000;
 
-/** Scopes for Growth Desk sync + blogs. */
-export const GROWTH_SCOPES = ['read_reports', 'read_content', 'write_content'] as const;
 /** Scopes for live order / shipping / abandoned-checkout events (Option 1). */
-export const LIVE_EVENT_SCOPES = ['read_orders', 'read_fulfillments', 'read_customers', 'read_products'] as const;
-export const RECOMMENDED_SCOPES = [...LIVE_EVENT_SCOPES, ...GROWTH_SCOPES] as const;
-
-/** UI access rows on the connect screen. */
-export const ACCESS_CHECKS = [
-  { key: 'orders', label: 'Orders', scopes: ['read_orders'] as const },
-  { key: 'shipping', label: 'Shipping', scopes: ['read_fulfillments'] as const },
-  { key: 'customers', label: 'Customers', scopes: ['read_customers'] as const },
-  { key: 'products', label: 'Products', scopes: ['read_products'] as const },
-] as const;
+export const LIVE_EVENT_SCOPES = SHOPIFY_LIVE_EVENT_SCOPES;
 
 export type WebhookHealth = 'off' | 'never' | 'ok' | 'stale';
 
 export interface AccessCheckRow {
   key: string;
   label: string;
+  group: ShopifyAccessGroup;
   ok: boolean;
+  /** False while the dashboard does not read this data yet. */
+  inUse: boolean;
   scopes: string[];
+  /** The scopes of this row that the store has not granted. */
+  missing: string[];
 }
 
 export interface ShopifyStoreDto {
@@ -97,13 +98,19 @@ function computeWebhookHealth(store: SocialShopifyStore | null): WebhookHealth {
 
 function toDto(store: SocialShopifyStore | null): ShopifyStoreDto {
   const scopes = store?.scopes ? store.scopes.split(',').map((s) => s.trim()).filter(Boolean) : [];
-  const accessChecks: AccessCheckRow[] = ACCESS_CHECKS.map((row) => ({
-    key: row.key,
-    label: row.label,
-    scopes: [...row.scopes],
-    ok: row.scopes.every((s) => scopes.includes(s)),
-  }));
-  const missingLive = LIVE_EVENT_SCOPES.filter((s) => !scopes.includes(s));
+  const accessChecks: AccessCheckRow[] = SHOPIFY_ACCESS_CHECKS.map((row) => {
+    const missing = row.scopes.filter((s) => !hasShopifyScope(scopes, s));
+    return {
+      key: row.key,
+      label: row.label,
+      group: row.group,
+      inUse: row.inUse,
+      scopes: [...row.scopes],
+      missing,
+      ok: missing.length === 0,
+    };
+  });
+  const missingLive = LIVE_EVENT_SCOPES.filter((s) => !hasShopifyScope(scopes, s));
   const hasSecret = Boolean(store?.clientSecretEncrypted);
   return {
     connected: Boolean(store),
@@ -114,7 +121,7 @@ function toDto(store: SocialShopifyStore | null): ShopifyStoreDto {
     timeZone: store?.timeZone ?? null,
     authMode: store?.authMode ?? null,
     scopes,
-    missingScopes: store ? RECOMMENDED_SCOPES.filter((s) => !scopes.includes(s)) : [],
+    missingScopes: store ? SHOPIFY_ALL_SCOPES.filter((s) => !hasShopifyScope(scopes, s)) : [],
     accessChecks,
     canEnableLiveEvents: Boolean(store) && missingLive.length === 0 && hasSecret,
     hasClientSecret: hasSecret,
@@ -278,7 +285,7 @@ export const shopifyService = {
       );
     }
     const scopes = store.scopes ? store.scopes.split(',').map((s) => s.trim()).filter(Boolean) : [];
-    const missing = LIVE_EVENT_SCOPES.filter((s) => !scopes.includes(s));
+    const missing = LIVE_EVENT_SCOPES.filter((s) => !hasShopifyScope(scopes, s));
     if (missing.length) {
       throw new HttpError(
         400,

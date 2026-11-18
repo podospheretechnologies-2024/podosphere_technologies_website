@@ -1,5 +1,5 @@
 var R=require("../../../../../chunks/[turbopack]_runtime.js")("server/app/api/social/growth/shopify/route.js")
-R.c("server/chunks/[externals]__1vys7ri._.js")
+R.c("server/chunks/[externals]__0-54u1y._.js")
 R.c("server/chunks/06bi_zod_v4_1air0r0._.js")
 R.c("server/chunks/_1o2cw6m._.js")
 R.c("server/chunks/_0kmq-9k._.js")

@@ -59,8 +59,8 @@ export function PortalLeadsPanel({
   return (
     <>
       <div className="mb-8">
-        <h2 className="text-2xl font-bold text-gray-900">Leads</h2>
-        <p className="mt-1 text-gray-500">
+        <h2 className="text-2xl font-bold text-foreground">Leads</h2>
+        <p className="mt-1 text-muted-foreground">
           {canAct
             ? 'Leads from ads, WhatsApp, and forms — update status as you work them.'
             : 'Leads from ads, WhatsApp, and forms for your brand.'}
@@ -70,43 +70,43 @@ export function PortalLeadsPanel({
       {error ? <p className="mb-4 text-sm text-red-600">{error}</p> : null}
 
       <div className="mb-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-          <p className="text-sm text-gray-500">Total shown</p>
-          <p className="mt-1 text-2xl font-bold text-gray-900">{totals.all}</p>
+        <div className="rounded-xl border border-border bg-surface p-4 shadow-sm">
+          <p className="text-sm text-muted-foreground">Total shown</p>
+          <p className="mt-1 text-2xl font-bold text-foreground">{totals.all}</p>
         </div>
         {stages.map((stage) => (
-          <div key={stage} className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-            <p className="text-sm text-gray-500">{STAGE_LABELS[stage] ?? stage}</p>
-            <p className="mt-1 text-2xl font-bold text-gray-900">{totals.byStage[stage]}</p>
+          <div key={stage} className="rounded-xl border border-border bg-surface p-4 shadow-sm">
+            <p className="text-sm text-muted-foreground">{STAGE_LABELS[stage] ?? stage}</p>
+            <p className="mt-1 text-2xl font-bold text-foreground">{totals.byStage[stage]}</p>
           </div>
         ))}
       </div>
 
       {leads.length === 0 ? (
-        <div className="rounded-xl border border-gray-200 bg-white p-12 text-center text-gray-500">
+        <div className="rounded-xl border border-border bg-surface p-12 text-center text-muted-foreground">
           No leads yet for your brand.
         </div>
       ) : (
-        <ul className="divide-y divide-gray-100 overflow-hidden rounded-xl border border-gray-200 bg-white">
+        <ul className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-surface">
           {leads.map((lead) => (
             <li
               key={lead.id}
               className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
             >
               <div className="min-w-0">
-                <p className="truncate text-sm font-medium text-gray-900">
+                <p className="truncate text-sm font-medium text-foreground">
                   {lead.name || lead.email || lead.phone || 'Lead'}
                 </p>
-                <p className="text-xs text-gray-500">
+                <p className="text-xs text-muted-foreground">
                   {[lead.email, lead.phone].filter(Boolean).join(' · ') || 'No contact yet'}
                   {' · '}
                   {lead.source}
                 </p>
               </div>
-              <div className="flex shrink-0 flex-wrap items-center gap-3 text-xs text-gray-500">
+              <div className="flex shrink-0 flex-wrap items-center gap-3 text-xs text-muted-foreground">
                 {canAct ? (
                   <select
-                    className="rounded-lg border border-gray-200 bg-white px-2 py-1 text-xs font-medium text-gray-800"
+                    className="rounded-lg border border-border bg-surface px-2 py-1 text-xs font-medium text-foreground"
                     value={lead.stage}
                     disabled={pendingId === lead.id}
                     onChange={(event) => void changeStage(lead.id, event.target.value)}
@@ -119,7 +119,7 @@ export function PortalLeadsPanel({
                     ))}
                   </select>
                 ) : (
-                  <span className="rounded-full bg-gray-100 px-2 py-0.5 font-medium text-gray-700">
+                  <span className="rounded-full bg-surface-muted px-2 py-0.5 font-medium text-foreground">
                     {STAGE_LABELS[lead.stage] ?? lead.stage}
                   </span>
                 )}

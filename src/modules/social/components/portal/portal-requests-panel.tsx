@@ -69,22 +69,22 @@ export function PortalRequestsPanel({
   return (
     <>
       <div className="mb-8">
-        <h2 className="text-2xl font-bold text-gray-900">Requests</h2>
-        <p className="mt-1 text-gray-500">Ask for a post, campaign, or change and track status here.</p>
+        <h2 className="text-2xl font-bold text-foreground">Requests</h2>
+        <p className="mt-1 text-muted-foreground">Ask for a post, campaign, or change and track status here.</p>
       </div>
 
       <div
         className={
-          canAct ? 'mb-8 rounded-xl border border-gray-200 bg-white p-5 shadow-sm' : 'hidden'
+          canAct ? 'mb-8 rounded-xl border border-border bg-surface p-5 shadow-sm' : 'hidden'
         }
       >
-        <p className="mb-3 text-sm font-medium text-gray-900">New request</p>
+        <p className="mb-3 text-sm font-medium text-foreground">New request</p>
         {error ? <p className="mb-3 text-sm text-red-600">{error}</p> : null}
         <div className="grid gap-3 sm:grid-cols-2">
-          <label className="block text-xs font-medium text-gray-600">
+          <label className="block text-xs font-medium text-muted-foreground">
             Type
             <select
-              className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+              className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm"
               value={type}
               onChange={(event) => setType(event.target.value as typeof type)}
             >
@@ -95,10 +95,10 @@ export function PortalRequestsPanel({
               ))}
             </select>
           </label>
-          <label className="block text-xs font-medium text-gray-600">
+          <label className="block text-xs font-medium text-muted-foreground">
             Title
             <input
-              className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+              className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm"
               value={title}
               onChange={(event) => setTitle(event.target.value)}
               placeholder="Instagram reel for Diwali offer"
@@ -106,10 +106,10 @@ export function PortalRequestsPanel({
             />
           </label>
         </div>
-        <label className="mt-3 block text-xs font-medium text-gray-600">
+        <label className="mt-3 block text-xs font-medium text-muted-foreground">
           Details (optional)
           <textarea
-            className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+            className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm"
             rows={3}
             value={detail}
             onChange={(event) => setDetail(event.target.value)}
@@ -121,36 +121,36 @@ export function PortalRequestsPanel({
           type="button"
           disabled={saving || title.trim().length < 3}
           onClick={() => void submit()}
-          className="mt-3 rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+          className="mt-3 rounded-lg bg-foreground px-4 py-2 text-sm font-medium text-background disabled:opacity-50"
         >
           {saving ? 'Sending…' : 'Send request'}
         </button>
       </div>
 
       {requests.length === 0 ? (
-        <div className="rounded-xl border border-gray-200 bg-white p-12 text-center text-gray-500">
+        <div className="rounded-xl border border-border bg-surface p-12 text-center text-muted-foreground">
           No requests yet.
         </div>
       ) : (
         <ul className="space-y-3">
           {requests.map((request) => (
-            <li key={request.id} className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+            <li key={request.id} className="rounded-xl border border-border bg-surface p-4 shadow-sm">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="text-sm font-semibold text-gray-900">{request.title}</p>
-                <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700">
+                <p className="text-sm font-semibold text-foreground">{request.title}</p>
+                <span className="rounded-full bg-surface-muted px-2 py-0.5 text-xs font-medium text-foreground">
                   {STATUS_LABELS[request.status] ?? request.status}
                 </span>
               </div>
-              <p className="mt-1 text-xs text-gray-500">
+              <p className="mt-1 text-xs text-muted-foreground">
                 {TYPES.find((t) => t.id === request.type)?.label ?? request.type}
                 {' · '}
                 {new Date(request.createdAt).toLocaleDateString()}
               </p>
               {request.detail ? (
-                <p className="mt-2 whitespace-pre-wrap text-sm text-gray-700">{request.detail}</p>
+                <p className="mt-2 whitespace-pre-wrap text-sm text-foreground">{request.detail}</p>
               ) : null}
               {request.reply ? (
-                <p className="mt-3 rounded-lg bg-gray-50 px-3 py-2 text-sm text-gray-700">
+                <p className="mt-3 rounded-lg bg-surface-muted px-3 py-2 text-sm text-foreground">
                   <span className="font-medium">Agency reply: </span>
                   {request.reply}
                 </p>

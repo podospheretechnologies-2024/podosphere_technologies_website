@@ -48,17 +48,17 @@ function times(value: number | null | undefined) {
 
 function Stat({ label, value, note }: { label: string; value: string; note?: string }) {
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-      <p className="text-sm text-gray-500">{label}</p>
-      <p className="mt-1 text-2xl font-bold text-gray-900 tabular-nums">{value}</p>
-      {note ? <p className="mt-1 text-xs text-gray-500">{note}</p> : null}
+    <div className="rounded-xl border border-border bg-surface p-4 shadow-sm">
+      <p className="text-sm text-muted-foreground">{label}</p>
+      <p className="mt-1 text-2xl font-bold text-foreground tabular-nums">{value}</p>
+      {note ? <p className="mt-1 text-xs text-muted-foreground">{note}</p> : null}
     </div>
   );
 }
 
 function Empty({ children }: { children: ReactNode }) {
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-10 text-center text-sm text-gray-500">
+    <div className="rounded-xl border border-border bg-surface p-10 text-center text-sm text-muted-foreground">
       {children}
     </div>
   );
@@ -79,8 +79,8 @@ export function PortalGrowthDesk({
   return (
     <div className="min-w-0 overflow-x-hidden">
       <div className="mb-6">
-        <h2 className="text-2xl font-bold text-gray-900">Growth</h2>
-        <p className="mt-1 text-gray-500">
+        <h2 className="text-2xl font-bold text-foreground">Growth</h2>
+        <p className="mt-1 text-muted-foreground">
           {hero.storeConnected && hero.shopify.shopName ? `${hero.shopify.shopName} · ` : ''}
           {hero.since} → {hero.until}
         </p>
@@ -100,8 +100,8 @@ export function PortalGrowthDesk({
             className={cn(
               'min-h-10 shrink-0 rounded-lg px-3 py-2 text-sm whitespace-nowrap',
               tab === t.id
-                ? 'bg-gray-900 text-white'
-                : 'border border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
+                ? 'bg-foreground text-background'
+                : 'border border-border bg-surface text-muted-foreground hover:bg-surface-muted'
             )}
           >
             {t.label}
@@ -162,7 +162,7 @@ function OverviewPanel({
         <p className="mt-1 text-5xl font-bold tabular-nums">{times(hero.roas)}</p>
         <div className="relative mt-3 mb-1 h-3 rounded-full bg-white/20">
           <i
-            className="absolute inset-y-0 left-0 rounded-full bg-white"
+            className="absolute inset-y-0 left-0 rounded-full bg-surface"
             style={{ width: `${pct}%`, minWidth: 4 }}
           />
         </div>
@@ -225,7 +225,7 @@ function PerformancePanel({
 
       {shopify.connected ? (
         <section>
-          <h3 className="mb-3 text-lg font-semibold text-gray-900">Shopify daily</h3>
+          <h3 className="mb-3 text-lg font-semibold text-foreground">Shopify daily</h3>
           <div className="mb-4 grid gap-3 sm:grid-cols-3">
             <Stat label="Orders" value={count(shopify.totals.orders)} />
             <Stat label="Revenue" value={money(shopify.totals.sales, currency)} />
@@ -238,9 +238,9 @@ function PerformancePanel({
           {shopify.days.length === 0 ? (
             <Empty>No order data in this period yet.</Empty>
           ) : (
-            <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
+            <div className="overflow-x-auto rounded-xl border border-border bg-surface">
               <table className="min-w-full text-left text-sm">
-                <thead className="border-b border-gray-100 bg-gray-50 text-xs font-medium text-gray-500">
+                <thead className="border-b border-border bg-surface-muted text-xs font-medium text-muted-foreground">
                   <tr>
                     <th className="px-4 py-3">Date</th>
                     <th className="px-4 py-3">Orders</th>
@@ -248,10 +248,10 @@ function PerformancePanel({
                     {shopify.showSpend ? <th className="px-4 py-3">Ad spend</th> : null}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-50">
+                <tbody className="divide-y divide-border">
                   {[...shopify.days].reverse().map((day) => (
                     <tr key={day.date}>
-                      <td className="px-4 py-2.5 text-gray-700">{day.date}</td>
+                      <td className="px-4 py-2.5 text-foreground">{day.date}</td>
                       <td className="px-4 py-2.5">{day.orders}</td>
                       <td className="px-4 py-2.5">{money(day.sales, currency)}</td>
                       {shopify.showSpend ? (
@@ -267,7 +267,7 @@ function PerformancePanel({
       ) : null}
 
       <section>
-        <h3 className="mb-3 text-lg font-semibold text-gray-900">Ads summary</h3>
+        <h3 className="mb-3 text-lg font-semibold text-foreground">Ads summary</h3>
         {!ads.connected ? (
           <Empty>No ad accounts linked to your brand yet.</Empty>
         ) : (
@@ -287,18 +287,18 @@ function PerformancePanel({
             {ads.campaigns.length === 0 ? (
               <Empty>No campaign spend in this period.</Empty>
             ) : (
-              <ul className="divide-y divide-gray-100 overflow-hidden rounded-xl border border-gray-200 bg-white">
+              <ul className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-surface">
                 {ads.campaigns.map((c, i) => (
                   <li key={`${c.name}-${i}`} className="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
                     <div>
-                      <p className="font-medium text-gray-900">{c.name}</p>
-                      <p className="text-xs text-gray-500">
+                      <p className="font-medium text-foreground">{c.name}</p>
+                      <p className="text-xs text-muted-foreground">
                         {c.status}
                         {c.leads ? ` · ${c.leads} leads` : ''}
                         {c.purchases ? ` · ${c.purchases} purchases` : ''}
                       </p>
                     </div>
-                    <div className="text-sm tabular-nums text-gray-700">
+                    <div className="text-sm tabular-nums text-foreground">
                       {data.showSpend ? (
                         <>
                           {money(c.spend, currency)}
@@ -329,7 +329,7 @@ function WebsitePanel({ website }: { website: PortalGrowthOverview['hero']['webs
   }
   return (
     <section>
-      <p className="mb-3 text-sm text-gray-500">
+      <p className="mb-3 text-sm text-muted-foreground">
         {website.propertyName ? `${website.propertyName} · ` : ''}
         {website.since && website.until
           ? `${website.since} → ${website.until}`
@@ -377,21 +377,21 @@ function ContentPanel() {
       {data.items.length === 0 ? (
         <Empty>No posts in the schedule window yet.</Empty>
       ) : (
-        <ul className="divide-y divide-gray-100 overflow-hidden rounded-xl border border-gray-200 bg-white">
+        <ul className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-surface">
           {data.items.map((item) => (
             <li key={item.id} className="px-4 py-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="font-medium text-gray-900">{item.title}</p>
+                <p className="font-medium text-foreground">{item.title}</p>
                 <span
                   className={cn(
                     'rounded-full px-2 py-0.5 text-xs',
-                    item.late ? 'bg-red-50 text-red-700' : 'bg-gray-100 text-gray-600'
+                    item.late ? 'bg-red-50 text-red-700' : 'bg-surface-muted text-muted-foreground'
                   )}
                 >
                   {item.stage.replace('_', ' ')}
                 </span>
               </div>
-              <p className="mt-1 text-xs text-gray-500">
+              <p className="mt-1 text-xs text-muted-foreground">
                 {item.channel} · {new Date(item.publishDate).toLocaleDateString()}
                 {item.url ? (
                   <>
@@ -438,19 +438,19 @@ function ReportsPanel() {
   }
 
   return (
-    <ul className="divide-y divide-gray-100 overflow-hidden rounded-xl border border-gray-200 bg-white">
+    <ul className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-surface">
       {reports.map((report) => (
         <li
           key={`${report.kind}-${report.id}`}
           className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-start sm:justify-between"
         >
           <div className="min-w-0">
-            <p className="font-medium text-gray-900">{report.title}</p>
-            <p className="text-sm text-gray-500">
+            <p className="font-medium text-foreground">{report.title}</p>
+            <p className="text-sm text-muted-foreground">
               {report.periodStart.slice(0, 10)} – {report.periodEnd.slice(0, 10)}
             </p>
             {report.summary ? (
-              <p className="mt-2 text-sm text-gray-600 line-clamp-3">{report.summary}</p>
+              <p className="mt-2 text-sm text-muted-foreground line-clamp-3">{report.summary}</p>
             ) : null}
           </div>
           {report.pdfUrl ? (
@@ -458,12 +458,12 @@ function ReportsPanel() {
               href={report.pdfUrl}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex shrink-0 items-center justify-center rounded-lg bg-gray-900 px-3 py-2 text-sm font-medium text-white hover:bg-gray-800"
+              className="inline-flex shrink-0 items-center justify-center rounded-lg bg-foreground px-3 py-2 text-sm font-medium text-background hover:opacity-90"
             >
               Download PDF
             </a>
           ) : (
-            <span className="shrink-0 text-sm text-gray-500">
+            <span className="shrink-0 text-sm text-muted-foreground">
               {report.kind === 'growth' ? 'Summary' : 'PDF preparing…'}
             </span>
           )}
@@ -527,37 +527,37 @@ function CampaignsPanel({ canAct, onChanged }: { canAct: boolean; onChanged: () 
     <div className="space-y-4">
       {error ? <p className="text-sm text-red-600">{error}</p> : null}
       {!canAct ? (
-        <p className="text-sm text-gray-500">View only — ask your agency for Can act to approve ads.</p>
+        <p className="text-sm text-muted-foreground">View only — ask your agency for Can act to approve ads.</p>
       ) : null}
       {list.length === 0 ? (
         <Empty>No proposed campaigns yet.</Empty>
       ) : (
         <ul className="space-y-3">
           {(pending.length ? pending : list).map((item) => (
-            <li key={item.id} className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+            <li key={item.id} className="rounded-xl border border-border bg-surface p-4 shadow-sm">
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div>
-                  <p className="font-medium text-gray-900">{item.adName}</p>
-                  <p className="text-xs text-gray-500">
+                  <p className="font-medium text-foreground">{item.adName}</p>
+                  <p className="text-xs text-muted-foreground">
                     {item.campaignName} → {item.adsetName}
                   </p>
                 </div>
-                <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">
+                <span className="rounded-full bg-surface-muted px-2 py-0.5 text-xs text-muted-foreground">
                   {item.status}
                 </span>
               </div>
-              {item.headline ? <p className="mt-2 text-sm text-gray-800">{item.headline}</p> : null}
+              {item.headline ? <p className="mt-2 text-sm text-foreground">{item.headline}</p> : null}
               {item.primaryText ? (
-                <p className="mt-1 text-sm text-gray-600 line-clamp-3">{item.primaryText}</p>
+                <p className="mt-1 text-sm text-muted-foreground line-clamp-3">{item.primaryText}</p>
               ) : null}
-              {item.hook ? <p className="mt-1 text-xs text-gray-500">Hook: {item.hook}</p> : null}
+              {item.hook ? <p className="mt-1 text-xs text-muted-foreground">Hook: {item.hook}</p> : null}
               {canAct && item.status === 'pending' ? (
                 <div className="mt-3 flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
                   <button
                     type="button"
                     disabled={busyId === item.id}
                     onClick={() => void decide(item.id, 'approved')}
-                    className="min-h-11 w-full rounded-lg bg-gray-900 px-3 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50 sm:w-auto"
+                    className="min-h-11 w-full rounded-lg bg-foreground px-3 py-2 text-sm font-medium text-background hover:opacity-90 disabled:opacity-50 sm:w-auto"
                   >
                     Approve
                   </button>
@@ -565,7 +565,7 @@ function CampaignsPanel({ canAct, onChanged }: { canAct: boolean; onChanged: () 
                     type="button"
                     disabled={busyId === item.id}
                     onClick={() => void decide(item.id, 'rejected')}
-                    className="min-h-11 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 sm:w-auto"
+                    className="min-h-11 w-full rounded-lg border border-border px-3 py-2 text-sm font-medium text-foreground hover:bg-surface-muted disabled:opacity-50 sm:w-auto"
                   >
                     Reject
                   </button>
@@ -576,7 +576,7 @@ function CampaignsPanel({ canAct, onChanged }: { canAct: boolean; onChanged: () 
         </ul>
       )}
       {pending.length > 0 && list.length > pending.length ? (
-        <p className="text-xs text-gray-500">
+        <p className="text-xs text-muted-foreground">
           Showing {pending.length} pending. {list.length - pending.length} other items exist.
         </p>
       ) : null}
@@ -638,23 +638,23 @@ function BlogsPanel({ canAct, onChanged }: { canAct: boolean; onChanged: () => v
     <div className="space-y-4">
       {error ? <p className="text-sm text-red-600">{error}</p> : null}
       {!canAct ? (
-        <p className="text-sm text-gray-500">View only — ask your agency for Can act to approve drafts.</p>
+        <p className="text-sm text-muted-foreground">View only — ask your agency for Can act to approve drafts.</p>
       ) : null}
       {list.length === 0 ? (
         <Empty>No blog drafts to review yet.</Empty>
       ) : (
         <ul className="space-y-3">
           {list.map((blog) => (
-            <li key={blog.id} className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+            <li key={blog.id} className="rounded-xl border border-border bg-surface p-4 shadow-sm">
               <div className="flex flex-wrap items-start justify-between gap-2">
-                <p className="font-medium text-gray-900">{blog.title}</p>
-                <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">
+                <p className="font-medium text-foreground">{blog.title}</p>
+                <span className="rounded-full bg-surface-muted px-2 py-0.5 text-xs text-muted-foreground">
                   {blog.status}
                 </span>
               </div>
-              {blog.angle ? <p className="mt-1 text-sm text-gray-600">{blog.angle}</p> : null}
+              {blog.angle ? <p className="mt-1 text-sm text-muted-foreground">{blog.angle}</p> : null}
               {blog.excerpt ? (
-                <p className="mt-2 text-sm text-gray-500 line-clamp-3">{blog.excerpt}</p>
+                <p className="mt-2 text-sm text-muted-foreground line-clamp-3">{blog.excerpt}</p>
               ) : null}
               {blog.feedback ? (
                 <p className="mt-2 text-xs text-amber-800">Feedback: {blog.feedback}</p>
@@ -672,7 +672,7 @@ function BlogsPanel({ canAct, onChanged }: { canAct: boolean; onChanged: () => v
               {canAct && ['draft', 'changes'].includes(blog.status) ? (
                 <div className="mt-3 space-y-2">
                   <textarea
-                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+                    className="w-full rounded-lg border border-border px-3 py-2 text-sm"
                     rows={2}
                     placeholder="Optional notes / what to change"
                     value={feedback[blog.id] ?? ''}
@@ -685,7 +685,7 @@ function BlogsPanel({ canAct, onChanged }: { canAct: boolean; onChanged: () => v
                       type="button"
                       disabled={busyId === blog.id}
                       onClick={() => void decide(blog.id, 'approve')}
-                      className="min-h-11 w-full rounded-lg bg-gray-900 px-3 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50 sm:w-auto"
+                      className="min-h-11 w-full rounded-lg bg-foreground px-3 py-2 text-sm font-medium text-background hover:opacity-90 disabled:opacity-50 sm:w-auto"
                     >
                       Approve
                     </button>
@@ -693,7 +693,7 @@ function BlogsPanel({ canAct, onChanged }: { canAct: boolean; onChanged: () => v
                       type="button"
                       disabled={busyId === blog.id}
                       onClick={() => void decide(blog.id, 'changes')}
-                      className="min-h-11 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 sm:w-auto"
+                      className="min-h-11 w-full rounded-lg border border-border px-3 py-2 text-sm font-medium text-foreground hover:bg-surface-muted disabled:opacity-50 sm:w-auto"
                     >
                       Ask for changes
                     </button>
@@ -754,14 +754,14 @@ function IdeasPanel({ canAct }: { canAct: boolean }) {
   return (
     <div className="space-y-4">
       {canAct ? (
-        <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-          <p className="mb-2 text-sm font-medium text-gray-900">Send an idea to your agency</p>
-          <p className="mb-3 text-xs text-gray-500">
+        <div className="rounded-xl border border-border bg-surface p-4 shadow-sm">
+          <p className="mb-2 text-sm font-medium text-foreground">Send an idea to your agency</p>
+          <p className="mb-3 text-xs text-muted-foreground">
             No AI runs here — your team will pick it up in the Growth Idea box.
           </p>
           {error ? <p className="mb-2 text-sm text-red-600">{error}</p> : null}
           <textarea
-            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+            className="w-full rounded-lg border border-border px-3 py-2 text-sm"
             rows={4}
             placeholder="What should we try next?"
             value={ask}
@@ -771,13 +771,13 @@ function IdeasPanel({ canAct }: { canAct: boolean }) {
             type="button"
             disabled={saving || ask.trim().length < 3}
             onClick={() => void submit()}
-            className="mt-3 min-h-11 w-full rounded-lg bg-gray-900 px-3 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50 sm:w-auto"
+            className="mt-3 min-h-11 w-full rounded-lg bg-foreground px-3 py-2 text-sm font-medium text-background hover:opacity-90 disabled:opacity-50 sm:w-auto"
           >
             {saving ? 'Sending…' : 'Send idea'}
           </button>
         </div>
       ) : (
-        <p className="text-sm text-gray-500">View only — ask your agency for Can act to send ideas.</p>
+        <p className="text-sm text-muted-foreground">View only — ask your agency for Can act to send ideas.</p>
       )}
 
       {!ideas ? (
@@ -785,11 +785,11 @@ function IdeasPanel({ canAct }: { canAct: boolean }) {
       ) : ideas.length === 0 ? (
         <Empty>No ideas sent yet.</Empty>
       ) : (
-        <ul className="divide-y divide-gray-100 overflow-hidden rounded-xl border border-gray-200 bg-white">
+        <ul className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-surface">
           {ideas.map((idea) => (
             <li key={idea.id} className="px-4 py-3">
-              <p className="text-sm text-gray-900 whitespace-pre-wrap">{idea.ask}</p>
-              <p className="mt-1 text-xs text-gray-500">
+              <p className="text-sm text-foreground whitespace-pre-wrap">{idea.ask}</p>
+              <p className="mt-1 text-xs text-muted-foreground">
                 {new Date(idea.createdAt).toLocaleString()}
               </p>
             </li>

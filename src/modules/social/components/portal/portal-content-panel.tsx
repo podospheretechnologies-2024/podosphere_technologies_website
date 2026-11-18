@@ -56,7 +56,7 @@ export async function PortalContentPanel({
     <>
       <div className="mb-8">
         <h2 className="text-2xl font-bold">Calendar</h2>
-        <p className="mt-1 text-gray-500">
+        <p className="mt-1 text-muted-foreground">
           {canAct
             ? 'Approve drafts, leave notes, request a post, and see what is planned or already live.'
             : 'See what is planned, waiting for approval, or already live.'}
@@ -66,37 +66,37 @@ export async function PortalContentPanel({
       {canAct ? <PortalRequestPostForm /> : null}
 
       <section className="mb-10">
-        <h3 className="mb-3 text-lg font-semibold text-gray-900">Waiting for your approval</h3>
+        <h3 className="mb-3 text-lg font-semibold text-foreground">Waiting for your approval</h3>
         {data.approvalQueue.length === 0 ? (
-          <div className="rounded-xl border border-gray-200 bg-white p-8 text-center text-gray-500">
+          <div className="rounded-xl border border-border bg-surface p-8 text-center text-muted-foreground">
             Nothing waiting right now.
           </div>
         ) : (
           <div className="grid gap-6 md:grid-cols-2">
             {data.approvalQueue.map((draft) => (
-              <div key={draft.id} className="flex flex-col rounded-xl border border-gray-200 bg-white p-6">
+              <div key={draft.id} className="flex flex-col rounded-xl border border-border bg-surface p-6">
                 <div className="mb-4 flex items-center gap-3">
                   {draft.integration.picture ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={draft.integration.picture} alt="" className="h-8 w-8 rounded-full" />
                   ) : (
-                    <div className="h-8 w-8 rounded-full bg-gray-100" />
+                    <div className="h-8 w-8 rounded-full bg-surface-muted" />
                   )}
                   <div>
                     <div className="text-sm font-medium">{draft.integration.name}</div>
-                    <div className="text-xs text-gray-500">
+                    <div className="text-xs text-muted-foreground">
                       Scheduled for {draft.publishDate.toLocaleDateString()}
                     </div>
                   </div>
                 </div>
-                <p className="mb-6 flex-grow text-sm whitespace-pre-wrap text-gray-700">{draft.content}</p>
+                <p className="mb-6 flex-grow text-sm whitespace-pre-wrap text-foreground">{draft.content}</p>
                 {canAct ? (
                   <PortalApprovalActions
                     group={draft.group}
                     initialNotes={clientNotesFromSettings(draft.settings)}
                   />
                 ) : (
-                  <p className="text-xs text-gray-500">Waiting for approval</p>
+                  <p className="text-xs text-muted-foreground">Waiting for approval</p>
                 )}
               </div>
             ))}
@@ -106,17 +106,17 @@ export async function PortalContentPanel({
 
       <section>
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <h3 className="text-lg font-semibold text-gray-900">Calendar · {monthLabel}</h3>
+          <h3 className="text-lg font-semibold text-foreground">Calendar · {monthLabel}</h3>
           <div className="flex gap-2 text-sm">
             <Link
               href={`/portal/content?month=${prev}`}
-              className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 hover:bg-gray-50"
+              className="rounded-lg border border-border bg-surface px-3 py-1.5 hover:bg-surface-muted"
             >
               Previous
             </Link>
             <Link
               href={`/portal/content?month=${next}`}
-              className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 hover:bg-gray-50"
+              className="rounded-lg border border-border bg-surface px-3 py-1.5 hover:bg-surface-muted"
             >
               Next
             </Link>
@@ -124,14 +124,14 @@ export async function PortalContentPanel({
         </div>
 
         {days.length === 0 ? (
-          <div className="rounded-xl border border-gray-200 bg-white p-8 text-center text-gray-500">
+          <div className="rounded-xl border border-border bg-surface p-8 text-center text-muted-foreground">
             No planned or published posts in this month.
           </div>
         ) : (
           <div className="space-y-4">
             {days.map((day) => (
-              <div key={day} className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-                <div className="mb-3 text-sm font-semibold text-gray-900">
+              <div key={day} className="rounded-xl border border-border bg-surface p-4 shadow-sm">
+                <div className="mb-3 text-sm font-semibold text-foreground">
                   {new Date(`${day}T00:00:00`).toLocaleDateString(undefined, {
                     weekday: 'short',
                     month: 'short',
@@ -142,7 +142,7 @@ export async function PortalContentPanel({
                   {(byDay.get(day) ?? []).map((item) => (
                     <li
                       key={`${item.kind}-${item.id}`}
-                      className="flex flex-col gap-2 border-t border-gray-50 pt-3 first:border-0 first:pt-0 sm:flex-row sm:items-start sm:justify-between"
+                      className="flex flex-col gap-2 border-t border-border pt-3 first:border-0 first:pt-0 sm:flex-row sm:items-start sm:justify-between"
                     >
                       <div className="min-w-0">
                         <div className="mb-1 flex flex-wrap items-center gap-2">
@@ -152,28 +152,28 @@ export async function PortalContentPanel({
                                 ? 'bg-green-100 text-green-800'
                                 : item.kind === 'approval'
                                   ? 'bg-amber-100 text-amber-900'
-                                  : 'bg-gray-100 text-gray-700'
+                                  : 'bg-surface-muted text-foreground'
                             }`}
                           >
                             {item.stateLabel}
                           </span>
-                          <span className="text-xs text-gray-500">{item.channelName}</span>
+                          <span className="text-xs text-muted-foreground">{item.channelName}</span>
                         </div>
-                        <p className="text-sm text-gray-800">{item.title}</p>
+                        <p className="text-sm text-foreground">{item.title}</p>
                       </div>
                       <div className="shrink-0">
                         {item.kind === 'approval' && item.group ? (
                           canAct ? (
                             <PortalApprovalActions group={item.group} />
                           ) : (
-                            <span className="text-xs text-gray-500">Waiting for approval</span>
+                            <span className="text-xs text-muted-foreground">Waiting for approval</span>
                           )
                         ) : item.permalink ? (
                           <a
                             href={item.permalink}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-sm font-medium text-gray-900 underline underline-offset-2"
+                            className="text-sm font-medium text-foreground underline underline-offset-2"
                           >
                             View
                           </a>

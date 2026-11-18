@@ -17,15 +17,15 @@ function CampaignTable({
   });
   if (rows.length === 0) {
     return (
-      <div className="rounded-xl border border-gray-200 bg-white p-8 text-center text-gray-500">
+      <div className="rounded-xl border border-border bg-surface p-8 text-center text-muted-foreground">
         Campaign stats will show up after the next ads sync.
       </div>
     );
   }
   return (
-    <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
+    <div className="overflow-x-auto rounded-xl border border-border bg-surface">
       <table className="w-full min-w-[480px] text-left text-sm">
-        <thead className="border-b border-gray-100 bg-gray-50 text-xs text-gray-500">
+        <thead className="border-b border-border bg-surface-muted text-xs text-muted-foreground">
           <tr>
             <th className="px-4 py-3 font-medium">Campaign</th>
             {showSpend ? <th className="px-4 py-3 font-medium">Spend</th> : null}
@@ -36,8 +36,8 @@ function CampaignTable({
         </thead>
         <tbody>
           {rows.map((row) => (
-            <tr key={row.name} className="border-b border-gray-50 last:border-0">
-              <td className="px-4 py-3 font-medium text-gray-900">{row.name}</td>
+            <tr key={row.name} className="border-b border-border last:border-0">
+              <td className="px-4 py-3 font-medium text-foreground">{row.name}</td>
               {showSpend && row.spend != null ? (
                 <td className="px-4 py-3">{money.format(row.spend)}</td>
               ) : null}
@@ -78,70 +78,70 @@ export async function PortalAdsPanel({
     <>
       <div className="mb-8">
         <h2 className="text-2xl font-bold">Your ads</h2>
-        <p className="mt-1 text-gray-500">
+        <p className="mt-1 text-muted-foreground">
           Last 30 days ({ads.since} → {ads.until}). Only your accounts.
         </p>
       </div>
 
       {ads.meta.accounts.length === 0 && ads.google.accounts.length === 0 ? (
-        <div className="rounded-xl border border-gray-200 bg-white p-12 text-center text-gray-500">
+        <div className="rounded-xl border border-border bg-surface p-12 text-center text-muted-foreground">
           No ad accounts are linked to your brand yet.
         </div>
       ) : (
         <div className="space-y-10">
           {ads.meta.accounts.length > 0 ? (
             <section>
-              <p className="mb-3 text-sm font-medium text-gray-700">
+              <p className="mb-3 text-sm font-medium text-foreground">
                 Meta · {ads.meta.accounts.map((a) => a.name).join(', ')}
               </p>
               <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                 {ads.showSpend && ads.meta.spend != null ? (
-                  <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-                    <div className="mb-1 text-sm font-medium text-gray-500">Spend</div>
-                    <div className="text-3xl font-bold text-gray-900">
+                  <div className="rounded-xl border border-border bg-surface p-6 shadow-sm">
+                    <div className="mb-1 text-sm font-medium text-muted-foreground">Spend</div>
+                    <div className="text-3xl font-bold text-foreground">
                       {metaMoney.format(ads.meta.spend)}
                     </div>
                   </div>
                 ) : null}
-                <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-                  <div className="mb-1 text-sm font-medium text-gray-500">Impressions</div>
-                  <div className="text-3xl font-bold text-gray-900">
+                <div className="rounded-xl border border-border bg-surface p-6 shadow-sm">
+                  <div className="mb-1 text-sm font-medium text-muted-foreground">Impressions</div>
+                  <div className="text-3xl font-bold text-foreground">
                     {nf.format(ads.meta.impressions)}
                   </div>
                 </div>
-                <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-                  <div className="mb-1 text-sm font-medium text-gray-500">Clicks</div>
-                  <div className="text-3xl font-bold text-gray-900">{nf.format(ads.meta.clicks)}</div>
+                <div className="rounded-xl border border-border bg-surface p-6 shadow-sm">
+                  <div className="mb-1 text-sm font-medium text-muted-foreground">Clicks</div>
+                  <div className="text-3xl font-bold text-foreground">{nf.format(ads.meta.clicks)}</div>
                 </div>
-                <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-                  <div className="mb-1 text-sm font-medium text-gray-500">Leads</div>
-                  <div className="text-3xl font-bold text-gray-900">{nf.format(ads.meta.leads)}</div>
+                <div className="rounded-xl border border-border bg-surface p-6 shadow-sm">
+                  <div className="mb-1 text-sm font-medium text-muted-foreground">Leads</div>
+                  <div className="text-3xl font-bold text-foreground">{nf.format(ads.meta.leads)}</div>
                   {ads.meta.costPerLead != null ? (
-                    <div className="mt-1 text-xs text-gray-500">
+                    <div className="mt-1 text-xs text-muted-foreground">
                       {metaMoney.format(ads.meta.costPerLead)} per lead
                     </div>
                   ) : null}
                 </div>
                 {ads.meta.purchases > 0 ? (
-                  <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-                    <div className="mb-1 text-sm font-medium text-gray-500">Purchases</div>
-                    <div className="text-3xl font-bold text-gray-900">{nf.format(ads.meta.purchases)}</div>
+                  <div className="rounded-xl border border-border bg-surface p-6 shadow-sm">
+                    <div className="mb-1 text-sm font-medium text-muted-foreground">Purchases</div>
+                    <div className="text-3xl font-bold text-foreground">{nf.format(ads.meta.purchases)}</div>
                     {ads.showSpend && ads.meta.spend != null ? (
-                      <div className="mt-1 text-xs text-gray-500">
+                      <div className="mt-1 text-xs text-muted-foreground">
                         {metaMoney.format(ads.meta.spend / ads.meta.purchases)} per purchase
                       </div>
                     ) : null}
                   </div>
                 ) : null}
               </div>
-              <h3 className="mb-3 text-lg font-semibold text-gray-900">Top Meta campaigns</h3>
+              <h3 className="mb-3 text-lg font-semibold text-foreground">Top Meta campaigns</h3>
               <CampaignTable rows={ads.meta.campaigns} showSpend={ads.showSpend} currency={metaCurrency} />
             </section>
           ) : null}
 
           {ads.google.accounts.length > 0 ? (
             <section>
-              <p className="mb-3 text-sm font-medium text-gray-700">
+              <p className="mb-3 text-sm font-medium text-foreground">
                 Google Ads · {ads.google.accounts.map((a) => a.name).join(', ')}
               </p>
               {ads.google.error ? (
@@ -151,33 +151,33 @@ export async function PortalAdsPanel({
               ) : null}
               <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                 {ads.showSpend && ads.google.spend != null ? (
-                  <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-                    <div className="mb-1 text-sm font-medium text-gray-500">Spend</div>
-                    <div className="text-3xl font-bold text-gray-900">
+                  <div className="rounded-xl border border-border bg-surface p-6 shadow-sm">
+                    <div className="mb-1 text-sm font-medium text-muted-foreground">Spend</div>
+                    <div className="text-3xl font-bold text-foreground">
                       {googleMoney.format(ads.google.spend)}
                     </div>
                   </div>
                 ) : null}
-                <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-                  <div className="mb-1 text-sm font-medium text-gray-500">Impressions</div>
-                  <div className="text-3xl font-bold text-gray-900">
+                <div className="rounded-xl border border-border bg-surface p-6 shadow-sm">
+                  <div className="mb-1 text-sm font-medium text-muted-foreground">Impressions</div>
+                  <div className="text-3xl font-bold text-foreground">
                     {nf.format(ads.google.impressions)}
                   </div>
                 </div>
-                <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-                  <div className="mb-1 text-sm font-medium text-gray-500">Clicks</div>
-                  <div className="text-3xl font-bold text-gray-900">
+                <div className="rounded-xl border border-border bg-surface p-6 shadow-sm">
+                  <div className="mb-1 text-sm font-medium text-muted-foreground">Clicks</div>
+                  <div className="text-3xl font-bold text-foreground">
                     {nf.format(ads.google.clicks)}
                   </div>
                 </div>
-                <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-                  <div className="mb-1 text-sm font-medium text-gray-500">Conversions</div>
-                  <div className="text-3xl font-bold text-gray-900">
+                <div className="rounded-xl border border-border bg-surface p-6 shadow-sm">
+                  <div className="mb-1 text-sm font-medium text-muted-foreground">Conversions</div>
+                  <div className="text-3xl font-bold text-foreground">
                     {nf.format(ads.google.conversions)}
                   </div>
                 </div>
               </div>
-              <h3 className="mb-3 text-lg font-semibold text-gray-900">Top Google campaigns</h3>
+              <h3 className="mb-3 text-lg font-semibold text-foreground">Top Google campaigns</h3>
               <CampaignTable
                 rows={ads.google.campaigns}
                 showSpend={ads.showSpend}

@@ -53,8 +53,9 @@ export async function requirePortalPage(tabId?: PortalTabId): Promise<PortalPage
   ]);
   const tabs = enabledPortalTabs(flags);
 
+  // Empty colour = the agency set none, so the portal keeps the admin app's purple.
   const branding = organization
-    ? brandingFromOrg(organization)
+    ? { ...brandingFromOrg(organization), primaryColor: organization.primaryColor?.trim() || '' }
     : ((await resolveOrgBranding({ slug: hostSlug, customDomain })) ??
       brandingFromOrg({ name: 'Client Portal', slug: 'portal' }));
 

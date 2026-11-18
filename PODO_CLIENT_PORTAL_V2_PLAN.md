@@ -143,6 +143,11 @@ Org default lives in one new Json field `Organization.portalTabDefaults` (one sm
 - `portal-shell.tsx` now uses the admin layout: shared `IconRail` (takes `items`), header with the
   client's name, agency colour as the accent. **Light theme only** — the portal panels still use
   fixed light colours, so dark mode needs a recolour of the 12 panels first.
+- **2026-11-18 same look as admin:** all portal panels now use the admin theme colours
+  (`bg-surface`, `border-border`, `text-muted-foreground`…) instead of fixed grey/white. The portal
+  header has the admin Light / Dark switch (opens light, choice kept in the browser), pages are
+  full width like admin, Overview tiles match the admin tiles, and the accent is the admin purple
+  unless the agency set its own colour in Settings. Not checked in a browser, not deployed.
 - Tab **ids and URLs did not change** (`content`, `channels`, `sales`, `brand`). Only the labels and
   the order follow admin: Calendar, Media, Integrations, Growth. So no redirects were needed and
   links in old WhatsApp/email messages still work.

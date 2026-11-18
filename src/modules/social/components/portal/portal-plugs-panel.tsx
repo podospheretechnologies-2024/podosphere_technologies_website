@@ -16,22 +16,22 @@ export function PortalPlugsPanel({ data }: { data: PortalPlugsSummary }) {
   return (
     <>
       <div className="mb-8">
-        <h2 className="text-2xl font-bold text-gray-900">Plugs</h2>
-        <p className="mt-1 text-gray-500">
+        <h2 className="text-2xl font-bold text-foreground">Plugs</h2>
+        <p className="mt-1 text-muted-foreground">
           Automation rules linked to your brand. Read-only — ask your agency to change them.
         </p>
       </div>
 
       {empty ? (
-        <div className="rounded-xl border border-gray-200 bg-white p-12 text-center text-gray-500">
+        <div className="rounded-xl border border-border bg-surface p-12 text-center text-muted-foreground">
           No plugs set up for your brand yet.
         </div>
       ) : (
         <div className="space-y-8">
           <section>
-            <h3 className="mb-3 text-lg font-semibold text-gray-900">WhatsApp auto-replies</h3>
+            <h3 className="mb-3 text-lg font-semibold text-foreground">WhatsApp auto-replies</h3>
             {data.autoReplies.length === 0 ? (
-              <div className="rounded-xl border border-gray-200 bg-white p-8 text-center text-sm text-gray-500">
+              <div className="rounded-xl border border-border bg-surface p-8 text-center text-sm text-muted-foreground">
                 No auto-reply rules for your brand.
               </div>
             ) : (
@@ -39,12 +39,12 @@ export function PortalPlugsPanel({ data }: { data: PortalPlugsSummary }) {
                 {data.autoReplies.map((rule) => (
                   <article
                     key={rule.id}
-                    className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm"
+                    className="rounded-xl border border-border bg-surface p-4 shadow-sm"
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <p className="truncate text-sm font-semibold text-gray-900">{rule.name}</p>
-                        <p className="mt-0.5 text-xs text-gray-500">
+                        <p className="truncate text-sm font-semibold text-foreground">{rule.name}</p>
+                        <p className="mt-0.5 text-xs text-muted-foreground">
                           {MATCH_LABELS[rule.matchType] ?? rule.matchType}
                         </p>
                       </div>
@@ -52,16 +52,16 @@ export function PortalPlugsPanel({ data }: { data: PortalPlugsSummary }) {
                         className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${
                           rule.active
                             ? 'bg-emerald-50 text-emerald-800'
-                            : 'bg-gray-100 text-gray-600'
+                            : 'bg-surface-muted text-muted-foreground'
                         }`}
                       >
                         {rule.active ? 'Active' : 'Off'}
                       </span>
                     </div>
-                    <p className="mt-3 break-all rounded-lg bg-gray-50 px-3 py-2 font-mono text-xs text-gray-700">
+                    <p className="mt-3 break-all rounded-lg bg-surface-muted px-3 py-2 font-mono text-xs text-foreground">
                       {rule.pattern}
                     </p>
-                    <p className="mt-3 text-xs text-gray-500">
+                    <p className="mt-3 text-xs text-muted-foreground">
                       {REPLY_LABELS[rule.replyType] ?? rule.replyType}
                     </p>
                   </article>
@@ -71,9 +71,9 @@ export function PortalPlugsPanel({ data }: { data: PortalPlugsSummary }) {
           </section>
 
           <section>
-            <h3 className="mb-3 text-lg font-semibold text-gray-900">Auto posts</h3>
+            <h3 className="mb-3 text-lg font-semibold text-foreground">Auto posts</h3>
             {data.autoPosts.length === 0 ? (
-              <div className="rounded-xl border border-gray-200 bg-white p-8 text-center text-sm text-gray-500">
+              <div className="rounded-xl border border-border bg-surface p-8 text-center text-sm text-muted-foreground">
                 No auto-post rules for your brand.
               </div>
             ) : (
@@ -81,21 +81,21 @@ export function PortalPlugsPanel({ data }: { data: PortalPlugsSummary }) {
                 {data.autoPosts.map((post) => (
                   <article
                     key={post.id}
-                    className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm"
+                    className="rounded-xl border border-border bg-surface p-4 shadow-sm"
                   >
                     <div className="flex items-start justify-between gap-3">
-                      <p className="truncate text-sm font-semibold text-gray-900">{post.title}</p>
+                      <p className="truncate text-sm font-semibold text-foreground">{post.title}</p>
                       <span
                         className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${
                           post.active
                             ? 'bg-emerald-50 text-emerald-800'
-                            : 'bg-gray-100 text-gray-600'
+                            : 'bg-surface-muted text-muted-foreground'
                         }`}
                       >
                         {post.active ? 'Active' : 'Off'}
                       </span>
                     </div>
-                    <p className="mt-3 text-xs text-gray-500">Feed auto-post</p>
+                    <p className="mt-3 text-xs text-muted-foreground">Feed auto-post</p>
                   </article>
                 ))}
               </div>

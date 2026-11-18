@@ -59,23 +59,23 @@ export function PortalApprovalActions({ group, initialNotes = [] }: PortalApprov
   }
 
   return (
-    <div className="mt-auto space-y-3 border-t border-gray-100 pt-4">
+    <div className="mt-auto space-y-3 border-t border-border pt-4">
       {notes.length > 0 ? (
-        <ul className="space-y-2 rounded-lg bg-gray-50 p-3">
+        <ul className="space-y-2 rounded-lg bg-surface-muted p-3">
           {notes.map((entry) => (
-            <li key={`${entry.at}-${entry.text.slice(0, 12)}`} className="text-xs text-gray-600">
-              <span className="font-medium text-gray-800">Your note · </span>
+            <li key={`${entry.at}-${entry.text.slice(0, 12)}`} className="text-xs text-muted-foreground">
+              <span className="font-medium text-foreground">Your note · </span>
               {new Date(entry.at).toLocaleString()}
-              <p className="mt-0.5 whitespace-pre-wrap text-sm text-gray-700">{entry.text}</p>
+              <p className="mt-0.5 whitespace-pre-wrap text-sm text-foreground">{entry.text}</p>
             </li>
           ))}
         </ul>
       ) : null}
 
-      <label className="block text-xs font-medium text-gray-600">
+      <label className="block text-xs font-medium text-muted-foreground">
         Note for your agency (optional on approve)
         <textarea
-          className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+          className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm"
           rows={2}
           value={note}
           onChange={(event) => setNote(event.target.value)}

@@ -4,6 +4,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { Button } from '@/shared/components/ui/button';
 import { Input } from '@/shared/components/ui/input';
 import { cn } from '@/shared/lib/cn';
+import { SHOPIFY_ALL_SCOPES, SHOPIFY_SCOPE_STRING } from '@/modules/social/config/shopify-scopes';
 import { errorText, growthCall, useGrowth, type GrowthSettings, type ShopifyStore } from './growth-api';
 import { ErrorLine, Field, Panel, Pill, textareaClass } from './growth-ui';
 import { Ga4Panel } from './growth-ga4';
@@ -48,7 +49,8 @@ function ShopifyPanel({ canReview, onChange }: { canReview: boolean; onChange: (
 
   const connected = store?.connected;
   const checks = store?.accessChecks ?? [];
-  const missingLive = checks.filter((c) => !c.ok);
+  const missingLive = checks.filter((c) => c.group === 'core' && !c.ok);
+  const missingOther = checks.filter((c) => c.group !== 'core' && !c.ok);
 
   const form = (
     <div className="flex flex-col gap-3">
@@ -120,10 +122,7 @@ function ShopifyPanel({ canReview, onChange }: { canReview: boolean; onChange: (
           </Field>
         </>
       )}
-      <p className="text-muted-foreground text-xs">
-        Tick on the Shopify app: <b>read_orders</b>, <b>read_fulfillments</b>, <b>read_customers</b>, <b>read_products</b>, plus{' '}
-        <b>read_reports</b> / <b>read_content</b> / <b>write_content</b> for Growth. Turn on protected customer data so phone numbers arrive.
-      </p>
+      <ScopeListBox />
       <Button
         disabled={Boolean(busy) || !shopDomain || (mode === 'token' ? !accessToken : !clientId || !clientSecret)}
         onClick={() =>
@@ -180,22 +179,39 @@ function ShopifyPanel({ canReview, onChange }: { canReview: boolean; onChange: (
           </div>
 
           <Step label="Step 3" title="Access">
-            <ul className="flex flex-col gap-1">
-              {checks.map((row) => (
-                <li key={row.key} className="flex items-center gap-2 text-xs">
-                  <span className={row.ok ? 'text-success' : 'text-danger'} aria-hidden>
-                    {row.ok ? '✓' : '✗'}
-                  </span>
-                  <span>{row.label}</span>
-                  {!row.ok && <span className="text-muted-foreground">({row.scopes.join(', ')})</span>}
-                </li>
-              ))}
-            </ul>
+            {ACCESS_GROUPS.map(({ group, title }) => {
+              const rows = checks.filter((row) => row.group === group);
+              if (!rows.length) return null;
+              return (
+                <div key={group} className="flex flex-col gap-1">
+                  <p className="text-muted-foreground text-xs">{title}</p>
+                  <ul className="grid gap-1 sm:grid-cols-2">
+                    {rows.map((row) => (
+                      <li key={row.key} className="flex flex-wrap items-center gap-x-2 text-xs">
+                        <span className={row.ok ? 'text-success' : group === 'core' ? 'text-danger' : 'text-amber-700 dark:text-amber-400'}>
+                          <span aria-hidden>{row.ok ? '✓' : '✗'}</span>
+                          <span className="sr-only">{row.ok ? 'Granted' : 'Missing'}</span>
+                        </span>
+                        <span>{row.label}</span>
+                        {!row.ok && <span className="text-muted-foreground break-all">({row.missing.join(', ')})</span>}
+                        {row.ok && !row.inUse && <span className="text-muted-foreground">(not shown in the dashboard yet)</span>}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              );
+            })}
             {missingLive.length > 0 && (
               <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">
-                {missingLive.map((r) => r.label).join(', ')} missing: add {missingLive.flatMap((r) => r.scopes).join(', ')} in Shopify, then Re-check.
+                {missingLive.map((r) => r.label).join(', ')} missing: add {missingLive.flatMap((r) => r.missing).join(', ')} in Shopify, then Re-check.
               </p>
             )}
+            {missingLive.length === 0 && missingOther.length > 0 && (
+              <p className="text-muted-foreground mt-1 text-xs">
+                Live events can run. To get all marketing data, add the missing permissions to the app in Shopify, approve the update on the store, then Re-check.
+              </p>
+            )}
+            {missingOther.length > 0 && <ScopeListBox />}
             {canReview && (
               <Button size="sm" variant="secondary" className="mt-2" disabled={Boolean(busy)} onClick={() => run('recheck', () => growthCall('/shopify/recheck', 'POST'))}>
                 {busy === 'recheck' ? 'Checking…' : 'Re-check'}
@@ -282,6 +298,42 @@ function ShopifyPanel({ canReview, onChange }: { canReview: boolean; onChange: (
   );
 }
 
+const ACCESS_GROUPS = [
+  { group: 'core', title: 'Needed for live events and WhatsApp order flows' },
+  { group: 'growth', title: 'Growth numbers and blogs' },
+  { group: 'extra', title: 'Extra marketing data' },
+] as const;
+
+/** The full permission list with a copy button, for pasting into the Shopify app. */
+function ScopeListBox() {
+  const [copied, setCopied] = useState(false);
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(SHOPIFY_SCOPE_STRING);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setCopied(false);
+    }
+  }
+
+  return (
+    <div className="border-border flex flex-col gap-2 rounded-lg border p-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs font-medium">Permissions to paste in the Shopify app ({SHOPIFY_ALL_SCOPES.length})</p>
+        <Button size="sm" variant="secondary" onClick={copy}>
+          {copied ? 'Copied' : 'Copy list'}
+        </Button>
+      </div>
+      <code className="text-muted-foreground text-[11px] break-all select-all">{SHOPIFY_SCOPE_STRING}</code>
+      <p className="text-muted-foreground text-xs">
+        All read-only except publishing blogs. Also turn on protected customer data (name, phone, email, address), or phone numbers arrive blank.
+      </p>
+    </div>
+  );
+}
+
 function Step({ label, title, children }: { label: string; title: string; children: ReactNode }) {
   return (
     <div className="border-border flex flex-col gap-2 border-t pt-3 first:border-t-0 first:pt-0">
@@ -340,10 +392,12 @@ function ShopifySetupGuide() {
         <li>Open the store&apos;s Shopify Dev Dashboard (owner or app-development access).</li>
         <li>Create an app named <b>Podo Social</b>.</li>
         <li>
-          Grant access: <b>read_orders</b>, <b>read_fulfillments</b>, <b>read_customers</b>, <b>read_products</b>,{' '}
-          <b>read_reports</b>, <b>read_content</b>, <b>write_content</b>.
+          In the app&apos;s access list, paste the permissions below, then release the version.
+          <div className="mt-1.5">
+            <ScopeListBox />
+          </div>
         </li>
-        <li>In Protected customer data, request name + phone (or orders arrive with phone blanked out).</li>
+        <li>In Protected customer data, select name, phone, email and address (or orders arrive with the phone blank).</li>
         <li>Install the app on the store, then copy Client ID and Client secret into Step 2 below.</li>
         <li>Press Connect, fix any red crosses in Access, then Turn on live events.</li>
         <li>Place one test order and confirm &quot;Last event received&quot; updates within a minute.</li>

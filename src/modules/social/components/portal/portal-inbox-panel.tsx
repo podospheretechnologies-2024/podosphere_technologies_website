@@ -111,8 +111,8 @@ export function PortalInboxPanel({
   return (
     <>
       <div className="mb-8">
-        <h2 className="text-2xl font-bold text-gray-900">Inbox</h2>
-        <p className="mt-1 text-gray-500">
+        <h2 className="text-2xl font-bold text-foreground">Inbox</h2>
+        <p className="mt-1 text-muted-foreground">
           {canAct
             ? 'Comments and DMs on your channels — open a thread and reply.'
             : 'Comments and DMs on your channels (view only).'}
@@ -120,12 +120,12 @@ export function PortalInboxPanel({
       </div>
 
       {threads.length === 0 ? (
-        <div className="rounded-xl border border-gray-200 bg-white p-12 text-center text-gray-500">
+        <div className="rounded-xl border border-border bg-surface p-12 text-center text-muted-foreground">
           No messages yet for your brand.
         </div>
       ) : (
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
-          <ul className="divide-y divide-gray-100 overflow-hidden rounded-xl border border-gray-200 bg-white max-h-[70vh] overflow-y-auto">
+          <ul className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-surface max-h-[70vh] overflow-y-auto">
             {threads.map((thread) => {
               const active = thread.id === selectedId;
               return (
@@ -134,25 +134,25 @@ export function PortalInboxPanel({
                     type="button"
                     onClick={() => void openThread(thread.id)}
                     className={`flex w-full flex-col gap-1 px-4 py-3 text-left transition-colors ${
-                      active ? 'bg-gray-50' : 'hover:bg-gray-50'
+                      active ? 'bg-surface-muted' : 'hover:bg-surface-muted'
                     }`}
                   >
                     <div className="flex items-start justify-between gap-3">
-                      <p className="truncate text-sm font-medium text-gray-900">
+                      <p className="truncate text-sm font-medium text-foreground">
                         {thread.contactName || 'Unknown contact'}
                       </p>
-                      <span className="shrink-0 text-xs text-gray-500">
+                      <span className="shrink-0 text-xs text-muted-foreground">
                         {formatWhen(thread.lastMessageAt)}
                       </span>
                     </div>
-                    <p className="line-clamp-2 text-sm text-gray-600">
+                    <p className="line-clamp-2 text-sm text-muted-foreground">
                       {thread.preview || 'No preview'}
                     </p>
-                    <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-500">
-                      <span className="rounded-full bg-gray-100 px-2 py-0.5 font-medium text-gray-700">
+                    <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                      <span className="rounded-full bg-surface-muted px-2 py-0.5 font-medium text-foreground">
                         {platformLabel(thread.platform)}
                       </span>
-                      <span className="rounded-full bg-gray-100 px-2 py-0.5 font-medium text-gray-700">
+                      <span className="rounded-full bg-surface-muted px-2 py-0.5 font-medium text-foreground">
                         {kindLabel(thread.kind)}
                       </span>
                       {thread.awaitingReply ? (
@@ -168,30 +168,30 @@ export function PortalInboxPanel({
             })}
           </ul>
 
-          <div className="rounded-xl border border-gray-200 bg-white">
+          <div className="rounded-xl border border-border bg-surface">
             {!selectedId ? (
-              <div className="p-8 text-center text-sm text-gray-500">
+              <div className="p-8 text-center text-sm text-muted-foreground">
                 Select a conversation to read the messages.
               </div>
             ) : loading ? (
-              <div className="p-8 text-center text-sm text-gray-500">Loading…</div>
+              <div className="p-8 text-center text-sm text-muted-foreground">Loading…</div>
             ) : error && !detail ? (
               <div className="p-8 text-center text-sm text-red-600">{error}</div>
             ) : detail ? (
               <div className="flex h-full min-h-[280px] flex-col">
-                <div className="flex items-start justify-between gap-3 border-b border-gray-100 px-4 py-3">
+                <div className="flex items-start justify-between gap-3 border-b border-border px-4 py-3">
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-gray-900">
+                    <p className="truncate text-sm font-semibold text-foreground">
                       {detail.contactName || 'Unknown contact'}
                     </p>
-                    <p className="text-xs text-gray-500">
+                    <p className="text-xs text-muted-foreground">
                       {platformLabel(detail.platform)} · {kindLabel(detail.kind)}
                     </p>
                   </div>
                   <button
                     type="button"
                     onClick={closeThread}
-                    className="shrink-0 text-xs font-medium text-gray-500 hover:text-gray-800 lg:hidden"
+                    className="shrink-0 text-xs font-medium text-muted-foreground hover:text-foreground lg:hidden"
                   >
                     Close
                   </button>
@@ -199,7 +199,7 @@ export function PortalInboxPanel({
 
                 <div className="flex-1 space-y-3 overflow-y-auto px-4 py-4 max-h-[50vh]">
                   {messages.length === 0 ? (
-                    <p className="text-sm text-gray-500">No messages in this thread.</p>
+                    <p className="text-sm text-muted-foreground">No messages in this thread.</p>
                   ) : (
                     messages.map((message) => {
                       const outbound = message.direction === 'outbound';
@@ -211,14 +211,14 @@ export function PortalInboxPanel({
                           <div
                             className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm ${
                               outbound
-                                ? 'bg-gray-900 text-white'
-                                : 'bg-gray-100 text-gray-900'
+                                ? 'bg-foreground text-background'
+                                : 'bg-surface-muted text-foreground'
                             }`}
                           >
                             <p className="whitespace-pre-wrap break-words">{message.body}</p>
                             <p
                               className={`mt-1 text-[10px] ${
-                                outbound ? 'text-gray-300' : 'text-gray-500'
+                                outbound ? 'text-background/70' : 'text-muted-foreground'
                               }`}
                             >
                               {formatWhen(message.createdAt)}
@@ -231,12 +231,12 @@ export function PortalInboxPanel({
                 </div>
 
                 {canAct ? (
-                  <div className="border-t border-gray-100 px-4 py-3">
+                  <div className="border-t border-border px-4 py-3">
                     {error ? <p className="mb-2 text-sm text-red-600">{error}</p> : null}
-                    <label className="block text-xs font-medium text-gray-600">
+                    <label className="block text-xs font-medium text-muted-foreground">
                       Reply
                       <textarea
-                        className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900"
+                        className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm text-foreground"
                         rows={3}
                         value={replyText}
                         onChange={(event) => setReplyText(event.target.value)}
@@ -249,13 +249,13 @@ export function PortalInboxPanel({
                       type="button"
                       onClick={() => void sendReply()}
                       disabled={sending || !replyText.trim()}
-                      className="mt-2 w-full rounded-lg bg-gray-900 px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
+                      className="mt-2 w-full rounded-lg bg-foreground px-3 py-2 text-sm font-medium text-background disabled:opacity-50"
                     >
                       {sending ? 'Sending…' : 'Send reply'}
                     </button>
                   </div>
                 ) : (
-                  <div className="border-t border-gray-100 px-4 py-3 text-xs text-gray-500">
+                  <div className="border-t border-border px-4 py-3 text-xs text-muted-foreground">
                     Your agency has set Inbox to view only. Ask them to enable “Can act” if you need
                     to reply.
                   </div>

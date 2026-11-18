@@ -1,5 +1,5 @@
 var R=require("../../../../../../../chunks/[turbopack]_runtime.js")("server/app/api/social/growth/content/[postId]/boost/route.js")
-R.c("server/chunks/[externals]__1uckut9._.js")
+R.c("server/chunks/[externals]__1a57fca._.js")
 R.c("server/chunks/[root-of-the-server]__1ppvqox._.js")
 R.c("server/chunks/06bi_zod_v4_1air0r0._.js")
 R.c("server/chunks/[root-of-the-server]__0oqa5_h._.js")

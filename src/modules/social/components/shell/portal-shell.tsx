@@ -2,8 +2,8 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { KeyRound, LogOut, Menu, X } from 'lucide-react';
-import { useState, type CSSProperties, type ReactNode } from 'react';
+import { KeyRound, LogOut, Menu, Moon, Sun, X } from 'lucide-react';
+import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import { apiFetch } from '@/shared/lib/fetcher';
 import { cn } from '@/shared/lib/cn';
 import { getPortalTab, type PortalTabId } from '../../config/portal-tabs';
@@ -32,11 +32,53 @@ type Props = {
 };
 
 const PASSWORD_HREF = '/approver/change-password';
+const THEME_STORAGE_KEY = 'podosphere-portal-theme';
+
+type PortalTheme = 'dark' | 'light';
+
+function ThemeSwitch({
+  theme,
+  onChange,
+}: {
+  theme: PortalTheme;
+  onChange: (next: PortalTheme) => void;
+}) {
+  const options = [
+    { value: 'light', label: 'Light', icon: Sun },
+    { value: 'dark', label: 'Dark', icon: Moon },
+  ] as const;
+  return (
+    <div
+      role="group"
+      aria-label="Color mode"
+      className="border-border bg-surface-muted/60 flex h-7 items-center rounded-md border p-px"
+    >
+      {options.map(({ value, label, icon: Icon }) => (
+        <button
+          key={value}
+          type="button"
+          onClick={() => onChange(value)}
+          aria-pressed={theme === value}
+          title={`${label} mode`}
+          className={cn(
+            'inline-flex h-6 items-center gap-1 rounded px-2 text-[11px] leading-none font-medium transition',
+            theme === value
+              ? 'bg-surface text-foreground shadow-sm'
+              : 'text-muted-foreground hover:text-foreground'
+          )}
+        >
+          <Icon className="size-3" />
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 /**
  * Client portal chrome. Same layout as the agency app (`SocialShell`): left icon rail, top header,
- * rounded content card — but only the tabs the agency switched on, and no client switcher.
- * Light theme only for now: the portal panels still use fixed light colours.
+ * Light / Dark switch, rounded content card — but only the tabs the agency switched on, and no
+ * client switcher. Opens in light mode; the client's choice is kept in the browser.
  * Phone width: top bar + menu sheet + bottom bar instead of the rail.
  */
 export function PortalShell({ branding, nav, clientName, children }: Props) {
@@ -44,6 +86,19 @@ export function PortalShell({ branding, nav, clientName, children }: Props) {
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+  const [theme, setTheme] = useState<PortalTheme>('light');
+
+  useEffect(() => {
+    const stored = window.localStorage.getItem(THEME_STORAGE_KEY);
+    if (stored === 'light' || stored === 'dark') {
+      setTheme(stored);
+    }
+  }, []);
+
+  function changeTheme(next: PortalTheme) {
+    setTheme(next);
+    window.localStorage.setItem(THEME_STORAGE_KEY, next);
+  }
 
   async function logout() {
     setLoggingOut(true);
@@ -71,12 +126,17 @@ export function PortalShell({ branding, nav, clientName, children }: Props) {
     initial
   );
 
-  // Agency colour drives the accents (active states, buttons) of the shared theme.
-  const themeStyle = { '--primary': branding.primaryColor } as CSSProperties;
+  // The agency's own colour drives the accents. With none set, the admin purple stays.
+  const themeStyle = branding.primaryColor
+    ? ({ '--primary': branding.primaryColor } as CSSProperties)
+    : undefined;
 
   return (
     <div
-      className="theme-social theme-social-light bg-background text-foreground relative flex min-h-screen flex-col md:p-3"
+      className={cn(
+        'theme-social bg-background text-foreground relative flex min-h-screen flex-col md:p-3',
+        theme === 'light' && 'theme-social-light'
+      )}
       style={themeStyle}
     >
       {/* Phone top bar */}
@@ -138,6 +198,9 @@ export function PortalShell({ branding, nav, clientName, children }: Props) {
             })}
           </nav>
           <div className="border-border space-y-1 border-t p-2">
+            <div className="px-3 py-2">
+              <ThemeSwitch theme={theme} onChange={changeTheme} />
+            </div>
             <Link
               href={PASSWORD_HREF}
               onClick={() => setMobileOpen(false)}
@@ -197,6 +260,7 @@ export function PortalShell({ branding, nav, clientName, children }: Props) {
             <h1 className="min-w-0 flex-1 truncate text-xl font-semibold">
               {current?.label ?? 'Client portal'}
             </h1>
+            <ThemeSwitch theme={theme} onChange={changeTheme} />
             <div className="text-right leading-tight">
               <p className="text-sm font-medium">{clientName || 'Client portal'}</p>
               <p className="text-muted-foreground text-xs">{branding.name}</p>
@@ -213,7 +277,7 @@ export function PortalShell({ branding, nav, clientName, children }: Props) {
           </header>
 
           <main className="bg-surface min-w-0 flex-1 p-4 pb-24 md:p-5 md:pb-5">
-            <div className="mx-auto max-w-6xl">{children}</div>
+            {children}
           </main>
         </div>
       </div>

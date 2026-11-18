@@ -99,14 +99,14 @@ export function PortalBrandPanel({ canAct = true }: { canAct?: boolean }) {
   }
 
   if (loading) {
-    return <p className="text-sm text-gray-500">Loading media…</p>;
+    return <p className="text-sm text-muted-foreground">Loading media…</p>;
   }
 
   return (
     <>
       <div className="mb-8">
-        <h2 className="text-2xl font-bold text-gray-900">Media</h2>
-        <p className="mt-1 text-gray-500">
+        <h2 className="text-2xl font-bold text-foreground">Media</h2>
+        <p className="mt-1 text-muted-foreground">
           Your library of photos and videos, plus brand notes your agency uses.
         </p>
       </div>
@@ -115,9 +115,9 @@ export function PortalBrandPanel({ canAct = true }: { canAct?: boolean }) {
 
       <section className="mb-10">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-          <h3 className="text-lg font-semibold text-gray-900">Media library</h3>
+          <h3 className="text-lg font-semibold text-foreground">Media library</h3>
           {canAct ? (
-            <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-900 hover:bg-gray-50">
+            <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2 text-sm font-medium text-foreground hover:bg-surface-muted">
               <input
                 type="file"
                 accept="image/*,video/mp4"
@@ -131,7 +131,7 @@ export function PortalBrandPanel({ canAct = true }: { canAct?: boolean }) {
             <button
               type="button"
               disabled
-              className="cursor-not-allowed rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm font-medium text-gray-400"
+              className="cursor-not-allowed rounded-lg border border-border bg-surface-muted px-3 py-2 text-sm font-medium text-muted-foreground"
             >
               Upload
             </button>
@@ -139,7 +139,7 @@ export function PortalBrandPanel({ canAct = true }: { canAct?: boolean }) {
         </div>
 
         {media.length === 0 ? (
-          <div className="rounded-xl border border-gray-200 bg-white p-12 text-center text-gray-500">
+          <div className="rounded-xl border border-border bg-surface p-12 text-center text-muted-foreground">
             No files in your library yet.
           </div>
         ) : (
@@ -152,7 +152,7 @@ export function PortalBrandPanel({ canAct = true }: { canAct?: boolean }) {
                   href={item.url}
                   target="_blank"
                   rel="noreferrer"
-                  className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm"
+                  className="overflow-hidden rounded-xl border border-border bg-surface shadow-sm"
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
@@ -161,9 +161,9 @@ export function PortalBrandPanel({ canAct = true }: { canAct?: boolean }) {
                     className="aspect-square w-full object-cover"
                   />
                   <div className="flex items-center justify-between gap-1 px-2 py-1.5">
-                    <p className="truncate text-xs text-gray-600">{item.name}</p>
+                    <p className="truncate text-xs text-muted-foreground">{item.name}</p>
                     {item.type === 'video' ? (
-                      <span className="shrink-0 text-[10px] font-medium uppercase tracking-wide text-gray-400">
+                      <span className="shrink-0 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
                         Video
                       </span>
                     ) : null}
@@ -176,8 +176,8 @@ export function PortalBrandPanel({ canAct = true }: { canAct?: boolean }) {
       </section>
 
       <section>
-        <h3 className="mb-3 text-lg font-semibold text-gray-900">Brand kit</h3>
-        <p className="mb-4 text-sm text-gray-500">
+        <h3 className="mb-3 text-lg font-semibold text-foreground">Brand kit</h3>
+        <p className="mb-4 text-sm text-muted-foreground">
           Logo notes, colours, tone, and product details your agency can use.
         </p>
         <form onSubmit={onSave} className="space-y-4">
@@ -186,7 +186,7 @@ export function PortalBrandPanel({ canAct = true }: { canAct?: boolean }) {
               <div key={field.key}>
                 <label
                   htmlFor={field.key}
-                  className="mb-1.5 block text-sm font-medium text-gray-900"
+                  className="mb-1.5 block text-sm font-medium text-foreground"
                 >
                   {field.label}
                 </label>

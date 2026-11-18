@@ -24,22 +24,29 @@ export async function PortalOverviewPanel({
 
   return (
     <>
-      <div className="mb-8">
-        <h2 className="text-2xl font-bold">Your performance</h2>
-        <p className="mt-1 text-gray-500">A live snapshot of the channels and ads we manage for you.</p>
+      <div className="mb-6">
+        <p className="text-muted-foreground text-sm">Your performance</p>
+        <p className="text-muted-foreground mt-1 text-xs">
+          A live snapshot of the channels and ads we manage for you.
+        </p>
       </div>
 
       {data.stats.length > 0 ? (
-        <div className="mb-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        <div className="mb-10 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {data.stats.map((stat) => (
-            <div key={stat.label} className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-              <div className="mb-1 text-sm font-medium text-gray-500">{stat.label}</div>
-              <div className="text-3xl font-bold text-gray-900">{stat.value}</div>
+            <div
+              key={stat.label}
+              className="border-border bg-surface-muted/40 flex flex-col gap-3 rounded-xl border p-4"
+            >
+              <div className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+                {stat.label}
+              </div>
+              <p className="text-2xl font-semibold tabular-nums">{stat.value}</p>
             </div>
           ))}
         </div>
       ) : (
-        <div className="mb-10 rounded-xl border border-gray-200 bg-white p-8 text-center text-gray-500">
+        <div className="mb-10 rounded-xl border border-border bg-surface p-8 text-center text-muted-foreground">
           {data.hasChannels
             ? 'Your channels are connected. Stats will appear here as soon as the first metrics sync in.'
             : 'Connect a channel to see audience, reach, and recent posts here.'}
@@ -48,15 +55,15 @@ export async function PortalOverviewPanel({
 
       {data.thisMonth.length > 0 ? (
         <section className="mb-10">
-          <h3 className="mb-4 text-lg font-semibold text-gray-900">What we did this month</h3>
+          <h3 className="mb-4 text-lg font-semibold text-foreground">What we did this month</h3>
           <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {data.thisMonth.map((item) => (
               <li
                 key={item.id}
-                className="rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm"
+                className="rounded-xl border border-border bg-surface px-4 py-3 shadow-sm"
               >
-                <p className="text-2xl font-bold text-gray-900">{item.value}</p>
-                <p className="text-sm text-gray-500">{item.label}</p>
+                <p className="text-2xl font-bold text-foreground">{item.value}</p>
+                <p className="text-sm text-muted-foreground">{item.label}</p>
               </li>
             ))}
           </ul>
@@ -65,7 +72,7 @@ export async function PortalOverviewPanel({
 
       {data.goals.length > 0 ? (
         <section className="mb-10">
-          <h3 className="mb-4 text-lg font-semibold text-gray-900">Goals</h3>
+          <h3 className="mb-4 text-lg font-semibold text-foreground">Goals</h3>
           <ul className="space-y-4">
             {data.goals.map((goal) => {
               const pct = Math.min(100, Math.round((goal.current / goal.target) * 100));
@@ -78,23 +85,23 @@ export async function PortalOverviewPanel({
                   ? money(goal.target, goal.currency ?? 'INR')
                   : nf.format(goal.target);
               return (
-                <li key={goal.id} className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+                <li key={goal.id} className="rounded-xl border border-border bg-surface p-4 shadow-sm">
                   <div className="mb-2 flex items-center justify-between gap-3 text-sm">
-                    <span className="font-medium text-gray-900">{goal.label}</span>
-                    <span className="text-gray-500">
+                    <span className="font-medium text-foreground">{goal.label}</span>
+                    <span className="text-muted-foreground">
                       {currentLabel} / {targetLabel}
                     </span>
                   </div>
-                  <div className="h-2 overflow-hidden rounded-full bg-gray-100">
+                  <div className="h-2 overflow-hidden rounded-full bg-surface-muted">
                     <div
-                      className="h-full rounded-full bg-gray-900"
+                      className="h-full rounded-full bg-foreground"
                       style={{ width: `${pct}%` }}
                     />
                   </div>
                   {goal.id === 'budget' ? (
-                    <p className="mt-2 text-xs text-gray-500">{pct}% of planned budget used</p>
+                    <p className="mt-2 text-xs text-muted-foreground">{pct}% of planned budget used</p>
                   ) : (
-                    <p className="mt-2 text-xs text-gray-500">{pct}% of goal</p>
+                    <p className="mt-2 text-xs text-muted-foreground">{pct}% of goal</p>
                   )}
                 </li>
               );
@@ -105,9 +112,9 @@ export async function PortalOverviewPanel({
 
       {data.hasChannels ? (
         <>
-          <h3 className="mb-4 text-lg font-semibold text-gray-900">Recent posts</h3>
+          <h3 className="mb-4 text-lg font-semibold text-foreground">Recent posts</h3>
           {data.recentPosts.length === 0 ? (
-            <div className="rounded-xl border border-gray-200 bg-white p-12 text-center text-gray-500">
+            <div className="rounded-xl border border-border bg-surface p-12 text-center text-muted-foreground">
               No published posts yet.
             </div>
           ) : (
@@ -123,21 +130,21 @@ export async function PortalOverviewPanel({
                         className="mb-4 aspect-square w-full rounded-lg object-cover"
                       />
                     ) : (
-                      <div className="mb-4 aspect-square w-full rounded-lg bg-gray-100" />
+                      <div className="mb-4 aspect-square w-full rounded-lg bg-surface-muted" />
                     )}
                     <div className="mb-2 flex items-center gap-2">
                       {post.channelPicture ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img src={post.channelPicture} alt="" className="h-5 w-5 rounded-full" />
                       ) : null}
-                      <span className="text-xs text-gray-500">
+                      <span className="text-xs text-muted-foreground">
                         {post.channelName} · {new Date(post.publishedAt).toLocaleDateString()}
                       </span>
                     </div>
                     {post.caption ? (
-                      <p className="mb-3 line-clamp-2 text-sm text-gray-700">{post.caption}</p>
+                      <p className="mb-3 line-clamp-2 text-sm text-foreground">{post.caption}</p>
                     ) : null}
-                    <div className="flex gap-4 text-xs text-gray-500">
+                    <div className="flex gap-4 text-xs text-muted-foreground">
                       <span>♥ {nf.format(post.likes)}</span>
                       <span>💬 {nf.format(post.comments)}</span>
                       {post.reach != null ? <span>Reach {nf.format(post.reach)}</span> : null}
@@ -150,12 +157,12 @@ export async function PortalOverviewPanel({
                     href={post.permalink}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="block rounded-xl border border-gray-200 bg-white p-4 shadow-sm transition hover:shadow-md"
+                    className="block rounded-xl border border-border bg-surface p-4 shadow-sm transition hover:shadow-md"
                   >
                     {card}
                   </a>
                 ) : (
-                  <div key={post.id} className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+                  <div key={post.id} className="rounded-xl border border-border bg-surface p-4 shadow-sm">
                     {card}
                   </div>
                 );

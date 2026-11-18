@@ -27,8 +27,11 @@ export async function growthCall<T = unknown>(path: string, method: 'POST' | 'PU
 export interface ShopifyAccessCheck {
   key: string;
   label: string;
+  group: 'core' | 'growth' | 'extra';
   ok: boolean;
+  inUse: boolean;
   scopes: string[];
+  missing: string[];
 }
 
 export type ShopifyWebhookHealth = 'off' | 'never' | 'ok' | 'stale';
