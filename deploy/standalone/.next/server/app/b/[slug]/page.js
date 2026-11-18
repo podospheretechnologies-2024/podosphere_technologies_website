@@ -1,10 +1,10 @@
 var R=require("../../../chunks/ssr/[turbopack]_runtime.js")("server/app/b/[slug]/page.js")
-R.c("server/chunks/ssr/[root-of-the-server]__1tnd49_._.js")
-R.c("server/chunks/ssr/_0p5pck5._.js")
-R.c("server/chunks/ssr/_01fm93r._.js")
+R.c("server/chunks/ssr/[root-of-the-server]__11w71dv._.js")
 R.c("server/chunks/ssr/_0aab7kq._.js")
-R.c("server/chunks/ssr/1q8-_next_dist_0k_-qud._.js")
+R.c("server/chunks/ssr/_01fm93r._.js")
 R.c("server/chunks/ssr/_1-dua3y._.js")
+R.c("server/chunks/ssr/1q8-_next_dist_0k_-qud._.js")
+R.c("server/chunks/ssr/_0p5pck5._.js")
 R.c("server/chunks/ssr/1q8-_next_dist_08ij3ps._.js")
 R.c("server/chunks/ssr/[root-of-the-server]__04txj7v._.js")
 R.c("server/chunks/ssr/[root-of-the-server]__1x3r6kh._.js")
@@ -14,5 +14,5 @@ R.c("server/chunks/ssr/1q8-_next_dist_client_components_builtin_forbidden_1j_kig
 R.c("server/chunks/ssr/1q8-_next_dist_client_components_builtin_unauthorized_015stkh.js")
 R.c("server/chunks/ssr/1q8-_next_dist_client_components_builtin_global-error_10pzi_3.js")
 R.c("server/chunks/ssr/_next-internal_server_app_b_[slug]_page_actions_076cw4d.js")
-R.m(586550)
-module.exports=R.m(586550).exports
+R.m(379565)
+module.exports=R.m(379565).exports

@@ -1,7 +1,7 @@
 var R=require("../../../../chunks/[turbopack]_runtime.js")("server/app/api/social/podocrm-whatsapp-sync/route.js")
 R.c("server/chunks/[root-of-the-server]__051m_41._.js")
 R.c("server/chunks/06bi_zod_v4_1air0r0._.js")
-R.c("server/chunks/[root-of-the-server]__1w3vesm._.js")
+R.c("server/chunks/[root-of-the-server]__193mg00._.js")
 R.c("server/chunks/_1jettlw._.js")
 R.c("server/chunks/_1ssqwfv._.js")
 R.c("server/chunks/_1tdrzt3._.js")

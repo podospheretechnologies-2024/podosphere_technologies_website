@@ -176,6 +176,18 @@ access token) is the backup.
 
 Status: plan only. Steps 1 to 4 need no new code.
 
+### Found on Miphoria, 18 Nov 2026
+
+"Podo Social" was created in the Partner organisation and installed on Miphoria with a custom
+install link. Method 1 was refused: `shop_not_permitted`. Shopify allows the Client ID + secret
+login only when the app and the store are in the same organisation, and a client's store is not.
+
+Built the same day (not deployed, not tested against a live store): **Connect with Shopify**, a
+third mode in Growth → Setup. It uses Shopify's approval page (authorization code grant) and
+saves a token that does not expire. It needs one address added to the app version under
+"Allowed redirection URL(s)": `<dashboard address>/api/social/growth/shopify/oauth/callback`.
+A custom install link locks an app to one store, so each client store gets its own copy of the app.
+
 ### Access list for the app
 
 Tick all of these when creating the app, so the app does not have to be reinstalled later.

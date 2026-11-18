@@ -1,5 +1,5 @@
 var R=require("../../chunks/ssr/[turbopack]_runtime.js")("server/app/(marketing)/page.js")
-R.c("server/chunks/ssr/[root-of-the-server]__1x8ur9s._.js")
+R.c("server/chunks/ssr/[root-of-the-server]__0wf61so._.js")
 R.c("server/chunks/ssr/1q8-_next_dist_08ij3ps._.js")
 R.c("server/chunks/ssr/_1slrwj_._.js")
 R.c("server/chunks/ssr/[root-of-the-server]__04txj7v._.js")
@@ -11,5 +11,5 @@ R.c("server/chunks/ssr/1q8-_next_dist_client_components_builtin_unauthorized_015
 R.c("server/chunks/ssr/1q8-_next_dist_client_components_builtin_global-error_10pzi_3.js")
 R.c("server/chunks/ssr/[root-of-the-server]__1h4u-u9._.js")
 R.c("server/chunks/ssr/_next-internal_server_app_(marketing)_page_actions_092o41v.js")
-R.m(790177)
-module.exports=R.m(790177).exports
+R.m(520920)
+module.exports=R.m(520920).exports

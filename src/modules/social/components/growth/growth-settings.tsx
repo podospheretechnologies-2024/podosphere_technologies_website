@@ -23,7 +23,8 @@ export function SettingsTab({ canReview, onChange }: { canReview: boolean; onCha
 
 function ShopifyPanel({ canReview, onChange }: { canReview: boolean; onChange: () => void }) {
   const { data: store, mutate } = useGrowth<ShopifyStore>('/shopify');
-  const [mode, setMode] = useState<'client' | 'token'>('client');
+  const [mode, setMode] = useState<'oauth' | 'client' | 'token'>('oauth');
+  const redirectNote = useShopifyRedirectNote();
   const [shopDomain, setShopDomain] = useState('');
   const [accessToken, setAccessToken] = useState('');
   const [clientId, setClientId] = useState('');
@@ -57,6 +58,7 @@ function ShopifyPanel({ canReview, onChange }: { canReview: boolean; onChange: (
       <div className="flex gap-1">
         {(
           [
+            ['oauth', 'Connect with Shopify'],
             ['client', 'Client ID + secret'],
             ['token', 'Admin API access token'],
           ] as const
@@ -72,6 +74,17 @@ function ShopifyPanel({ canReview, onChange }: { canReview: boolean; onChange: (
           </button>
         ))}
       </div>
+      {mode === 'oauth' && (
+        <p className="text-muted-foreground text-xs">
+          Use this for a client&apos;s store when the app was made in your agency&apos;s Shopify account and installed with an install link. You approve once on
+          Shopify&apos;s page and come back here.
+        </p>
+      )}
+      {mode === 'client' && (
+        <p className="text-muted-foreground text-xs">
+          Works only when the app was made inside the store&apos;s own Shopify account. Otherwise use Connect with Shopify.
+        </p>
+      )}
       {mode === 'token' && (
         <p className="text-xs text-amber-700 dark:text-amber-400">
           Live order events need Client ID + secret. Use that mode for WhatsApp order flows; a pasted token only covers sales sync.
@@ -122,11 +135,17 @@ function ShopifyPanel({ canReview, onChange }: { canReview: boolean; onChange: (
           </Field>
         </>
       )}
+      {mode === 'oauth' && <RedirectUrlBox />}
       <ScopeListBox />
       <Button
         disabled={Boolean(busy) || !shopDomain || (mode === 'token' ? !accessToken : !clientId || !clientSecret)}
         onClick={() =>
           run('connect', async () => {
+            if (mode === 'oauth') {
+              const { url } = await growthCall<{ url: string }>('/shopify/oauth/start', 'POST', { shopDomain, clientId, clientSecret });
+              window.location.assign(url);
+              return;
+            }
             await growthCall('/shopify', 'POST', mode === 'token' ? { shopDomain, accessToken } : { shopDomain, clientId, clientSecret });
             setAccessToken('');
             setClientSecret('');
@@ -134,7 +153,7 @@ function ShopifyPanel({ canReview, onChange }: { canReview: boolean; onChange: (
           })
         }
       >
-        {busy === 'connect' ? 'Checking the store…' : 'Connect'}
+        {busy === 'connect' ? (mode === 'oauth' ? 'Opening Shopify…' : 'Checking the store…') : mode === 'oauth' ? 'Connect with Shopify' : 'Connect'}
       </Button>
     </div>
   );
@@ -172,7 +191,8 @@ function ShopifyPanel({ canReview, onChange }: { canReview: boolean; onChange: (
               <span className="text-muted-foreground text-xs">{store.shopDomain}</span>
             </div>
             <p className="text-muted-foreground text-xs">
-              {store.currency} · {store.timeZone} · {store.authMode === 'client_credentials' ? 'client credentials' : 'access token'} · last sync{' '}
+              {store.currency} · {store.timeZone} ·{' '}
+              {store.authMode === 'client_credentials' ? 'client credentials' : store.authMode === 'oauth' ? 'Shopify approval' : 'access token'} · last sync{' '}
               {store.lastSyncedAt ? new Date(store.lastSyncedAt).toLocaleString('en-IN') : 'not yet'}
             </p>
             {store.lastError && <p className="text-danger text-xs">{store.lastError}</p>}
@@ -229,8 +249,8 @@ function ShopifyPanel({ canReview, onChange }: { canReview: boolean; onChange: (
             )}
             {!store.canEnableLiveEvents && !store.webhooksEnabled && (
               <p className="text-muted-foreground text-xs">
-                {!store.hasClientSecret || store.authMode !== 'client_credentials'
-                  ? 'Reconnect with Client ID + secret to turn on live events.'
+                {!store.hasClientSecret
+                  ? 'Reconnect with Connect with Shopify or Client ID + secret to turn on live events.'
                   : 'Fix the missing access above, then turn on live events.'}
               </p>
             )}
@@ -292,9 +312,60 @@ function ShopifyPanel({ canReview, onChange }: { canReview: boolean; onChange: (
         </div>
       )}
 
+      {redirectNote && <p className={cn('text-sm', redirectNote.ok ? 'text-success' : 'text-danger')}>{redirectNote.text}</p>}
       {store && !connected && !canReview && <p className="text-muted-foreground text-sm">Ask an owner or admin to connect this client&apos;s store.</p>}
       <ErrorLine error={error} />
     </Panel>
+  );
+}
+
+/** Message our Shopify callback left in the URL (?shopify=connected or ?shopifyError=…), read once after mount. */
+function useShopifyRedirectNote(): { ok: boolean; text: string } | null {
+  const [note, setNote] = useState<{ ok: boolean; text: string } | null>(null);
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const error = params.get('shopifyError');
+    const connected = params.get('shopify') === 'connected';
+    if (!error && !connected) return;
+    setNote(error ? { ok: false, text: error } : { ok: true, text: 'Shopify store connected. The first sync has started.' });
+    ['shopify', 'shopifyError', 'tab'].forEach((key) => params.delete(key));
+    const query = params.toString();
+    window.history.replaceState(null, '', `${window.location.pathname}${query ? `?${query}` : ''}`);
+  }, []);
+  return note;
+}
+
+/** The address Shopify sends the owner back to. It must be on the app version or Shopify refuses. */
+function RedirectUrlBox() {
+  const [url, setUrl] = useState('');
+  const [copied, setCopied] = useState(false);
+  useEffect(() => {
+    setUrl(`${window.location.origin}/api/social/growth/shopify/oauth/callback`);
+  }, []);
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setCopied(false);
+    }
+  }
+
+  return (
+    <div className="border-border flex flex-col gap-2 rounded-lg border p-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs font-medium">Do this once in the Shopify app first</p>
+        <Button size="sm" variant="secondary" onClick={copy} disabled={!url}>
+          {copied ? 'Copied' : 'Copy address'}
+        </Button>
+      </div>
+      <code className="text-muted-foreground text-[11px] break-all select-all">{url}</code>
+      <p className="text-muted-foreground text-xs">
+        In the Shopify Dev Dashboard open the app → Versions → New version, paste this address in &quot;Allowed redirection URL(s)&quot;, and release the version.
+      </p>
+    </div>
   );
 }
 

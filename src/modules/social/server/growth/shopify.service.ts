@@ -1,6 +1,7 @@
 import 'server-only';
 import { prisma } from '@/shared/lib/prisma';
-import { decrypt, encrypt } from '@/shared/lib/crypto';
+import { decrypt, encrypt, randomToken } from '@/shared/lib/crypto';
+import { redis } from '@/shared/lib/redis';
 import { getServerEnv } from '@/shared/lib/env';
 import { HttpError } from '@/shared/server/http-error';
 import type { SocialShopifyStore } from '@/generated/prisma/client';
@@ -9,14 +10,18 @@ import {
   SHOPIFY_ACCESS_CHECKS,
   SHOPIFY_ALL_SCOPES,
   SHOPIFY_LIVE_EVENT_SCOPES,
+  SHOPIFY_PASTE_SCOPES,
   hasShopifyScope,
   type ShopifyAccessGroup,
 } from '@/modules/social/config/shopify-scopes';
 import {
   ShopifyApiError,
+  buildShopifyAuthorizeUrl,
   createWebhook,
   deleteWebhook,
+  exchangeAuthorizationCode,
   exchangeClientCredentials,
+  verifyShopifyOAuthHmac,
   fetchGrantedScopes,
   fetchOrdersSince,
   fetchShopInfo,
@@ -83,6 +88,25 @@ export interface ShopifyStoreDto {
   lastSyncedAt: string | null;
   trafficAvailable: boolean | null;
   trafficError: string | null;
+}
+
+const OAUTH_STATE_PREFIX = 'social:shopify-oauth:';
+const OAUTH_STATE_TTL_SECONDS = 15 * 60;
+
+/** What we keep between "Connect with Shopify" and Shopify's redirect back. */
+interface PendingOAuth {
+  organizationId: string;
+  customerId: string;
+  userId: string;
+  shopDomain: string;
+  clientId: string;
+  clientSecretEncrypted: string;
+}
+
+/** Must be listed under "Allowed redirection URL(s)" on the Shopify app version. */
+export function shopifyOAuthRedirectUri(): string {
+  const base = getServerEnv().APP_URL.replace(/\/$/, '');
+  return `${base}/api/social/growth/shopify/oauth/callback`;
 }
 
 function webhookCallbackUrl(): string {
@@ -161,6 +185,9 @@ export async function resolveStoreToken(store: SocialShopifyStore): Promise<stri
     return fresh.accessToken;
   }
   if (!store.accessTokenEncrypted) throw new ShopifyApiError('No access token saved. Connect again.', 401, true);
+  if (store.authMode === 'oauth' && store.tokenExpiresAt && store.tokenExpiresAt.getTime() <= Date.now()) {
+    throw new ShopifyApiError('The Shopify approval has expired. Press Connect with Shopify again in Growth → Setup.', 401, true);
+  }
   return decrypt(store.accessTokenEncrypted);
 }
 
@@ -228,6 +255,114 @@ export const shopifyService = {
         create: data,
       });
       return toDto(store);
+    } catch (error) {
+      if (error instanceof ShopifyApiError) {
+        throw new HttpError(error.isAuthError ? 400 : 502, error.message);
+      }
+      throw error;
+    }
+  },
+
+  /**
+   * Step 1 of the install-link login ("Connect with Shopify"). Keeps the app keys for a few
+   * minutes and returns Shopify's approval page for this store. Nothing is saved on the client
+   * until Shopify sends the owner back with a valid code (see `completeOAuth`).
+   */
+  async startOAuth(
+    organizationId: string,
+    customerId: string,
+    userId: string,
+    input: { shopDomain: string; clientId: string; clientSecret: string }
+  ): Promise<{ url: string; redirectUri: string }> {
+    const shopDomain = normalizeShopDomain(input.shopDomain);
+    const clientId = input.clientId.trim();
+    const clientSecret = input.clientSecret.trim();
+    if (!clientId || !clientSecret) throw new HttpError(400, 'Paste the Client ID and Client secret of the Shopify app.');
+
+    const taken = await prisma.socialShopifyStore.findFirst({
+      where: { shopDomain, NOT: { customerId } },
+      select: { id: true },
+    });
+    if (taken) throw new HttpError(409, 'This store is already connected to another client.');
+
+    const redirectUri = shopifyOAuthRedirectUri();
+    if (!redirectUri.startsWith('https://') && getServerEnv().NODE_ENV === 'production') {
+      throw new HttpError(400, 'APP_URL must be HTTPS in production for the Shopify login.');
+    }
+
+    const state = randomToken(24);
+    const pending: PendingOAuth = {
+      organizationId,
+      customerId,
+      userId,
+      shopDomain,
+      clientId,
+      clientSecretEncrypted: encrypt(clientSecret),
+    };
+    await redis.set(`${OAUTH_STATE_PREFIX}${state}`, JSON.stringify(pending), 'EX', OAUTH_STATE_TTL_SECONDS);
+
+    return {
+      url: buildShopifyAuthorizeUrl({ shopDomain, clientId, scopes: SHOPIFY_PASTE_SCOPES, redirectUri, state }),
+      redirectUri,
+    };
+  },
+
+  /**
+   * Step 2: Shopify sent the owner back to us. Checks the one-time state, the logged-in user,
+   * the store and Shopify's signature, then swaps the code for a token and saves the store.
+   */
+  async completeOAuth(organizationId: string, userId: string, params: URLSearchParams): Promise<{ customerId: string; storeId: string }> {
+    const state = params.get('state');
+    const code = params.get('code');
+    const shop = params.get('shop');
+    if (!state || !code || !shop) throw new HttpError(400, 'Shopify sent back an incomplete answer. Press Connect with Shopify again.');
+
+    const raw = await redis.getdel(`${OAUTH_STATE_PREFIX}${state}`);
+    if (!raw) throw new HttpError(400, 'This Shopify approval has expired. Press Connect with Shopify again.');
+    const pending = JSON.parse(raw) as PendingOAuth;
+    if (pending.organizationId !== organizationId || pending.userId !== userId) {
+      throw new HttpError(403, 'This Shopify approval was started by another login. Press Connect with Shopify again.');
+    }
+    if (normalizeShopDomain(shop) !== pending.shopDomain) {
+      throw new HttpError(400, 'Shopify answered for a different store than the one you entered.');
+    }
+    const clientSecret = decrypt(pending.clientSecretEncrypted);
+    if (!verifyShopifyOAuthHmac(params, clientSecret)) {
+      throw new HttpError(400, 'Could not verify Shopify\'s answer. Check the Client secret, then press Connect with Shopify again.');
+    }
+
+    try {
+      const fresh = await exchangeAuthorizationCode(pending.shopDomain, pending.clientId, clientSecret, code);
+      const shopInfo = await fetchShopInfo(pending.shopDomain, fresh.accessToken);
+      const scopes = fresh.scope ? fresh.scope.split(',').map((s) => s.trim()).filter(Boolean) : await fetchGrantedScopes(pending.shopDomain, fresh.accessToken);
+      if (scopes.length && !hasShopifyScope(scopes, 'read_orders')) {
+        throw new HttpError(400, 'The app needs the read_orders permission. Add it in the app settings, release the version, then connect again.');
+      }
+      const data = {
+        organizationId: pending.organizationId,
+        customerId: pending.customerId,
+        shopDomain: pending.shopDomain,
+        shopName: shopInfo.name,
+        primaryUrl: shopInfo.primaryUrl,
+        currency: shopInfo.currencyCode,
+        timeZone: shopInfo.ianaTimezone || 'Asia/Kolkata',
+        authMode: 'oauth',
+        accessTokenEncrypted: encrypt(fresh.accessToken),
+        clientId: pending.clientId,
+        clientSecretEncrypted: pending.clientSecretEncrypted,
+        tokenExpiresAt: fresh.expiresAt,
+        scopes: scopes.join(','),
+        status: 'active',
+        lastError: null,
+        trafficAvailable: null,
+        trafficError: null,
+      };
+      const store = await prisma.socialShopifyStore.upsert({
+        where: { customerId: pending.customerId },
+        update: data,
+        create: data,
+      });
+      return { customerId: store.customerId, storeId: store.id };
     } catch (error) {
       if (error instanceof ShopifyApiError) {
         throw new HttpError(error.isAuthError ? 400 : 502, error.message);

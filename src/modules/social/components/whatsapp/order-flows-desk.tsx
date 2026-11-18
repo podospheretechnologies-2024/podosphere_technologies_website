@@ -34,7 +34,7 @@ export function OrderFlowsDesk() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-muted-foreground text-xs font-semibold tracking-[0.14em] uppercase">
-            WhatsApp · Order flows
+            WhatsApp order flows
           </p>
           <p className="text-muted-foreground mt-1 text-sm">
             Order updates and cart recovery messages for the connected Shopify store.

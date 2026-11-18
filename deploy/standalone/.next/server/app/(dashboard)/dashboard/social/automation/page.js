@@ -1,5 +1,5 @@
 var R=require("../../../../../chunks/ssr/[turbopack]_runtime.js")("server/app/(dashboard)/dashboard/social/automation/page.js")
-R.c("server/chunks/ssr/[root-of-the-server]__1t6fv4g._.js")
+R.c("server/chunks/ssr/[root-of-the-server]__18jf-mc._.js")
 R.c("server/chunks/ssr/1q8-_next_dist_08ij3ps._.js")
 R.c("server/chunks/ssr/[root-of-the-server]__04txj7v._.js")
 R.c("server/chunks/ssr/[root-of-the-server]__1x3r6kh._.js")
@@ -15,5 +15,5 @@ R.c("server/chunks/ssr/1q8-_next_dist_0k_-qud._.js")
 R.c("server/chunks/ssr/_07xd0te._.js")
 R.c("server/chunks/ssr/src_1hbgop4._.js")
 R.c("server/chunks/ssr/1oeh_server_app_(dashboard)_dashboard_social_automation_page_actions_0mkx2lr.js")
-R.m(205775)
-module.exports=R.m(205775).exports
+R.m(183524)
+module.exports=R.m(183524).exports

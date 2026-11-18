@@ -280,6 +280,11 @@ function ClientDesk({ initialTab = 'today' }: { initialTab?: GrowthTab }) {
                 note={t.googleConversions ? `Google conv. ${count(t.googleConversions)}` : 'From Meta ads'}
               />
               <Stat
+                label="CPL"
+                value={cpl != null ? money(cpl, currency) : '—'}
+                note={`Target ${money(targetCpl, currency)}`}
+              />
+              <Stat
                 label="Ad spend"
                 value={money(t.spend, currency)}
                 note={
@@ -291,19 +296,14 @@ function ClientDesk({ initialTab = 'today' }: { initialTab?: GrowthTab }) {
                 }
               />
               <Stat
-                label="Sessions"
-                value={count(t.sessions)}
-                note={t.sessions ? 'From GA4' : 'Connect GA4 in Setup'}
-              />
-              <Stat
-                label="CPL"
-                value={cpl != null ? money(cpl, currency) : '—'}
-                note={`Target ${money(targetCpl, currency)}`}
-              />
-              <Stat
                 label="Form / pixel"
                 value={count(t.metaPurchases)}
                 note={t.metaPurchases ? 'Rare on lead ads' : 'Purchases N/A for lead ads'}
+              />
+              <Stat
+                label="Sessions"
+                value={count(t.sessions)}
+                note={t.sessions ? 'From GA4' : 'Connect GA4 in Setup'}
               />
               <Stat label="Mode" value="Website" note="Shopify not required" />
             </>

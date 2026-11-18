@@ -1,5 +1,5 @@
 var R=require("../../../chunks/ssr/[turbopack]_runtime.js")("server/app/(marketing)/privacy/page.js")
-R.c("server/chunks/ssr/[root-of-the-server]__0qo38i2._.js")
+R.c("server/chunks/ssr/[root-of-the-server]__16k8baq._.js")
 R.c("server/chunks/ssr/1q8-_next_dist_08ij3ps._.js")
 R.c("server/chunks/ssr/[root-of-the-server]__04txj7v._.js")
 R.c("server/chunks/ssr/[root-of-the-server]__1x3r6kh._.js")
@@ -10,5 +10,5 @@ R.c("server/chunks/ssr/1q8-_next_dist_client_components_builtin_unauthorized_015
 R.c("server/chunks/ssr/1q8-_next_dist_client_components_builtin_global-error_10pzi_3.js")
 R.c("server/chunks/ssr/[root-of-the-server]__1h4u-u9._.js")
 R.c("server/chunks/ssr/_next-internal_server_app_(marketing)_privacy_page_actions_1z91pd0.js")
-R.m(366466)
-module.exports=R.m(366466).exports
+R.m(570397)
+module.exports=R.m(570397).exports

@@ -109,8 +109,32 @@ export async function exchangeClientCredentials(
     }).toString(),
   });
   if (!response.ok) {
+    // Shopify's own reason tells a wrong secret apart from "this app may not use this login on
+    // this store" (an app in a Partner organisation on a client's store).
+    let reason = '';
+    try {
+      const text = await response.text();
+      try {
+        const parsed = JSON.parse(text) as { error?: string; error_description?: string; errors?: string };
+        reason = [parsed.error, parsed.error_description ?? parsed.errors].filter(Boolean).join(': ');
+      } catch {
+        // Shopify answers this endpoint with an HTML page; the reason is in its <title>.
+        const title = /<title>([^<]*)<\/title>/i.exec(text)?.[1]?.trim() ?? '';
+        reason = text.trimStart().startsWith('<') ? title : text;
+      }
+    } catch {
+      reason = '';
+    }
+    if (reason.includes('shop_not_permitted')) {
+      throw new ShopifyApiError(
+        'The keys are correct, but Shopify does not allow the Client ID + secret login on this store, because the app and the store are in different Shopify organisations. Create the app inside the store\'s own Shopify account, or use the install-link login.',
+        response.status,
+        true
+      );
+    }
+    const detail = reason ? ` Shopify said: ${reason.slice(0, 200)} (HTTP ${response.status}).` : ` (HTTP ${response.status}).`;
     throw new ShopifyApiError(
-      'Shopify did not accept the client ID and secret. Check that the app is installed on this store.',
+      `Shopify did not accept the client ID and secret. Check that the app is installed on this store.${detail}`,
       response.status,
       true
     );
@@ -120,6 +144,76 @@ export async function exchangeClientCredentials(
   return {
     accessToken: body.access_token,
     scope: body.scope ?? null,
+    expiresAt: body.expires_in ? new Date(Date.now() + (body.expires_in - 300) * 1000) : null,
+  };
+}
+
+// ---------- install-link login (authorization code grant) ----------
+//
+// For an app that lives in the agency's Partner organisation and is installed on a client's
+// store with a custom install link. Shopify refuses the client-credentials login there
+// (shop_not_permitted), so the owner approves once in the browser and we get an offline token.
+
+/** Shopify's approval screen for this store. `redirectUri` must be listed on the app version. */
+export function buildShopifyAuthorizeUrl(input: {
+  shopDomain: string;
+  clientId: string;
+  scopes: readonly string[];
+  redirectUri: string;
+  state: string;
+}): string {
+  const params = new URLSearchParams({
+    client_id: input.clientId,
+    scope: input.scopes.join(','),
+    redirect_uri: input.redirectUri,
+    state: input.state,
+  });
+  return `https://${input.shopDomain}/admin/oauth/authorize?${params}`;
+}
+
+/**
+ * Checks the `hmac` Shopify adds to the redirect back to us: every other query parameter,
+ * sorted by name, joined as `key=value&…`, HMAC-SHA256 with the app client secret, hex.
+ */
+export function verifyShopifyOAuthHmac(params: URLSearchParams, clientSecret: string): boolean {
+  const given = params.get('hmac');
+  if (!given || !/^[0-9a-f]{64}$/i.test(given)) return false;
+  const message = [...params.entries()]
+    .filter(([key]) => key !== 'hmac' && key !== 'signature')
+    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+    .map(([key, value]) => `${key}=${value}`)
+    .join('&');
+  const expected = createHmac('sha256', clientSecret).update(message, 'utf8').digest();
+  const actual = Buffer.from(given, 'hex');
+  return actual.length === expected.length && timingSafeEqual(actual, expected);
+}
+
+/** Swaps the one-time `code` from the redirect for an offline Admin API token. */
+export async function exchangeAuthorizationCode(
+  shopDomain: string,
+  clientId: string,
+  clientSecret: string,
+  code: string
+): Promise<{ accessToken: string; scope: string | null; expiresAt: Date | null }> {
+  const response = await safePublicFetch(`https://${shopDomain}/admin/oauth/access_token`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' },
+    body: new URLSearchParams({ client_id: clientId, client_secret: clientSecret, code }).toString(),
+  });
+  if (!response.ok) {
+    throw new ShopifyApiError(
+      `Shopify did not accept the approval (HTTP ${response.status}). Check the Client secret, then press Connect with Shopify again.`,
+      response.status,
+      true
+    );
+  }
+  const body = (await response.json()) as { access_token?: string; scope?: string; expires_in?: number };
+  if (!body.access_token) throw new ShopifyApiError('Shopify returned no access token', 502, true);
+  return {
+    accessToken: body.access_token,
+    scope: body.scope ?? null,
+    // A custom app gets a token that does not expire. If Shopify ever sends an expiry, keep it
+    // so the store shows "connect again" instead of failing silently.
     expiresAt: body.expires_in ? new Date(Date.now() + (body.expires_in - 300) * 1000) : null,
   };
 }

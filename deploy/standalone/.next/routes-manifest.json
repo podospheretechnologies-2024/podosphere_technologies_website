@@ -1428,6 +1428,18 @@
       "namedRegex": "^/api/social/growth/shopify(?:/)?$"
     },
     {
+      "page": "/api/social/growth/shopify/oauth/callback",
+      "regex": "^/api/social/growth/shopify/oauth/callback(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/social/growth/shopify/oauth/callback(?:/)?$"
+    },
+    {
+      "page": "/api/social/growth/shopify/oauth/start",
+      "regex": "^/api/social/growth/shopify/oauth/start(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/social/growth/shopify/oauth/start(?:/)?$"
+    },
+    {
       "page": "/api/social/growth/shopify/recheck",
       "regex": "^/api/social/growth/shopify/recheck(?:/)?$",
       "routeKeys": {},
@@ -1806,6 +1818,12 @@
       "namedRegex": "^/api/webhooks/whatsapp(?:/)?$"
     },
     {
+      "page": "/apple-icon.png",
+      "regex": "^/apple\\-icon\\.png(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/apple\\-icon\\.png(?:/)?$"
+    },
+    {
       "page": "/approver/change-password",
       "regex": "^/approver/change\\-password(?:/)?$",
       "routeKeys": {},
@@ -1978,6 +1996,12 @@
       "regex": "^/favicon\\.ico(?:/)?$",
       "routeKeys": {},
       "namedRegex": "^/favicon\\.ico(?:/)?$"
+    },
+    {
+      "page": "/icon.png",
+      "regex": "^/icon\\.png(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/icon\\.png(?:/)?$"
     },
     {
       "page": "/invite",

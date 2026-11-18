@@ -194,7 +194,7 @@ function NewTask({ people, onCreated }: { people: { id: string; name: string }[]
   if (!open)
     return (
       <Button size="sm" variant="secondary" className="self-start" onClick={() => setOpen(true)}>
-        Add a task
+        + Add a task
       </Button>
     );
 

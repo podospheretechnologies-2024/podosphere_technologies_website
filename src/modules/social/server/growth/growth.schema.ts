@@ -29,6 +29,12 @@ export const shopifyConnectSchema = z.object({
   clientSecret: z.string().trim().max(512).optional(),
 });
 
+export const shopifyOAuthStartSchema = z.object({
+  shopDomain: z.string().trim().min(3).max(255),
+  clientId: z.string().trim().min(8).max(255),
+  clientSecret: z.string().trim().min(8).max(512),
+});
+
 export const taskCreateSchema = z.object({
   title: z.string().trim().min(2).max(255),
   detail: optionalText(8000),

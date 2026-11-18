@@ -55,3 +55,6 @@ next-env.d.ts
 
 # Meta MCP export (client ad account data, not for git)
 /data/mcp-export/
+
+# private keys and notes — never commit
+*.local.md

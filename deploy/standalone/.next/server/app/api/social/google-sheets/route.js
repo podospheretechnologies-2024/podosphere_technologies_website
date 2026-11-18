@@ -2,7 +2,7 @@ var R=require("../../../../chunks/[turbopack]_runtime.js")("server/app/api/socia
 R.c("server/chunks/[externals]__07dqoaz._.js")
 R.c("server/chunks/src_modules_social_server_google-sheets_google-sheets_service_ts_0loumwq._.js")
 R.c("server/chunks/node_modules__pnpm_0t8gdt9._.js")
-R.c("server/chunks/[root-of-the-server]__0_59vtp._.js")
+R.c("server/chunks/[root-of-the-server]__0puocvl._.js")
 R.c("server/chunks/_1vwmpyn._.js")
 R.c("server/chunks/_0xeg5gg._.js")
 R.c("server/chunks/_1tdrzt3._.js")
