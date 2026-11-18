@@ -1,16 +1,22 @@
 import 'server-only';
 import { prisma } from '@/shared/lib/prisma';
 import { decrypt, encrypt } from '@/shared/lib/crypto';
+import { getServerEnv } from '@/shared/lib/env';
 import { HttpError } from '@/shared/server/http-error';
 import type { SocialShopifyStore } from '@/generated/prisma/client';
+import { SHOPIFY_ORDER_FLOW_TOPICS } from '@/modules/social/config/order-flows';
 import {
   ShopifyApiError,
+  createWebhook,
+  deleteWebhook,
   exchangeClientCredentials,
   fetchGrantedScopes,
   fetchOrdersSince,
   fetchShopInfo,
+  listWebhooks,
   normalizeShopDomain,
   runShopifyql,
+  toShopifyGraphqlWebhookTopic,
   type ShopifyqlTable,
 } from './shopify.client';
 import {
@@ -27,8 +33,30 @@ import {
 /** read_orders only returns the last 60 days of orders. */
 const ORDER_LOOKBACK_DAYS = 60;
 const TRAFFIC_BREAKDOWN_DAYS = 30;
+const WEBHOOK_STALE_MS = 24 * 60 * 60 * 1000;
 
-export const RECOMMENDED_SCOPES = ['read_orders', 'read_reports', 'read_content', 'write_content'] as const;
+/** Scopes for Growth Desk sync + blogs. */
+export const GROWTH_SCOPES = ['read_reports', 'read_content', 'write_content'] as const;
+/** Scopes for live order / shipping / abandoned-checkout events (Option 1). */
+export const LIVE_EVENT_SCOPES = ['read_orders', 'read_fulfillments', 'read_customers', 'read_products'] as const;
+export const RECOMMENDED_SCOPES = [...LIVE_EVENT_SCOPES, ...GROWTH_SCOPES] as const;
+
+/** UI access rows on the connect screen. */
+export const ACCESS_CHECKS = [
+  { key: 'orders', label: 'Orders', scopes: ['read_orders'] as const },
+  { key: 'shipping', label: 'Shipping', scopes: ['read_fulfillments'] as const },
+  { key: 'customers', label: 'Customers', scopes: ['read_customers'] as const },
+  { key: 'products', label: 'Products', scopes: ['read_products'] as const },
+] as const;
+
+export type WebhookHealth = 'off' | 'never' | 'ok' | 'stale';
+
+export interface AccessCheckRow {
+  key: string;
+  label: string;
+  ok: boolean;
+  scopes: string[];
+}
 
 export interface ShopifyStoreDto {
   connected: boolean;
@@ -40,6 +68,15 @@ export interface ShopifyStoreDto {
   authMode: string | null;
   scopes: string[];
   missingScopes: string[];
+  accessChecks: AccessCheckRow[];
+  canEnableLiveEvents: boolean;
+  /** False when store was connected with a pasted token only (no client secret for HMAC). */
+  hasClientSecret: boolean;
+  webhooksEnabled: boolean;
+  lastWebhookAt: string | null;
+  webhookHealth: WebhookHealth;
+  orderFlowsPaused: boolean;
+  orderFlowsPausedReason: string | null;
   status: string | null;
   lastError: string | null;
   lastSyncedAt: string | null;
@@ -47,8 +84,27 @@ export interface ShopifyStoreDto {
   trafficError: string | null;
 }
 
+function webhookCallbackUrl(): string {
+  const base = getServerEnv().APP_URL.replace(/\/$/, '');
+  return `${base}/api/webhooks/shopify`;
+}
+
+function computeWebhookHealth(store: SocialShopifyStore | null): WebhookHealth {
+  if (!store?.webhooksEnabled) return 'off';
+  if (!store.lastWebhookAt) return 'never';
+  return Date.now() - store.lastWebhookAt.getTime() > WEBHOOK_STALE_MS ? 'stale' : 'ok';
+}
+
 function toDto(store: SocialShopifyStore | null): ShopifyStoreDto {
   const scopes = store?.scopes ? store.scopes.split(',').map((s) => s.trim()).filter(Boolean) : [];
+  const accessChecks: AccessCheckRow[] = ACCESS_CHECKS.map((row) => ({
+    key: row.key,
+    label: row.label,
+    scopes: [...row.scopes],
+    ok: row.scopes.every((s) => scopes.includes(s)),
+  }));
+  const missingLive = LIVE_EVENT_SCOPES.filter((s) => !scopes.includes(s));
+  const hasSecret = Boolean(store?.clientSecretEncrypted);
   return {
     connected: Boolean(store),
     shopDomain: store?.shopDomain ?? null,
@@ -59,6 +115,14 @@ function toDto(store: SocialShopifyStore | null): ShopifyStoreDto {
     authMode: store?.authMode ?? null,
     scopes,
     missingScopes: store ? RECOMMENDED_SCOPES.filter((s) => !scopes.includes(s)) : [],
+    accessChecks,
+    canEnableLiveEvents: Boolean(store) && missingLive.length === 0 && hasSecret,
+    hasClientSecret: hasSecret,
+    webhooksEnabled: store?.webhooksEnabled ?? false,
+    lastWebhookAt: store?.lastWebhookAt?.toISOString() ?? null,
+    webhookHealth: computeWebhookHealth(store),
+    orderFlowsPaused: store?.orderFlowsPaused ?? false,
+    orderFlowsPausedReason: store?.orderFlowsPausedReason ?? null,
     status: store?.status ?? null,
     lastError: store?.lastError ?? null,
     lastSyncedAt: store?.lastSyncedAt?.toISOString() ?? null,
@@ -148,6 +212,8 @@ export const shopifyService = {
         lastError: null,
         trafficAvailable: null,
         trafficError: null,
+        // Token-only stores cannot verify webhook HMAC — keep live events off.
+        ...(usingToken ? { webhooksEnabled: false as const } : {}),
       };
       const store = await prisma.socialShopifyStore.upsert({
         where: { customerId },
@@ -164,7 +230,156 @@ export const shopifyService = {
   },
 
   async disconnect(organizationId: string, customerId: string): Promise<void> {
+    const store = await prisma.socialShopifyStore.findFirst({ where: { organizationId, customerId } });
+    if (store?.webhooksEnabled) {
+      try {
+        await this.disableLiveEvents(organizationId, customerId);
+      } catch (error) {
+        console.error(`[growth] Shopify webhook cleanup failed for ${store.shopDomain}:`, error);
+      }
+    }
     await prisma.socialShopifyStore.deleteMany({ where: { organizationId, customerId } });
+  },
+
+  /** Re-fetch granted scopes from Shopify and refresh the access ticks. */
+  async recheckScopes(organizationId: string, customerId: string): Promise<ShopifyStoreDto> {
+    const store = await requireStore(organizationId, customerId);
+    try {
+      const token = await resolveStoreToken(store);
+      const scopes = await fetchGrantedScopes(store.shopDomain, token);
+      const updated = await prisma.socialShopifyStore.update({
+        where: { id: store.id },
+        data: {
+          scopes: scopes.join(','),
+          status: 'active',
+          lastError: null,
+        },
+      });
+      return toDto(updated);
+    } catch (error) {
+      if (error instanceof ShopifyApiError) {
+        throw new HttpError(error.isAuthError ? 400 : 502, error.message);
+      }
+      throw error;
+    }
+  },
+
+  /**
+   * Registers SHOPIFY_ORDER_FLOW_TOPICS to APP_URL/api/webhooks/shopify.
+   * Needs client ID + secret (HMAC verify) and the live-event scopes.
+   * Token-only stores must reconnect with client id + secret before enabling.
+   */
+  async enableLiveEvents(organizationId: string, customerId: string): Promise<ShopifyStoreDto> {
+    const store = await requireStore(organizationId, customerId);
+    if (!store.clientSecretEncrypted) {
+      throw new HttpError(
+        400,
+        'Live events need the app client secret to verify Shopify signatures. Reconnect with Client ID + secret (not a pasted Admin API access token).'
+      );
+    }
+    const scopes = store.scopes ? store.scopes.split(',').map((s) => s.trim()).filter(Boolean) : [];
+    const missing = LIVE_EVENT_SCOPES.filter((s) => !scopes.includes(s));
+    if (missing.length) {
+      throw new HttpError(
+        400,
+        `Add these permissions on the Shopify app, reinstall, then Re-check: ${missing.join(', ')}.`
+      );
+    }
+
+    const callbackUrl = webhookCallbackUrl();
+    if (!callbackUrl.startsWith('https://') && getServerEnv().NODE_ENV === 'production') {
+      throw new HttpError(400, 'APP_URL must be HTTPS in production for Shopify webhooks.');
+    }
+
+    try {
+      const token = await resolveStoreToken(store);
+      const existing = await listWebhooks(store.shopDomain, token);
+      const wanted = new Set(SHOPIFY_ORDER_FLOW_TOPICS.map((t) => toShopifyGraphqlWebhookTopic(t)));
+
+      const created: string[] = [];
+      const failures: string[] = [];
+      for (const topic of SHOPIFY_ORDER_FLOW_TOPICS) {
+        const gqlTopic = toShopifyGraphqlWebhookTopic(topic);
+        const match = existing.find((w) => {
+          try {
+            return toShopifyGraphqlWebhookTopic(w.topic) === gqlTopic;
+          } catch {
+            return false;
+          }
+        });
+        if (match?.callbackUrl && urlsMatch(match.callbackUrl, callbackUrl)) {
+          created.push(match.id);
+          continue;
+        }
+        if (match) {
+          try {
+            await deleteWebhook(store.shopDomain, token, match.id);
+          } catch (error) {
+            console.error(`[growth] Failed to replace Shopify webhook ${match.id}:`, error);
+          }
+        }
+        try {
+          created.push(await createWebhook(store.shopDomain, token, { topic, address: callbackUrl }));
+        } catch (error) {
+          failures.push(`${topic}: ${error instanceof Error ? error.message : 'failed'}`);
+        }
+      }
+
+      // Drop leftover Podo callbacks for topics we no longer register.
+      const refreshed = await listWebhooks(store.shopDomain, token);
+      for (const hook of refreshed) {
+        if (!hook.callbackUrl || !urlsMatch(hook.callbackUrl, callbackUrl)) continue;
+        let gql = '';
+        try {
+          gql = toShopifyGraphqlWebhookTopic(hook.topic);
+        } catch {
+          continue;
+        }
+        if (wanted.has(gql)) continue;
+        try {
+          await deleteWebhook(store.shopDomain, token, hook.id);
+        } catch (error) {
+          console.error(`[growth] Failed to delete obsolete Shopify webhook ${hook.id}:`, error);
+        }
+      }
+
+      if (created.length === 0) {
+        throw new HttpError(502, `Could not register any webhooks. ${failures.join('; ')}`);
+      }
+
+      const updated = await prisma.socialShopifyStore.update({
+        where: { id: store.id },
+        data: {
+          webhooksEnabled: true,
+          status: 'active',
+          lastError: failures.length ? `Some topics failed: ${failures.join('; ')}`.slice(0, 1000) : null,
+        },
+      });
+      return toDto(updated);
+    } catch (error) {
+      if (error instanceof HttpError) throw error;
+      if (error instanceof ShopifyApiError) {
+        throw new HttpError(error.isAuthError ? 400 : 502, error.message);
+      }
+      throw error;
+    }
+  },
+
+  /** Unregisters our callback webhooks and clears the live-events flag. */
+  async disableLiveEvents(organizationId: string, customerId: string): Promise<ShopifyStoreDto> {
+    const store = await requireStore(organizationId, customerId);
+    try {
+      const token = await resolveStoreToken(store);
+      await removeOurWebhooks(store.shopDomain, token, webhookCallbackUrl());
+    } catch (error) {
+      // Still mark disabled locally if Shopify rejects (app deleted / secret rotated).
+      console.error(`[growth] disableLiveEvents Shopify call failed for ${store.shopDomain}:`, error);
+    }
+    const updated = await prisma.socialShopifyStore.update({
+      where: { id: store.id },
+      data: { webhooksEnabled: false },
+    });
+    return toDto(updated);
   },
 
   /** Pulls the last 60 days of orders and (when available) traffic into daily rows + a funnel snapshot. */
@@ -323,3 +538,32 @@ async function saveTrafficSnapshot(
   });
   if (old.length) await prisma.shopifyTrafficSnapshot.deleteMany({ where: { id: { in: old.map((o) => o.id) } } });
 }
+
+async function requireStore(organizationId: string, customerId: string): Promise<SocialShopifyStore> {
+  const store = await prisma.socialShopifyStore.findFirst({ where: { organizationId, customerId } });
+  if (!store) throw new HttpError(404, 'Connect the Shopify store first.');
+  return store;
+}
+
+async function removeOurWebhooks(shopDomain: string, token: string, callbackUrl: string): Promise<void> {
+  const existing = await listWebhooks(shopDomain, token);
+  const ours = existing.filter((sub) => sub.callbackUrl && urlsMatch(sub.callbackUrl, callbackUrl));
+  for (const sub of ours) {
+    try {
+      await deleteWebhook(shopDomain, token, sub.id);
+    } catch (error) {
+      console.error(`[growth] Failed to delete Shopify webhook ${sub.id}:`, error);
+    }
+  }
+}
+
+function urlsMatch(a: string, b: string): boolean {
+  try {
+    const left = new URL(a);
+    const right = new URL(b);
+    return left.origin === right.origin && left.pathname.replace(/\/$/, '') === right.pathname.replace(/\/$/, '');
+  } catch {
+    return a.replace(/\/$/, '') === b.replace(/\/$/, '');
+  }
+}
+

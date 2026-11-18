@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/shared/lib/prisma';
 import { integrationRegistry } from '@/modules/social/server/integrations/core/integration.registry';
-import { getPortalSession } from '@/shared/server/portal-session';
+import { requirePortalTab } from '@/modules/social/server/portal/portal-guard';
 
 export async function GET() {
   try {
-    const verified = await getPortalSession();
+    const verified = await requirePortalTab('channels', 'view');
 
     const integrations = await prisma.socialIntegration.findMany({
       where: {

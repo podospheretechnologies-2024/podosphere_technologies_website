@@ -1,7 +1,7 @@
 import type { NextRequest } from 'next/server';
 import { z } from 'zod';
 import { approvalService } from '@/modules/social/server/approvals/approval.service';
-import { requirePortalSessionReady } from '@/shared/server/portal-session';
+import { requirePortalTab } from '@/modules/social/server/portal/portal-guard';
 import { errorResponse } from '@/shared/server/http-error';
 
 type Context = RouteContext<'/api/approver/posts/[group]'>;
@@ -14,7 +14,7 @@ const bodySchema = z.object({
 
 export async function POST(request: NextRequest, ctx: Context) {
   try {
-    const session = await requirePortalSessionReady();
+    const session = await requirePortalTab('content', 'act');
     const { group } = await ctx.params;
     const body = bodySchema.parse(await request.json());
 

@@ -24,6 +24,15 @@ export async function growthCall<T = unknown>(path: string, method: 'POST' | 'PU
 
 // ---------- shared types (mirror the server DTOs) ----------
 
+export interface ShopifyAccessCheck {
+  key: string;
+  label: string;
+  ok: boolean;
+  scopes: string[];
+}
+
+export type ShopifyWebhookHealth = 'off' | 'never' | 'ok' | 'stale';
+
 export interface ShopifyStore {
   connected: boolean;
   shopDomain: string | null;
@@ -34,6 +43,14 @@ export interface ShopifyStore {
   authMode: string | null;
   scopes: string[];
   missingScopes: string[];
+  accessChecks: ShopifyAccessCheck[];
+  canEnableLiveEvents: boolean;
+  hasClientSecret: boolean;
+  webhooksEnabled: boolean;
+  lastWebhookAt: string | null;
+  webhookHealth: ShopifyWebhookHealth;
+  orderFlowsPaused: boolean;
+  orderFlowsPausedReason: string | null;
   status: string | null;
   lastError: string | null;
   lastSyncedAt: string | null;

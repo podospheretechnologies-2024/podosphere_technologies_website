@@ -11,7 +11,7 @@ export default async function PortalSalesPage() {
   });
 
   return (
-    <PortalShell branding={ctx.branding} nav={ctx.nav}>
+    <PortalShell branding={ctx.branding} nav={ctx.nav} clientName={ctx.clientName}>
       <PortalSalesPanel data={data} />
     </PortalShell>
   );

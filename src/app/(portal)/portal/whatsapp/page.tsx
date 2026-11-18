@@ -11,7 +11,7 @@ export default async function PortalWhatsAppPage() {
   });
 
   return (
-    <PortalShell branding={ctx.branding} nav={ctx.nav}>
+    <PortalShell branding={ctx.branding} nav={ctx.nav} clientName={ctx.clientName}>
       <PortalWhatsAppPanel data={data} />
     </PortalShell>
   );

@@ -8,7 +8,7 @@ export default async function PortalContentPage(props: {
   const searchParams = await props.searchParams;
   const ctx = await requirePortalPage('content');
   return (
-    <PortalShell branding={ctx.branding} nav={ctx.nav}>
+    <PortalShell branding={ctx.branding} nav={ctx.nav} clientName={ctx.clientName}>
       <PortalContentPanel
         session={{
           approverId: ctx.approverId,
@@ -17,6 +17,7 @@ export default async function PortalContentPage(props: {
           mustChangePassword: false,
         }}
         month={searchParams.month}
+        canAct={ctx.canAct('content')}
       />
     </PortalShell>
   );

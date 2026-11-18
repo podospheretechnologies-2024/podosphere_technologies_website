@@ -13,8 +13,8 @@ export default async function PortalRequestsPage() {
   });
 
   return (
-    <PortalShell branding={ctx.branding} nav={ctx.nav}>
-      <PortalRequestsPanel initialRequests={requests} />
+    <PortalShell branding={ctx.branding} nav={ctx.nav} clientName={ctx.clientName}>
+      <PortalRequestsPanel initialRequests={requests} canAct={ctx.canAct('requests')} />
     </PortalShell>
   );
 }

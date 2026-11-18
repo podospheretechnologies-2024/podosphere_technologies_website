@@ -73,6 +73,7 @@ model Organization {
   whatsappAutoReplies   SocialWhatsAppAutoReply[]
   whatsappLeadFlows     SocialWhatsAppLeadFlow[]
   whatsappAgencyNotify  SocialWhatsAppAgencyNotify?
+  whatsappOrderFlows    SocialWhatsAppOrderFlow[]
   portalRequests        SocialPortalRequest[]
   opsClients            OpsClient[]
   opsClientServices     OpsClientService[]

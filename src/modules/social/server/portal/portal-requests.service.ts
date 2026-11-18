@@ -1,8 +1,13 @@
 import 'server-only';
 import { prisma } from '@/shared/lib/prisma';
+import { logAudit } from '@/shared/server/audit.service';
 import { HttpError } from '@/shared/server/http-error';
 import type { PortalSession } from '../approvals/approval.service';
-import type { CreatePortalRequestBody, UpdatePortalRequestBody } from './portal-requests.schema';
+import type {
+  CreatePortalPostRequestBody,
+  CreatePortalRequestBody,
+  UpdatePortalRequestBody,
+} from './portal-requests.schema';
 
 export type PortalRequestRow = {
   id: string;
@@ -82,6 +87,55 @@ export const portalRequestsService = {
         updatedAt: true,
       },
     });
+    return mapRow(row);
+  },
+
+  /**
+   * Calendar "request a post": fixed type `post`, org/customer/approver from session only.
+   * Due date is folded into detail so the agency sees it on the existing Requests list.
+   */
+  async createPostRequestForPortal(
+    session: PortalSession,
+    body: CreatePortalPostRequestBody
+  ): Promise<PortalRequestRow> {
+    const parts: string[] = [];
+    if (body.dueDate) parts.push(`Due: ${body.dueDate}`);
+    if (body.brief?.trim()) parts.push(body.brief.trim());
+    const detail = parts.length > 0 ? parts.join('\n\n') : null;
+
+    const row = await prisma.socialPortalRequest.create({
+      data: {
+        organizationId: session.organizationId,
+        customerId: session.customerId,
+        approverId: session.approverId,
+        type: 'post',
+        title: body.title.trim(),
+        detail,
+        status: 'open',
+      },
+      select: {
+        id: true,
+        type: true,
+        title: true,
+        detail: true,
+        status: true,
+        reply: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    await logAudit({
+      action: 'portal.request_post',
+      targetType: 'portal_request',
+      targetId: row.id,
+      metadata: {
+        customerId: session.customerId,
+        approverId: session.approverId,
+        ...(body.dueDate ? { dueDate: body.dueDate } : {}),
+      },
+    });
+
     return mapRow(row);
   },
 

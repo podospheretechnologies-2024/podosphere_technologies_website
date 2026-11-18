@@ -2,6 +2,7 @@ import 'server-only';
 import { prisma } from '@/shared/lib/prisma';
 import { isPortalAdSpendVisible } from '../../config/portal-tabs';
 import { roas } from '../growth/growth-metrics';
+import { ga4Service } from '../growth/ga4.service';
 import { shopifyService } from '../growth/shopify.service';
 import type { PortalSession } from '../approvals/approval.service';
 import { portalTabsService } from './portal-tabs.service';
@@ -13,7 +14,7 @@ export type PortalSalesDay = {
   spend: number | null;
 };
 
-export type PortalSalesSummary = {
+export type PortalShopifySummary = {
   connected: boolean;
   shopName: string | null;
   currency: string;
@@ -30,9 +31,27 @@ export type PortalSalesSummary = {
   days: PortalSalesDay[];
 };
 
+/** Portal-safe GA4 website block — no property ids, tokens, or breakdown dumps. */
+export type PortalWebsiteSummary = {
+  connected: boolean;
+  propertyName: string | null;
+  sessions: number;
+  users: number;
+  conversions: number;
+  days: number;
+  since: string | null;
+  until: string | null;
+};
+
+export type PortalSalesSummary = {
+  shopify: PortalShopifySummary;
+  /** null when this client has no GA4 property assigned. */
+  website: PortalWebsiteSummary | null;
+};
+
 /**
- * Client-portal Sales: Shopify daily metrics for this session's client only.
- * Ad spend (for ROAS) only when `adSpendVisible` is on.
+ * Client-portal Growth (tab id `sales`): Shopify daily metrics + GA4 website
+ * for this session's client only. Ad spend (for ROAS) only when `adSpendVisible` is on.
  */
 export const portalSalesService = {
   async summary(
@@ -45,7 +64,7 @@ export const portalSalesService = {
     const since = new Date(until);
     since.setDate(since.getDate() - (daysBack - 1));
 
-    const [store, flags, storeRows, metaAccounts] = await Promise.all([
+    const [store, flags, storeRows, metaAccounts, ga4] = await Promise.all([
       shopifyService.get(session.organizationId, session.customerId),
       portalTabsService.getClientFlags(session.organizationId, session.customerId),
       prisma.shopifyDailyMetric.findMany({
@@ -64,6 +83,7 @@ export const portalSalesService = {
         },
         select: { id: true },
       }),
+      ga4Service.website(session.organizationId, session.customerId),
     ]);
 
     const showSpend = isPortalAdSpendVisible(flags);
@@ -102,7 +122,7 @@ export const portalSalesService = {
     const orders = days.reduce((sum, day) => sum + day.orders, 0);
     const sales = Math.round(days.reduce((sum, day) => sum + day.sales, 0) * 100) / 100;
 
-    return {
+    const shopify: PortalShopifySummary = {
       connected: store.connected,
       shopName: store.shopName,
       currency: store.currency || 'INR',
@@ -118,5 +138,32 @@ export const portalSalesService = {
       },
       days,
     };
+
+    let website: PortalWebsiteSummary | null = null;
+    if (ga4.property) {
+      const totals = ga4.snapshot?.totals;
+      const periodStart = ga4.snapshot?.periodStart ?? null;
+      const periodEnd = ga4.snapshot?.periodEnd ?? null;
+      let periodDays = daysBack;
+      if (periodStart && periodEnd) {
+        const startMs = Date.parse(periodStart);
+        const endMs = Date.parse(periodEnd);
+        if (Number.isFinite(startMs) && Number.isFinite(endMs) && endMs >= startMs) {
+          periodDays = Math.round((endMs - startMs) / 86_400_000) + 1;
+        }
+      }
+      website = {
+        connected: true,
+        propertyName: ga4.property.displayName,
+        sessions: totals?.sessions ?? 0,
+        users: totals?.totalUsers ?? 0,
+        conversions: totals?.purchases ?? 0,
+        days: periodDays,
+        since: periodStart,
+        until: periodEnd,
+      };
+    }
+
+    return { shopify, website };
   },
 };

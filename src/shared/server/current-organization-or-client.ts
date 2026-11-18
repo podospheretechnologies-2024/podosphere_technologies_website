@@ -1,6 +1,7 @@
 import 'server-only';
 import { getCurrentOrganization } from './current-organization';
 import { getPortalSessionOrNull } from './portal-session';
+import { portalTabsService } from '@/modules/social/server/portal/portal-tabs.service';
 import { HttpError } from './http-error';
 
 export async function getCurrentOrganizationOrClient() {
@@ -14,6 +15,12 @@ export async function getCurrentOrganizationOrClient() {
     if (!session) {
       throw new HttpError(401, 'Please log in');
     }
+    await portalTabsService.requireLevel(
+      session.organizationId,
+      session.customerId,
+      'channels',
+      'act'
+    );
     return {
       organization: { id: session.organizationId },
       customerId: session.customerId,

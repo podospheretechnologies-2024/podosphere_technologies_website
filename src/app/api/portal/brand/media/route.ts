@@ -3,13 +3,13 @@ import {
   uploadFileNameSchema,
 } from '@/modules/social/server/media/media.schema';
 import { portalBrandService } from '@/modules/social/server/portal/portal-brand.service';
-import { requirePortalSessionReady } from '@/shared/server/portal-session';
+import { requirePortalTab } from '@/modules/social/server/portal/portal-guard';
 import { errorResponse } from '@/shared/server/http-error';
 
 /** Client uploads logo / product photos into their own media library. */
 export async function POST(request: NextRequest) {
   try {
-    const session = await requirePortalSessionReady();
+    const session = await requirePortalTab('brand', 'act');
     const fileName = uploadFileNameSchema.parse(
       decodeURIComponent(request.headers.get('x-file-name') ?? '')
     );

@@ -17,7 +17,7 @@ export async function GET(_request: NextRequest, props: { params: Promise<{ id: 
   }
 }
 
-/** Agency: set per-client portal tab visibility / ad spend visibility. */
+/** Agency: set per-client portal tab access levels, menu order and ad spend visibility. */
 export async function PATCH(request: NextRequest, props: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await props.params;
@@ -28,7 +28,11 @@ export async function PATCH(request: NextRequest, props: { params: Promise<{ id:
       action: 'update_portal_tabs',
       targetType: 'SocialCustomer',
       targetId: id,
-      metadata: { tabs: body.tabs ?? null, adSpendVisible: body.adSpendVisible ?? null },
+      metadata: {
+        tabs: body.tabs ?? null,
+        order: body.order ?? null,
+        adSpendVisible: body.adSpendVisible ?? null,
+      },
     });
     return Response.json(settings);
   } catch (error) {

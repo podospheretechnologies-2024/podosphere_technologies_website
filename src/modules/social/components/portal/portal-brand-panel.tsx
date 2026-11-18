@@ -13,11 +13,17 @@ type BrandField = {
   value: string;
 };
 
-type BrandMedia = { id: string; name: string; url: string; type: 'image' | 'video' };
+type BrandMedia = {
+  id: string;
+  name: string;
+  url: string;
+  type: 'image' | 'video';
+  thumbnailUrl: string | null;
+};
 
 type BrandDto = { fields: BrandField[]; media: BrandMedia[] };
 
-export function PortalBrandPanel() {
+export function PortalBrandPanel({ canAct = true }: { canAct?: boolean }) {
   const [fields, setFields] = useState<BrandField[]>([]);
   const [media, setMedia] = useState<BrandMedia[]>([]);
   const [loading, setLoading] = useState(true);
@@ -34,7 +40,7 @@ export function PortalBrandPanel() {
       setFields(data.fields);
       setMedia(data.media);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not load brand kit.');
+      setError(err instanceof ApiError ? err.message : 'Could not load media library.');
     } finally {
       setLoading(false);
     }
@@ -68,7 +74,7 @@ export function PortalBrandPanel() {
   }
 
   async function onUpload(file: File | null) {
-    if (!file) return;
+    if (!file || !canAct) return;
     setUploading(true);
     setError(null);
     try {
@@ -93,94 +99,135 @@ export function PortalBrandPanel() {
   }
 
   if (loading) {
-    return <p className="text-sm text-gray-500">Loading brand kit…</p>;
+    return <p className="text-sm text-gray-500">Loading media…</p>;
   }
 
   return (
     <>
       <div className="mb-8">
-        <h2 className="text-2xl font-bold">Brand kit</h2>
+        <h2 className="text-2xl font-bold text-gray-900">Media</h2>
         <p className="mt-1 text-gray-500">
-          Share logo notes, colours, tone, and product photos your agency can use.
+          Your library of photos and videos, plus brand notes your agency uses.
         </p>
       </div>
 
       {error ? <p className="text-danger mb-4 text-sm">{error}</p> : null}
 
-      <form onSubmit={onSave} className="mb-10 space-y-4">
-        {fields.map((field) => (
-          <div key={field.key}>
-            <label htmlFor={field.key} className="mb-1.5 block text-sm font-medium text-gray-900">
-              {field.label}
+      <section className="mb-10">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+          <h3 className="text-lg font-semibold text-gray-900">Media library</h3>
+          {canAct ? (
+            <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-900 hover:bg-gray-50">
+              <input
+                type="file"
+                accept="image/*,video/mp4"
+                className="hidden"
+                disabled={uploading}
+                onChange={(event) => void onUpload(event.target.files?.[0] ?? null)}
+              />
+              {uploading ? 'Uploading…' : 'Upload'}
             </label>
-            {field.long ? (
-              <textarea
-                id={field.key}
-                rows={3}
-                value={field.value}
-                placeholder={field.placeholder}
-                onChange={(event) =>
-                  setFields((rows) =>
-                    rows.map((row) =>
-                      row.key === field.key ? { ...row, value: event.target.value } : row
-                    )
-                  )
-                }
-                className="border-border bg-surface w-full rounded-lg border px-3 py-2 text-sm"
-              />
-            ) : (
-              <Input
-                id={field.key}
-                value={field.value}
-                placeholder={field.placeholder}
-                onChange={(event) =>
-                  setFields((rows) =>
-                    rows.map((row) =>
-                      row.key === field.key ? { ...row, value: event.target.value } : row
-                    )
-                  )
-                }
-              />
-            )}
-          </div>
-        ))}
-        <Button type="submit" disabled={saving}>
-          {saving ? 'Saving…' : saved ? 'Saved' : 'Save brand kit'}
-        </Button>
-      </form>
-
-      <section>
-        <h3 className="mb-3 text-lg font-semibold text-gray-900">Product photos & logo files</h3>
-        <label className="mb-4 inline-flex cursor-pointer items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium hover:bg-gray-50">
-          <input
-            type="file"
-            accept="image/*"
-            className="hidden"
-            disabled={uploading}
-            onChange={(event) => void onUpload(event.target.files?.[0] ?? null)}
-          />
-          {uploading ? 'Uploading…' : 'Upload image'}
-        </label>
+          ) : (
+            <button
+              type="button"
+              disabled
+              className="cursor-not-allowed rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm font-medium text-gray-400"
+            >
+              Upload
+            </button>
+          )}
+        </div>
 
         {media.length === 0 ? (
-          <p className="text-sm text-gray-500">No images uploaded yet.</p>
+          <div className="rounded-xl border border-gray-200 bg-white p-12 text-center text-gray-500">
+            No files in your library yet.
+          </div>
         ) : (
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
-            {media.map((item) => (
-              <a
-                key={item.id}
-                href={item.url}
-                target="_blank"
-                rel="noreferrer"
-                className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm"
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={item.url} alt={item.name} className="aspect-square w-full object-cover" />
-                <p className="truncate px-2 py-1.5 text-xs text-gray-600">{item.name}</p>
-              </a>
-            ))}
+            {media.map((item) => {
+              const preview = item.type === 'video' ? (item.thumbnailUrl ?? item.url) : item.url;
+              return (
+                <a
+                  key={item.id}
+                  href={item.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={preview}
+                    alt={item.name}
+                    className="aspect-square w-full object-cover"
+                  />
+                  <div className="flex items-center justify-between gap-1 px-2 py-1.5">
+                    <p className="truncate text-xs text-gray-600">{item.name}</p>
+                    {item.type === 'video' ? (
+                      <span className="shrink-0 text-[10px] font-medium uppercase tracking-wide text-gray-400">
+                        Video
+                      </span>
+                    ) : null}
+                  </div>
+                </a>
+              );
+            })}
           </div>
         )}
+      </section>
+
+      <section>
+        <h3 className="mb-3 text-lg font-semibold text-gray-900">Brand kit</h3>
+        <p className="mb-4 text-sm text-gray-500">
+          Logo notes, colours, tone, and product details your agency can use.
+        </p>
+        <form onSubmit={onSave} className="space-y-4">
+          <fieldset disabled={!canAct} className="space-y-4">
+            {fields.map((field) => (
+              <div key={field.key}>
+                <label
+                  htmlFor={field.key}
+                  className="mb-1.5 block text-sm font-medium text-gray-900"
+                >
+                  {field.label}
+                </label>
+                {field.long ? (
+                  <textarea
+                    id={field.key}
+                    rows={3}
+                    value={field.value}
+                    placeholder={field.placeholder}
+                    onChange={(event) =>
+                      setFields((rows) =>
+                        rows.map((row) =>
+                          row.key === field.key ? { ...row, value: event.target.value } : row
+                        )
+                      )
+                    }
+                    className="border-border bg-surface w-full rounded-lg border px-3 py-2 text-sm"
+                  />
+                ) : (
+                  <Input
+                    id={field.key}
+                    value={field.value}
+                    placeholder={field.placeholder}
+                    onChange={(event) =>
+                      setFields((rows) =>
+                        rows.map((row) =>
+                          row.key === field.key ? { ...row, value: event.target.value } : row
+                        )
+                      )
+                    }
+                  />
+                )}
+              </div>
+            ))}
+          </fieldset>
+          {canAct ? (
+            <Button type="submit" disabled={saving}>
+              {saving ? 'Saving…' : saved ? 'Saved' : 'Save brand kit'}
+            </Button>
+          ) : null}
+        </form>
       </section>
     </>
   );

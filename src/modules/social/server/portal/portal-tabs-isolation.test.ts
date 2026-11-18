@@ -9,6 +9,7 @@ vi.mock('@/shared/lib/prisma', () => {
     count: vi.fn().mockResolvedValue(0),
     create: vi.fn().mockResolvedValue({}),
     update: vi.fn().mockResolvedValue({}),
+    updateMany: vi.fn().mockResolvedValue({ count: 0 }),
   });
   return {
     prisma: {
@@ -78,16 +79,83 @@ describe('portal tabs tenant isolation', () => {
     // getSettings reload
     db.socialCustomer.findFirst.mockResolvedValueOnce({ portalTabs: { tabs: { ads: false } } });
 
-    await portalTabsService.updateSettings(ORG, CLIENT_A, { tabs: { ads: false } });
+    await portalTabsService.updateSettings(ORG, CLIENT_A, { tabs: { ads: 'off' } });
 
     expect(db.socialCustomer.update.mock.calls[0]?.[0]).toMatchObject({
       where: { id: CLIENT_A },
-      data: { portalTabs: { tabs: { ads: false } } },
+      data: { portalTabs: { tabs: { ads: 'off' } } },
     });
     expect(whereOf(db.socialCustomer.findFirst)).toEqual({
       id: CLIENT_A,
       organizationId: ORG,
       deletedAt: null,
     });
+  });
+
+  it('copies settings only inside the same org, never onto the source', async () => {
+    db.socialCustomer.findFirst.mockResolvedValueOnce({
+      portalTabs: { tabs: { ads: 'view' }, order: ['reports', 'overview'] },
+    });
+    db.socialCustomer.updateMany.mockResolvedValueOnce({ count: 1 });
+
+    const result = await portalTabsService.copySettings(ORG, CLIENT_A, [CLIENT_A, CLIENT_B]);
+
+    expect(result).toEqual({ updated: 1 });
+    expect(db.socialCustomer.updateMany.mock.calls[0]?.[0]).toEqual({
+      where: { id: { in: [CLIENT_B] }, organizationId: ORG, deletedAt: null },
+      data: { portalTabs: { tabs: { ads: 'view' }, order: ['reports', 'overview'] } },
+    });
+  });
+});
+
+describe('portal tab access levels', () => {
+  beforeEach(() => vi.resetAllMocks());
+
+  function storedTabs(portalTabs: unknown) {
+    db.socialCustomer.findFirst.mockResolvedValue({ portalTabs });
+    for (const model of ['socialIntegration', 'adAccount', 'socialGoogleAdsAccount', 'socialShopifyStore', 'socialWhatsAppConnection']) {
+      db[model]!.count!.mockResolvedValue(0);
+    }
+  }
+
+  it('blocks a change when the agency set the tab to view only', async () => {
+    storedTabs({ tabs: { requests: 'view' } });
+    await expect(
+      portalTabsService.requireLevel(ORG, CLIENT_A, 'requests', 'view')
+    ).resolves.toBeUndefined();
+    await expect(portalTabsService.requireLevel(ORG, CLIENT_A, 'requests', 'act')).rejects.toThrow(
+      /only view/
+    );
+  });
+
+  it('blocks reads of a hidden tab', async () => {
+    storedTabs({ tabs: { reports: 'off' } });
+    await expect(portalTabsService.requireLevel(ORG, CLIENT_A, 'reports', 'view')).rejects.toThrow(
+      /not switched on/
+    );
+  });
+
+  it('keeps old true/false rows working and never lets a read-only tab act', async () => {
+    storedTabs({ tabs: { content: true, brand: false, ads: 'act' } });
+    const settings = await portalTabsService.getSettings(ORG, CLIENT_A);
+    expect(settings.levels.content).toBe('act');
+    expect(settings.levels.brand).toBe('off');
+    expect(settings.levels.ads).toBe('view');
+    // Untouched tabs keep what clients could already do.
+    expect(settings.levels.requests).toBe('act');
+    expect(settings.levels.sales).toBe('off');
+  });
+
+  it('puts the agency order first and drops hidden tabs from the menu', async () => {
+    storedTabs({ tabs: { analytics: 'off' }, order: ['reports', 'overview'] });
+    const tabs = await portalTabsService.listEnabledTabs(ORG, CLIENT_A);
+    expect(tabs.map((tab) => tab.id)).toEqual([
+      'reports',
+      'overview',
+      'content',
+      'brand',
+      'channels',
+      'requests',
+    ]);
   });
 });

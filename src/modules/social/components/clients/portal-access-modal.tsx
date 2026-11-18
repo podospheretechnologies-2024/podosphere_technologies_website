@@ -8,7 +8,7 @@ import { Modal } from '@/shared/components/ui/modal';
 import { apiFetch, ApiError } from '@/shared/lib/fetcher';
 import { PortalGoalsSettings } from './portal-goals-settings';
 import { PortalRequestsAgency } from './portal-requests-agency';
-import { PortalTabsSettings } from './portal-tabs-settings';
+import Link from 'next/link';
 
 type ApproverRow = {
   id: string;
@@ -422,7 +422,20 @@ export function PortalAccessModal({ open, clientId, clientName, onClose }: Props
           </Button>
         </div>
 
-        <PortalTabsSettings clientId={clientId} active={open} />
+        <div className="border-border flex flex-wrap items-center justify-between gap-3 border-t pt-4">
+          <div>
+            <p className="text-sm font-medium">Portal tabs</p>
+            <p className="text-muted-foreground text-xs">
+              Tabs, access levels, menu order and WhatsApp reminders have their own page.
+            </p>
+          </div>
+          <Link
+            href={`/dashboard/social/clients/${clientId}/portal`}
+            className="border-border hover:bg-surface-muted rounded-md border px-3 py-1.5 text-xs font-medium"
+          >
+            Open Portal control
+          </Link>
+        </div>
         <PortalGoalsSettings clientId={clientId} active={open} />
         <PortalRequestsAgency clientId={clientId} active={open} />
       </div>

@@ -5,7 +5,7 @@ import { requirePortalPage } from '@/modules/social/server/portal/portal-page';
 export default async function PortalAdsPage() {
   const ctx = await requirePortalPage('ads');
   return (
-    <PortalShell branding={ctx.branding} nav={ctx.nav}>
+    <PortalShell branding={ctx.branding} nav={ctx.nav} clientName={ctx.clientName}>
       <PortalAdsPanel organizationId={ctx.organizationId} customerId={ctx.customerId} />
     </PortalShell>
   );

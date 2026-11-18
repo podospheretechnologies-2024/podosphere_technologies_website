@@ -5,10 +5,13 @@ export async function PortalChannelsPanel({
   organizationId,
   customerId,
   connected,
+  canAct = true,
 }: {
   organizationId: string;
   customerId: string;
   connected?: string;
+  /** False when the agency set this tab to "View only": no connect buttons. */
+  canAct?: boolean;
 }) {
   const integrations = await prisma.socialIntegration.findMany({
     where: { organizationId, customerId, deletedAt: null },
@@ -25,14 +28,16 @@ export async function PortalChannelsPanel({
 
       <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold">Connected Channels</h2>
+          <h2 className="text-2xl font-bold">Integrations</h2>
           <p className="mt-1 text-gray-500">
             {hasChannels
               ? 'These social accounts are connected to your portal.'
-              : 'Connect a social account to get started.'}
+              : canAct
+                ? 'Connect a social account to get started.'
+                : 'Your agency connects your social accounts.'}
           </p>
         </div>
-        {!hasChannels ? (
+        {!hasChannels && canAct ? (
           <div className="flex gap-2">
             <ConnectChannelButton
               provider="facebook"
@@ -51,12 +56,14 @@ export async function PortalChannelsPanel({
       {!hasChannels ? (
         <div className="rounded-xl border border-gray-200 bg-white p-12 text-center">
           <h3 className="mb-1 text-lg font-medium text-gray-900">No channels connected</h3>
-          <p className="mb-4 text-gray-500">You have not connected any social media accounts yet.</p>
-          <ConnectChannelButton
-            provider="facebook"
-            label="Connect Account"
-            className="inline-flex rounded-lg bg-black px-4 py-2 text-sm font-medium text-white transition hover:bg-gray-800"
-          />
+          <p className="mb-4 text-gray-500">No social media accounts are connected yet.</p>
+          {canAct ? (
+            <ConnectChannelButton
+              provider="facebook"
+              label="Connect Account"
+              className="inline-flex rounded-lg bg-black px-4 py-2 text-sm font-medium text-white transition hover:bg-gray-800"
+            />
+          ) : null}
         </div>
       ) : (
         <div className="grid gap-6 md:grid-cols-2">

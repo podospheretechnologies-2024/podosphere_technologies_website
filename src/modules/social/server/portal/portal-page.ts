@@ -6,6 +6,8 @@ import { brandingFromOrg, resolveOrgBranding, type OrgBranding } from '@/shared/
 import { getPortalSessionOrNull } from '@/shared/server/portal-session';
 import {
   PORTAL_BASE_PATH,
+  canPortalAct,
+  enabledPortalTabs,
   type PortalTabDefinition,
   type PortalTabId,
 } from '../../config/portal-tabs';
@@ -17,8 +19,12 @@ export type PortalPageContext = {
   customerId: string;
   approverId: string;
   branding: OrgBranding;
+  /** The client's own name, for the header. */
+  clientName: string;
   tabs: PortalTabDefinition[];
   nav: PortalNavItem[];
+  /** True when the agency lets this client change things on the tab (not just view). */
+  canAct: (tabId: PortalTabId) => boolean;
 };
 
 export async function requirePortalPage(tabId?: PortalTabId): Promise<PortalPageContext> {
@@ -34,13 +40,18 @@ export async function requirePortalPage(tabId?: PortalTabId): Promise<PortalPage
     redirect('/approver/change-password');
   }
 
-  const [organization, tabs] = await Promise.all([
+  const [organization, flags, customer] = await Promise.all([
     prisma.organization.findUnique({
       where: { id: session.organizationId },
       select: { name: true, slug: true, logoUrl: true, primaryColor: true, portalTitle: true },
     }),
-    portalTabsService.listEnabledTabs(session.organizationId, session.customerId),
+    portalTabsService.getClientFlags(session.organizationId, session.customerId),
+    prisma.socialCustomer.findFirst({
+      where: { id: session.customerId, organizationId: session.organizationId },
+      select: { name: true },
+    }),
   ]);
+  const tabs = enabledPortalTabs(flags);
 
   const branding = organization
     ? brandingFromOrg(organization)
@@ -67,8 +78,10 @@ export async function requirePortalPage(tabId?: PortalTabId): Promise<PortalPage
     customerId: session.customerId,
     approverId: session.approverId,
     branding,
+    clientName: customer?.name ?? '',
     tabs,
     nav,
+    canAct: (id) => canPortalAct(id, flags),
   };
 }
 

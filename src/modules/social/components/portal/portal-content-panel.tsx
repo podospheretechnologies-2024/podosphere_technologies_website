@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { PortalApprovalActions } from '@/modules/social/components/approver/portal-approval-actions';
+import { PortalRequestPostForm } from '@/modules/social/components/portal/portal-request-post-form';
 import type { PortalSession } from '@/modules/social/server/approvals/approval.service';
 import { portalContentService } from '@/modules/social/server/portal/portal-content.service';
 
@@ -27,9 +28,12 @@ function shiftMonth(month: string, delta: number): string {
 export async function PortalContentPanel({
   session,
   month,
+  canAct = true,
 }: {
   session: PortalSession;
   month?: string;
+  /** False when the agency set this tab to "View only": no approve / note buttons. */
+  canAct?: boolean;
 }) {
   const data = await portalContentService.get(session, month);
   const prev = shiftMonth(data.month, -1);
@@ -51,11 +55,15 @@ export async function PortalContentPanel({
   return (
     <>
       <div className="mb-8">
-        <h2 className="text-2xl font-bold">Content</h2>
+        <h2 className="text-2xl font-bold">Calendar</h2>
         <p className="mt-1 text-gray-500">
-          Approve drafts, leave notes, and see what is planned or already live.
+          {canAct
+            ? 'Approve drafts, leave notes, request a post, and see what is planned or already live.'
+            : 'See what is planned, waiting for approval, or already live.'}
         </p>
       </div>
+
+      {canAct ? <PortalRequestPostForm /> : null}
 
       <section className="mb-10">
         <h3 className="mb-3 text-lg font-semibold text-gray-900">Waiting for your approval</h3>
@@ -82,10 +90,14 @@ export async function PortalContentPanel({
                   </div>
                 </div>
                 <p className="mb-6 flex-grow text-sm whitespace-pre-wrap text-gray-700">{draft.content}</p>
-                <PortalApprovalActions
-                  group={draft.group}
-                  initialNotes={clientNotesFromSettings(draft.settings)}
-                />
+                {canAct ? (
+                  <PortalApprovalActions
+                    group={draft.group}
+                    initialNotes={clientNotesFromSettings(draft.settings)}
+                  />
+                ) : (
+                  <p className="text-xs text-gray-500">Waiting for approval</p>
+                )}
               </div>
             ))}
           </div>
@@ -151,7 +163,11 @@ export async function PortalContentPanel({
                       </div>
                       <div className="shrink-0">
                         {item.kind === 'approval' && item.group ? (
-                          <PortalApprovalActions group={item.group} />
+                          canAct ? (
+                            <PortalApprovalActions group={item.group} />
+                          ) : (
+                            <span className="text-xs text-gray-500">Waiting for approval</span>
+                          )
                         ) : item.permalink ? (
                           <a
                             href={item.permalink}

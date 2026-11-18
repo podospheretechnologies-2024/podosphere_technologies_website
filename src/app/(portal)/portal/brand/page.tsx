@@ -5,8 +5,8 @@ import { requirePortalPage } from '@/modules/social/server/portal/portal-page';
 export default async function PortalBrandPage() {
   const ctx = await requirePortalPage('brand');
   return (
-    <PortalShell branding={ctx.branding} nav={ctx.nav}>
-      <PortalBrandPanel />
+    <PortalShell branding={ctx.branding} nav={ctx.nav} clientName={ctx.clientName}>
+      <PortalBrandPanel canAct={ctx.canAct('brand')} />
     </PortalShell>
   );
 }

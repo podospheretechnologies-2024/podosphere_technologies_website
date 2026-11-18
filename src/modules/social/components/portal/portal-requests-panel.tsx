@@ -27,7 +27,14 @@ const STATUS_LABELS: Record<string, string> = {
   declined: 'Declined',
 };
 
-export function PortalRequestsPanel({ initialRequests }: { initialRequests: RequestRow[] }) {
+export function PortalRequestsPanel({
+  initialRequests,
+  canAct = true,
+}: {
+  initialRequests: RequestRow[];
+  /** False when the agency set this tab to "View only": no new-request form. */
+  canAct?: boolean;
+}) {
   const [requests, setRequests] = useState(initialRequests);
   const [type, setType] = useState<(typeof TYPES)[number]['id']>('post');
   const [title, setTitle] = useState('');
@@ -66,7 +73,11 @@ export function PortalRequestsPanel({ initialRequests }: { initialRequests: Requ
         <p className="mt-1 text-gray-500">Ask for a post, campaign, or change and track status here.</p>
       </div>
 
-      <div className="mb-8 rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+      <div
+        className={
+          canAct ? 'mb-8 rounded-xl border border-gray-200 bg-white p-5 shadow-sm' : 'hidden'
+        }
+      >
         <p className="mb-3 text-sm font-medium text-gray-900">New request</p>
         {error ? <p className="mb-3 text-sm text-red-600">{error}</p> : null}
         <div className="grid gap-3 sm:grid-cols-2">

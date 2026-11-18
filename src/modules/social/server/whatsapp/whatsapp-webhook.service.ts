@@ -5,8 +5,24 @@ import { HttpError } from '@/shared/server/http-error';
 import { podoCrmWhatsAppSyncService } from '../podocrm/podocrm-whatsapp-sync.service';
 import { autoReplyService } from './auto-reply.service';
 import { leadWhatsAppService } from './lead-whatsapp.service';
+import { orderFlowRepository } from './order-flow.repository';
 import { whatsappChatRepository } from './whatsapp-chat.repository';
 import { verifyMetaHubSignature } from './meta-webhook-signature';
+
+/**
+ * Stub: COD confirmation YES/NO replies.
+ * Full handling (Shopify order note/tag/cancel) waits on write scopes + product decision.
+ */
+async function maybeHandleCodYesNoReply(_input: {
+  organizationId: string;
+  customerId: string | null;
+  waId: string;
+  body: string;
+}): Promise<void> {
+  const token = _input.body.trim().toUpperCase().replace(/[.!]+$/, '');
+  if (token !== 'YES' && token !== 'NO') return;
+  // TODO(order-flows): look up recent order_confirmed_cod message for this waId and act.
+}
 
 const DEFAULT_PODOCRM_WHATSAPP_WEBHOOK_URL =
   'https://podocrm.podospheretechnologies.com/api/whatsapp/webhook';
@@ -249,6 +265,8 @@ export const whatsappWebhookService = {
         for (const status of value.statuses ?? []) {
           if (status.id && status.status) {
             await whatsappChatRepository.updateMessageStatus(status.id, status.status);
+            // Keep order-flow activity in sync (delivered / read / failed).
+            void orderFlowRepository.updateMessageStatusByWamid(status.id, status.status);
             void podoCrmWhatsAppSyncService.relayStatus({
               phoneNumberId: value.metadata?.phone_number_id ?? null,
               wamid: status.id,
@@ -322,6 +340,17 @@ export const whatsappWebhookService = {
             });
           }
           if (!alreadyStored) {
+            // COD confirmation YES/NO → tag Shopify order (Phase 4 of order-flows plan).
+            // TODO(order-flows): when the last outbound COD confirm template is recent for this
+            // waId, map YES → keep / NO → cancel (or note) on the matching SocialWhatsAppOrderMessage
+            // and optionally tag the Shopify order. Stub only until Meta App Review + Shopify write scopes.
+            void maybeHandleCodYesNoReply({
+              organizationId,
+              customerId,
+              waId: message.from,
+              body,
+            });
+
             // A reply stops the lead's follow-ups; a chat from an ad becomes a lead.
             await leadWhatsAppService.onInbound(organizationId, message.from);
             const referral = message.referral;

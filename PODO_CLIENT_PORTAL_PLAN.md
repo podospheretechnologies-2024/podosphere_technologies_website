@@ -2,6 +2,9 @@
 
 Written 2026-11-10. Status: **Phases 1–5 done (core portal).** Build with `/client-portal`.
 
+**Next: `PODO_CLIENT_PORTAL_V2_PLAN.md`** (2026-11-17) — portal looks like the admin app, all admin
+tabs, per-tab access levels the admin sets from a UI.
+
 ## 1. What exists today
 
 - `/portal` (Phase 2 shell) with sidebar + tab registry. Legacy `/approver/portal` redirects here.

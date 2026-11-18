@@ -106,7 +106,12 @@ export const agentService = {
     return serializeThread(await loadThreadOrThrow(scope, threadId));
   },
 
-  async postMessage(scope: ClientScope, threadId: string, message: string) {
+  async postMessage(
+    scope: ClientScope,
+    threadId: string,
+    message: string,
+    options?: { feature?: string }
+  ) {
     const thread = await loadThreadOrThrow(scope, threadId);
 
     await prisma.socialAiMessage.create({
@@ -126,6 +131,7 @@ export const agentService = {
       scope,
       threadId: thread.id,
       history,
+      feature: options?.feature,
     });
 
     await prisma.socialAiMessage.create({

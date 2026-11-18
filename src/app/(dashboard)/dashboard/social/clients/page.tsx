@@ -15,6 +15,7 @@ import {
   LogIn,
   Shuffle,
   KeyRound,
+  SlidersHorizontal,
   Trash2,
 } from 'lucide-react';
 import { apiFetch } from '@/shared/lib/fetcher';
@@ -700,6 +701,13 @@ export default function ClientsPage() {
                       >
                         <KeyRound className="size-3.5" /> Portal access
                       </button>
+                      <Link
+                        href={`/dashboard/social/clients/${client.id}/portal`}
+                        className="inline-flex items-center gap-1.5 rounded-md border bg-surface px-3 py-1.5 text-xs font-medium shadow-sm hover:bg-surface-muted transition"
+                        title="Choose the tabs this client sees, what they can do, and WhatsApp reminders"
+                      >
+                        <SlidersHorizontal className="size-3.5" /> Portal control
+                      </Link>
                       <Link
                         href={`/dashboard/social/clients/${client.id}/onboarding`}
                         className="inline-flex items-center gap-1.5 rounded-md border bg-surface px-3 py-1.5 text-xs font-medium shadow-sm hover:bg-surface-muted transition"

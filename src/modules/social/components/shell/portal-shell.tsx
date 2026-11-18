@@ -3,10 +3,11 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { KeyRound, LogOut, Menu, X } from 'lucide-react';
-import { useState, type ReactNode } from 'react';
+import { useState, type CSSProperties, type ReactNode } from 'react';
 import { apiFetch } from '@/shared/lib/fetcher';
 import { cn } from '@/shared/lib/cn';
 import { getPortalTab, type PortalTabId } from '../../config/portal-tabs';
+import { IconRail, iconRailItemClass, type IconRailItem } from './icon-rail';
 
 export type PortalBranding = {
   name: string;
@@ -25,10 +26,20 @@ export type PortalNavItem = {
 type Props = {
   branding: PortalBranding;
   nav: PortalNavItem[];
+  /** The client's own name, shown where the agency app shows the client switcher. */
+  clientName?: string;
   children: ReactNode;
 };
 
-export function PortalShell({ branding, nav, children }: Props) {
+const PASSWORD_HREF = '/approver/change-password';
+
+/**
+ * Client portal chrome. Same layout as the agency app (`SocialShell`): left icon rail, top header,
+ * rounded content card — but only the tabs the agency switched on, and no client switcher.
+ * Light theme only for now: the portal panels still use fixed light colours.
+ * Phone width: top bar + menu sheet + bottom bar instead of the rail.
+ */
+export function PortalShell({ branding, nav, clientName, children }: Props) {
   const pathname = usePathname();
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -45,118 +56,92 @@ export function PortalShell({ branding, nav, children }: Props) {
     return pathname === href || pathname.startsWith(`${href}/`);
   }
 
-  function renderIcon(id: PortalTabId) {
-    const Icon = getPortalTab(id)?.icon;
-    return Icon ? <Icon className="size-5" /> : null;
-  }
+  const railItems: IconRailItem[] = nav.flatMap((item) => {
+    const icon = getPortalTab(item.id)?.icon;
+    return icon ? [{ key: item.id, label: item.label, href: item.href, icon }] : [];
+  });
+  const current = nav.find((item) => isActive(item.href));
+  const homeHref = nav[0]?.href ?? '/portal';
+  const initial = (branding.name || 'P').slice(0, 1).toUpperCase();
 
-  const navLinks = (
-    <nav className="flex flex-col gap-1">
-      {nav.map((item) => (
-        <Link
-          key={item.id}
-          href={item.href}
-          onClick={() => setMobileOpen(false)}
-          className={cn(
-            'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition',
-            isActive(item.href)
-              ? 'bg-white/15 text-white'
-              : 'text-white/75 hover:bg-white/10 hover:text-white'
-          )}
-        >
-          <span className="flex size-5 shrink-0 items-center justify-center">{renderIcon(item.id)}</span>
-          {item.label}
-        </Link>
-      ))}
-    </nav>
+  const logo = branding.logoUrl ? (
+    // eslint-disable-next-line @next/next/no-img-element -- agency-uploaded logo URL
+    <img src={branding.logoUrl} alt="" className="size-full object-contain" />
+  ) : (
+    initial
   );
 
-  return (
-    <div className="min-h-screen bg-gray-50 text-gray-900">
-      {/* Desktop sidebar */}
-      <aside
-        className="fixed inset-y-0 left-0 z-30 hidden w-56 flex-col text-white md:flex"
-        style={{ backgroundColor: branding.primaryColor }}
-      >
-        <div className="flex items-center gap-3 border-b border-white/10 px-4 py-5">
-          {branding.logoUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element -- agency-uploaded logo URL
-            <img src={branding.logoUrl} alt="" className="h-8 max-w-[7rem] rounded object-contain" />
-          ) : (
-            <span className="flex size-8 items-center justify-center rounded-lg bg-white/15 text-sm font-bold">
-              {(branding.name || 'P').slice(0, 1).toUpperCase()}
-            </span>
-          )}
-          <div className="min-w-0">
-            <p className="truncate text-sm font-semibold tracking-tight">{branding.portalTitle}</p>
-            <p className="truncate text-[11px] text-white/60">Client portal</p>
-          </div>
-        </div>
-        <div className="flex-1 overflow-y-auto px-2 py-4">{navLinks}</div>
-        <div className="space-y-1 border-t border-white/10 px-2 py-3">
-          <Link
-            href="/approver/change-password"
-            className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-white/75 transition hover:bg-white/10 hover:text-white"
-          >
-            <KeyRound className="size-5" />
-            Password
-          </Link>
-          <button
-            type="button"
-            disabled={loggingOut}
-            onClick={() => void logout()}
-            className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-white/75 transition hover:bg-white/10 hover:text-white"
-          >
-            <LogOut className="size-5" />
-            {loggingOut ? 'Signing out…' : 'Sign out'}
-          </button>
-        </div>
-      </aside>
+  // Agency colour drives the accents (active states, buttons) of the shared theme.
+  const themeStyle = { '--primary': branding.primaryColor } as CSSProperties;
 
-      {/* Mobile top bar */}
-      <header
-        className="sticky top-0 z-20 flex items-center justify-between px-4 py-3 text-white md:hidden"
-        style={{ backgroundColor: branding.primaryColor }}
-      >
-        <div className="flex min-w-0 items-center gap-2">
-          {branding.logoUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={branding.logoUrl} alt="" className="h-7 rounded object-contain" />
-          ) : null}
-          <span className="truncate text-sm font-semibold">{branding.portalTitle}</span>
+  return (
+    <div
+      className="theme-social theme-social-light bg-background text-foreground relative flex min-h-screen flex-col md:p-3"
+      style={themeStyle}
+    >
+      {/* Phone top bar */}
+      <header className="bg-surface border-border sticky top-0 z-20 flex items-center justify-between border-b px-4 py-3 md:hidden">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <span className="bg-primary text-primary-foreground flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-lg text-sm font-bold">
+            {logo}
+          </span>
+          <div className="min-w-0 leading-tight">
+            <p className="truncate text-sm font-semibold">{current?.label ?? branding.portalTitle}</p>
+            {clientName ? (
+              <p className="text-muted-foreground truncate text-[11px]">{clientName}</p>
+            ) : null}
+          </div>
         </div>
         <button
           type="button"
           aria-label={mobileOpen ? 'Close menu' : 'Open menu'}
-          className="rounded-lg p-2 hover:bg-white/10"
+          className="hover:bg-surface-muted rounded-lg p-2"
           onClick={() => setMobileOpen((open) => !open)}
         >
           {mobileOpen ? <X className="size-5" /> : <Menu className="size-5" />}
         </button>
       </header>
 
+      {/* Phone menu sheet: every enabled tab */}
       {mobileOpen ? (
-        <div
-          className="fixed inset-0 z-40 md:hidden"
-          style={{ backgroundColor: branding.primaryColor }}
-        >
-          <div className="flex items-center justify-between px-4 py-3">
-            <span className="text-sm font-semibold text-white">{branding.portalTitle}</span>
+        <div className="bg-surface fixed inset-0 z-40 overflow-y-auto md:hidden">
+          <div className="border-border flex items-center justify-between border-b px-4 py-3">
+            <span className="text-sm font-semibold">{branding.portalTitle}</span>
             <button
               type="button"
               aria-label="Close menu"
-              className="rounded-lg p-2 text-white hover:bg-white/10"
+              className="hover:bg-surface-muted rounded-lg p-2"
               onClick={() => setMobileOpen(false)}
             >
               <X className="size-5" />
             </button>
           </div>
-          <div className="px-2 py-2">{navLinks}</div>
-          <div className="mt-4 space-y-1 border-t border-white/10 px-2 py-3">
+          <nav className="flex flex-col gap-1 p-2">
+            {railItems.map((item) => {
+              const Icon = item.icon;
+              return (
+                <Link
+                  key={item.key}
+                  href={item.href}
+                  onClick={() => setMobileOpen(false)}
+                  className={cn(
+                    'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition',
+                    isActive(item.href)
+                      ? 'bg-foreground text-background'
+                      : 'text-muted-foreground hover:bg-surface-muted hover:text-foreground'
+                  )}
+                >
+                  <Icon className="size-5" />
+                  {item.label}
+                </Link>
+              );
+            })}
+          </nav>
+          <div className="border-border space-y-1 border-t p-2">
             <Link
-              href="/approver/change-password"
+              href={PASSWORD_HREF}
               onClick={() => setMobileOpen(false)}
-              className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-white/75"
+              className="text-muted-foreground flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium"
             >
               <KeyRound className="size-5" />
               Password
@@ -165,7 +150,7 @@ export function PortalShell({ branding, nav, children }: Props) {
               type="button"
               disabled={loggingOut}
               onClick={() => void logout()}
-              className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-white/75"
+              className="text-muted-foreground flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium"
             >
               <LogOut className="size-5" />
               {loggingOut ? 'Signing out…' : 'Sign out'}
@@ -174,25 +159,83 @@ export function PortalShell({ branding, nav, children }: Props) {
         </div>
       ) : null}
 
-      <main className="md:pl-56">
-        <div className="mx-auto max-w-5xl px-4 py-6 pb-24 md:px-6 md:py-8 md:pb-8">{children}</div>
-      </main>
+      <div className="flex min-h-0 flex-1 gap-2">
+        <IconRail
+          className="sticky top-3 hidden max-h-[calc(100vh-1.5rem)] self-start md:flex"
+          items={railItems}
+          homeHref={homeHref}
+          brand={logo}
+          footer={
+            <>
+              <Link href={PASSWORD_HREF} title="Password" className={iconRailItemClass(false)}>
+                <KeyRound className="size-5" />
+                <span className="leading-tight">Password</span>
+              </Link>
+              <button
+                type="button"
+                title="Sign out"
+                disabled={loggingOut}
+                onClick={() => void logout()}
+                className={iconRailItemClass(false)}
+              >
+                <LogOut className="size-5" />
+                <span className="leading-tight">{loggingOut ? 'Wait…' : 'Sign out'}</span>
+              </button>
+            </>
+          }
+        />
 
-      {/* Mobile bottom nav — first 5 enabled tabs */}
-      <nav className="border-border bg-white fixed inset-x-0 bottom-0 z-20 flex border-t md:hidden">
-        {nav.slice(0, 5).map((item) => (
-          <Link
-            key={item.id}
-            href={item.href}
-            className={cn(
-              'flex flex-1 flex-col items-center gap-0.5 px-1 py-2 text-[10px] font-semibold',
-              isActive(item.href) ? 'text-gray-900' : 'text-gray-400'
-            )}
-          >
-            <span className="flex size-5 items-center justify-center">{renderIcon(item.id)}</span>
-            <span className="truncate">{item.label}</span>
-          </Link>
-        ))}
+        <div className="md:bg-border flex min-w-0 flex-1 flex-col gap-px overflow-hidden md:rounded-xl">
+          {/* Desktop header — same as the agency app, with the client's name instead of the switcher */}
+          <header className="bg-surface hidden h-16 shrink-0 items-center gap-4 px-5 md:flex">
+            <Link href={homeHref} className="flex shrink-0 items-center gap-2.5 font-semibold">
+              <span className="bg-primary text-primary-foreground flex size-8 items-center justify-center overflow-hidden rounded-lg text-sm font-bold">
+                {logo}
+              </span>
+              <span className="text-base font-bold">{branding.portalTitle}</span>
+            </Link>
+            <h1 className="min-w-0 flex-1 truncate text-xl font-semibold">
+              {current?.label ?? 'Client portal'}
+            </h1>
+            <div className="text-right leading-tight">
+              <p className="text-sm font-medium">{clientName || 'Client portal'}</p>
+              <p className="text-muted-foreground text-xs">{branding.name}</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => void logout()}
+              disabled={loggingOut}
+              title="Sign out"
+              className="text-muted-foreground hover:bg-surface-muted hover:text-foreground rounded-lg p-2 transition"
+            >
+              <LogOut className="size-4" />
+            </button>
+          </header>
+
+          <main className="bg-surface min-w-0 flex-1 p-4 pb-24 md:p-5 md:pb-5">
+            <div className="mx-auto max-w-6xl">{children}</div>
+          </main>
+        </div>
+      </div>
+
+      {/* Phone bottom bar — first 5 enabled tabs */}
+      <nav className="border-border bg-surface fixed inset-x-0 bottom-0 z-20 flex border-t md:hidden">
+        {railItems.slice(0, 5).map((item) => {
+          const Icon = item.icon;
+          return (
+            <Link
+              key={item.key}
+              href={item.href}
+              className={cn(
+                'flex flex-1 flex-col items-center gap-0.5 px-1 py-2 text-[10px] font-semibold',
+                isActive(item.href) ? 'text-foreground' : 'text-muted-foreground'
+              )}
+            >
+              <Icon className="size-5" />
+              <span className="truncate">{item.label}</span>
+            </Link>
+          );
+        })}
       </nav>
     </div>
   );

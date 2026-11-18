@@ -8,11 +8,12 @@ export default async function PortalChannelsPage(props: {
   const searchParams = await props.searchParams;
   const ctx = await requirePortalPage('channels');
   return (
-    <PortalShell branding={ctx.branding} nav={ctx.nav}>
+    <PortalShell branding={ctx.branding} nav={ctx.nav} clientName={ctx.clientName}>
       <PortalChannelsPanel
         organizationId={ctx.organizationId}
         customerId={ctx.customerId}
         connected={searchParams.connected}
+        canAct={ctx.canAct('channels')}
       />
     </PortalShell>
   );

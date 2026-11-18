@@ -5,7 +5,7 @@ import { requirePortalPage } from '@/modules/social/server/portal/portal-page';
 export default async function PortalOverviewPage() {
   const ctx = await requirePortalPage('overview');
   return (
-    <PortalShell branding={ctx.branding} nav={ctx.nav}>
+    <PortalShell branding={ctx.branding} nav={ctx.nav} clientName={ctx.clientName}>
       <PortalOverviewPanel organizationId={ctx.organizationId} customerId={ctx.customerId} />
     </PortalShell>
   );

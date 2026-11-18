@@ -147,7 +147,7 @@ Starts fully when Phase 4 is approved. First client: Siyara Beauty.
 | --- | --- | --- |
 | 5.1 | Lead follow-up package | Phase 1 per-client flow — ready once their number is connected |
 | 5.2 | Broadcast campaigns | Already exists |
-| 5.3 | Abandoned cart / order updates | Not built (needs Shopify hooks) |
+| 5.3 | Abandoned cart / order updates | Not built — planned in Phase 7 |
 | 5.4 | Review requests | Not built |
 | 5.5 | Client portal WhatsApp view | **Built** — `/portal/whatsapp` |
 
@@ -163,6 +163,103 @@ broadcast has gone out to their list.
 | 6.1 | Read and click counts for templates | Waiting on your yes (Meta one-way setting) |
 | 6.2 | Lead quality back to Meta | Waiting on your yes |
 | 6.3 | Other Podosphere numbers | **UI built** — connect each number, assign to a client on the WhatsApp page |
+
+---
+
+## Phase 7: Shopify order flows on WhatsApp (5 Shopify clients) — **not built**
+
+Added 17 Nov 2026. The detailed plans are in two files: `PODO_WHATSAPP_ORDER_FLOWS_PLAN.md`
+(the screens) and `PODO_SHOPIFY_APP_PLAN.md` (the store connection, Option 1 then Option 2).
+This section is the summary. Same idea as Interakt: Shopify tells the dashboard what happened in the
+store, and the dashboard sends the matching WhatsApp template.
+
+### What Shopify can trigger
+
+| # | Flow | Shopify event | When it sends | Template type |
+| --- | --- | --- | --- | --- |
+| 1 | Order confirmed | `orders/create` | Straight away | Utility |
+| 2 | COD confirmation | `orders/create` (cash on delivery) | Straight away, asks to reply YES | Utility |
+| 3 | Payment received | `orders/paid` | Straight away | Utility |
+| 4 | Order shipped + tracking link | `fulfillments/create` | When the store ships | Utility |
+| 5 | Out for delivery / delivered | `fulfillments/update` | When the courier updates | Utility |
+| 6 | Order cancelled | `orders/cancelled` | Straight away | Utility |
+| 7 | Refund done | `refunds/create` | Straight away | Utility |
+| 8 | Abandoned checkout, reminder 1 | `checkouts/create` + `checkouts/update` | 45 minutes after, if no order | Marketing |
+| 9 | Abandoned checkout, reminder 2 | same | 24 hours after, optional discount code | Marketing |
+| 10 | Review request | `orders/fulfilled` | 5 days after delivery | Marketing |
+| 11 | Reorder / win-back | no event, a daily check | 30–60 days after last order | Marketing |
+| 12 | Welcome new customer | `customers/create` | Straight away | Marketing |
+| 13 | Back in stock | `inventory_levels/update` | When stock returns | Marketing |
+
+Flows 1–10 cover what Interakt sells. 11–13 are later extras.
+
+### Part A: the WhatsApp side (build first)
+
+Built and tested on Podosphere's number with one test store, before any client is touched.
+
+1. **Database:** a table for each store's flow settings (switch, template and delay per flow),
+   a table of Shopify events received, and a table of messages due to send.
+2. **Receiving address** `/api/webhooks/shopify`: checks Shopify's signature, saves the event,
+   ignores repeats (Shopify can send the same event twice).
+3. **Sender and timer:** sends order messages straight away; holds cart reminders and cancels
+   them when the order is placed; one reminder set per cart; stops on STOP; marketing
+   messages only between 10:00 and 21:00 India time.
+4. **"Order flows" card** on the WhatsApp page: one row per flow with a switch, a template
+   picker and a delay. Everything off by default.
+5. **Blanks filled in a fixed order:** customer name, order number, amount, then the link
+   (cart link, tracking link or review link) on the template's button.
+6. **Results table:** messages sent, carts recovered, revenue recovered, per client.
+7. **Templates:** one set per client number, created and approved in Meta.
+
+Build order: order confirmed → shipped → abandoned checkout 1 and 2 → COD → cancelled and
+refund → review request.
+
+**Done when:** a test order in the test store produces the confirmation on a test phone, and
+an abandoned test checkout produces reminder 1, then nothing after the order is placed.
+
+### Part B: the Shopify custom app (after Part A)
+
+Checked on shopify.dev, 17 Nov 2026:
+
+- Custom apps can no longer be created inside the Shopify admin. New ones are made in
+  Shopify's **Dev Dashboard**.
+- The simple login (client ID + secret) only works for stores in the **same Shopify
+  organisation** as the app. The dashboard already supports this login.
+- Order and checkout events need the `read_orders` access. Shipping events need
+  `read_fulfillments`. Customer name and phone need `read_customers` plus Shopify's
+  "protected customer data" setting switched on for the app.
+
+Two ways to do it:
+
+| | Option 1: one app per client store (recommended now) | Option 2: one Podosphere app for all stores |
+| --- | --- | --- |
+| How | Each client makes an app in their own Dev Dashboard and gives the client ID + secret | Podosphere makes one app in a Shopify Partner account; each client clicks an install link |
+| Build needed | Small: add the new access and switch on events | Larger: an install-and-approve screen, plus Shopify's privacy rules |
+| Client effort | About 10 minutes, with a written guide | One click |
+| Good for | 5 clients | 10+ clients, or selling it as a product |
+
+Steps for Option 1, per client:
+
+1. Client (or you, as staff on their store) opens the Dev Dashboard and creates an app
+   called "Podo Social".
+2. Tick the access: `read_orders`, `read_fulfillments`, `read_customers`, `read_products`,
+   and keep what the Growth page already uses (`read_reports`, `read_content`, `write_content`).
+3. Switch on protected customer data (name, phone, email).
+4. Install the app on the store, copy the client ID and secret.
+5. Paste them in the dashboard's Shopify connect screen. The dashboard then switches on the
+   events for that store by itself.
+6. Place a test order and check the event arrives.
+
+**Still to check:** which access each of the 5 stores has today, and whether the old pasted
+tokens need replacing. Stores connected the old way (pasted token) keep working for sales
+numbers, but need the new access added.
+
+### What Phase 7 waits for
+
+- Sending from a **client's own number** needs Meta App Review (Phase 4). Until then only
+  Podosphere's number and a test store can be used.
+- Each client's checkout needs a WhatsApp consent tick box.
+- Meta charges per marketing message (cart reminders, reviews). Agree with each client who pays.
 
 ---
 

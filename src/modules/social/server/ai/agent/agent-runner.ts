@@ -57,11 +57,13 @@ function toMessageParams(
 /**
  * One agent turn: append user message history already includes the new user turn.
  * Soft-fails when ANTHROPIC_API_KEY is unset (returns a configured:false assistant reply).
+ * `feature` defaults to admin copilot; portal chat passes `portal-agent` for usage attribution.
  */
 export async function runAgentTurn(input: {
   scope: ClientScope;
   threadId: string;
   history: Array<{ role: string; content: unknown }>;
+  feature?: string;
 }): Promise<AgentTurnResult> {
   if (!isClaudeConfigured()) {
     const replyText =
@@ -75,7 +77,7 @@ export async function runAgentTurn(input: {
 
   let session;
   try {
-    session = await prepareClaudeSession(input.scope, 'copilot-agent');
+    session = await prepareClaudeSession(input.scope, input.feature ?? 'copilot-agent');
   } catch (error) {
     if (error instanceof HttpError && (error.status === 503 || error.status === 429)) {
       return {

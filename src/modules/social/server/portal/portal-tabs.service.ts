@@ -5,10 +5,14 @@ import { HttpError } from '@/shared/server/http-error';
 import {
   enabledPortalTabs,
   isPortalAdSpendVisible,
+  orderedPortalTabs,
   parsePortalTabsConfig,
+  portalTabLevel,
   portalTabs,
+  type PortalAccessLevel,
   type PortalClientFlags,
   type PortalTabDefinition,
+  type PortalTabId,
   type PortalTabsConfig,
 } from '../../config/portal-tabs';
 import type { UpdatePortalTabsBody } from './portal-tabs.schema';
@@ -18,8 +22,25 @@ export type PortalTabsSettingsDto = {
   flags: Omit<PortalClientFlags, 'portalTabs'>;
   /** Effective visibility after overrides + connection defaults. */
   effective: Record<string, boolean>;
+  /** Effective access level per tab: off / view / act. */
+  levels: Record<string, PortalAccessLevel>;
+  /** All tab ids in this client's left-menu order. */
+  order: PortalTabId[];
   adSpendVisible: boolean;
 };
+
+const LEVEL_RANK: Record<PortalAccessLevel, number> = { off: 0, view: 1, act: 2 };
+
+function toStoredJson(config: PortalTabsConfig): Prisma.InputJsonValue | typeof Prisma.DbNull {
+  const hasTabs = config.tabs && Object.keys(config.tabs).length > 0;
+  const hasOrder = config.order && config.order.length > 0;
+  if (!hasTabs && !hasOrder && config.adSpendVisible === undefined) return Prisma.DbNull;
+  return {
+    ...(hasTabs ? { tabs: config.tabs } : {}),
+    ...(hasOrder ? { order: config.order } : {}),
+    ...(config.adSpendVisible !== undefined ? { adSpendVisible: config.adSpendVisible } : {}),
+  } as Prisma.InputJsonValue;
+}
 
 async function loadFlags(
   organizationId: string,
@@ -57,8 +78,10 @@ async function loadFlags(
 
 function toSettingsDto(flags: PortalClientFlags): PortalTabsSettingsDto {
   const effective: Record<string, boolean> = {};
+  const levels: Record<string, PortalAccessLevel> = {};
   for (const tab of portalTabs) {
     effective[tab.id] = tab.enabled(flags);
+    levels[tab.id] = portalTabLevel(tab.id, flags);
   }
   return {
     config: flags.portalTabs ?? {},
@@ -70,6 +93,8 @@ function toSettingsDto(flags: PortalClientFlags): PortalTabsSettingsDto {
       hasWhatsApp: flags.hasWhatsApp,
     },
     effective,
+    levels,
+    order: orderedPortalTabs(flags.portalTabs?.order).map((tab) => tab.id),
     adSpendVisible: isPortalAdSpendVisible(flags),
   };
 }
@@ -106,23 +131,65 @@ export const portalTabsService = {
     if (!customer) throw new HttpError(404, 'Client not found');
 
     const current = parsePortalTabsConfig(customer.portalTabs) ?? {};
-    const nextTabs = { ...(current.tabs ?? {}), ...(body.tabs ?? {}) };
-    const next: PortalTabsConfig = {};
-    if (Object.keys(nextTabs).length > 0) next.tabs = nextTabs;
-    const adSpendVisible =
-      body.adSpendVisible !== undefined ? body.adSpendVisible : current.adSpendVisible;
-    if (typeof adSpendVisible === 'boolean') next.adSpendVisible = adSpendVisible;
+    const nextTabs = { ...(current.tabs ?? {}) };
+    for (const [id, level] of Object.entries(body.tabs ?? {})) {
+      if (level === null || level === undefined) delete nextTabs[id as PortalTabId];
+      else nextTabs[id as PortalTabId] = level;
+    }
+    const next: PortalTabsConfig = {
+      tabs: nextTabs,
+      order: body.order ?? current.order,
+      adSpendVisible:
+        body.adSpendVisible !== undefined ? body.adSpendVisible : current.adSpendVisible,
+    };
 
     await prisma.socialCustomer.update({
       where: { id: customerId },
-      data: {
-        portalTabs:
-          next.tabs || next.adSpendVisible !== undefined
-            ? (next as Prisma.InputJsonValue)
-            : Prisma.DbNull,
-      },
+      data: { portalTabs: toStoredJson(next) },
     });
 
     return this.getSettings(organizationId, customerId);
+  },
+
+  /**
+   * Portal APIs: the session's client must have this tab at `need` or higher.
+   * `view` = may read the tab, `act` = may change something on it.
+   */
+  async requireLevel(
+    organizationId: string,
+    customerId: string,
+    tabId: PortalTabId,
+    need: 'view' | 'act'
+  ): Promise<void> {
+    const flags = await this.getClientFlags(organizationId, customerId);
+    const level = portalTabLevel(tabId, flags);
+    if (LEVEL_RANK[level] >= LEVEL_RANK[need]) return;
+    throw new HttpError(
+      403,
+      level === 'off'
+        ? 'This section is not switched on for your account'
+        : 'Your account can only view this section. Ask your agency to allow changes.'
+    );
+  },
+
+  /** Copy one client's tab settings (levels, order, ad spend) onto other clients of the same org. */
+  async copySettings(
+    organizationId: string,
+    sourceCustomerId: string,
+    targetClientIds: string[]
+  ): Promise<{ updated: number }> {
+    const source = await prisma.socialCustomer.findFirst({
+      where: { id: sourceCustomerId, organizationId, deletedAt: null },
+      select: { portalTabs: true },
+    });
+    if (!source) throw new HttpError(404, 'Client not found');
+    const targets = targetClientIds.filter((id) => id !== sourceCustomerId);
+    if (targets.length === 0) return { updated: 0 };
+
+    const result = await prisma.socialCustomer.updateMany({
+      where: { id: { in: targets }, organizationId, deletedAt: null },
+      data: { portalTabs: toStoredJson(parsePortalTabsConfig(source.portalTabs) ?? {}) },
+    });
+    return { updated: result.count };
   },
 };

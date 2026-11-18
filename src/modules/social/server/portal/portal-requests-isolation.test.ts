@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('server-only', () => ({}));
+vi.mock('@/shared/server/audit.service', () => ({
+  logAudit: vi.fn().mockResolvedValue(undefined),
+}));
 vi.mock('@/shared/lib/prisma', () => {
   const model = () => ({
     findMany: vi.fn().mockResolvedValue([]),
@@ -35,6 +38,7 @@ vi.mock('@/shared/lib/prisma', () => {
 });
 
 import { prisma } from '@/shared/lib/prisma';
+import { logAudit } from '@/shared/server/audit.service';
 import { portalRequestsService } from './portal-requests.service';
 
 const ORG = 'org-a';
@@ -78,6 +82,49 @@ describe('portal requests tenant isolation', () => {
         approverId: 'apr-a',
       },
     });
+  });
+
+  it('createPostRequestForPortal always uses session org/client and type post', async () => {
+    const sessionB = {
+      ...session,
+      customerId: CLIENT_B,
+      approverId: 'apr-b',
+    };
+    await portalRequestsService.createPostRequestForPortal(sessionB, {
+      title: 'Festival carousel',
+      brief: 'Show new SKUs',
+      dueDate: '2026-12-01',
+    });
+    expect(db.socialPortalRequest.create.mock.calls[0]?.[0]).toMatchObject({
+      data: {
+        organizationId: ORG,
+        customerId: CLIENT_B,
+        approverId: 'apr-b',
+        type: 'post',
+        title: 'Festival carousel',
+        detail: 'Due: 2026-12-01\n\nShow new SKUs',
+      },
+    });
+    expect(logAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'portal.request_post',
+        metadata: expect.objectContaining({
+          customerId: CLIENT_B,
+          approverId: 'apr-b',
+          dueDate: '2026-12-01',
+        }),
+      })
+    );
+  });
+
+  it('createPostRequestForPortal never accepts another client id from the caller', async () => {
+    await portalRequestsService.createPostRequestForPortal(session, {
+      title: 'Only for A',
+    });
+    const data = (db.socialPortalRequest.create.mock.calls[0]?.[0] as { data: Record<string, unknown> })
+      .data;
+    expect(data.customerId).toBe(CLIENT_A);
+    expect(data.customerId).not.toBe(CLIENT_B);
   });
 
   it('agency update looks up request inside org + client', async () => {

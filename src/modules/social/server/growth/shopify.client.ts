@@ -1,4 +1,5 @@
 import 'server-only';
+import { createHmac, timingSafeEqual } from 'node:crypto';
 import { getServerEnv } from '@/shared/lib/env';
 import { HttpError } from '@/shared/server/http-error';
 import { fetchPublicUrl } from '@/shared/server/public-fetch';
@@ -280,6 +281,153 @@ export async function listBlogs(
     `{ blogs(first: 20) { nodes { id title handle } } }`
   );
   return data.blogs.nodes;
+}
+
+/**
+ * Verifies X-Shopify-Hmac-Sha256 (base64 HMAC-SHA256 of the raw body with the app client secret).
+ * Token-only stores have no client secret — signature verify requires reconnecting with client id + secret.
+ */
+export function verifyShopifyWebhookHmac(rawBody: string, hmacHeader: string | null, clientSecret: string): boolean {
+  if (!hmacHeader) return false;
+  const expected = createHmac('sha256', clientSecret).update(rawBody, 'utf8').digest('base64');
+  const a = Buffer.from(expected);
+  const b = Buffer.from(hmacHeader);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
+/** REST topic (`orders/create`) → GraphQL WebhookSubscriptionTopic (`ORDERS_CREATE`). */
+const REST_TO_GQL_WEBHOOK_TOPIC: Record<string, string> = {
+  'orders/create': 'ORDERS_CREATE',
+  'orders/paid': 'ORDERS_PAID',
+  'orders/cancelled': 'ORDERS_CANCELLED',
+  'orders/fulfilled': 'ORDERS_FULFILLED',
+  'fulfillments/create': 'FULFILLMENTS_CREATE',
+  'refunds/create': 'REFUNDS_CREATE',
+  'checkouts/create': 'CHECKOUTS_CREATE',
+  'checkouts/update': 'CHECKOUTS_UPDATE',
+};
+
+export function toShopifyGraphqlWebhookTopic(topic: string): string {
+  const trimmed = topic.trim();
+  if (trimmed.includes('/')) {
+    const mapped = REST_TO_GQL_WEBHOOK_TOPIC[trimmed.toLowerCase()];
+    if (!mapped) throw new HttpError(400, `Unsupported Shopify webhook topic: ${topic}`);
+    return mapped;
+  }
+  return trimmed.toUpperCase();
+}
+
+export interface ShopifyWebhookSubscription {
+  id: string;
+  topic: string;
+  callbackUrl: string | null;
+}
+
+const WEBHOOK_LIST_QUERY = `{
+  webhookSubscriptions(first: 50) {
+    nodes {
+      id
+      topic
+      endpoint {
+        __typename
+        ... on WebhookHttpEndpoint { callbackUrl }
+      }
+    }
+  }
+}`;
+
+export async function listWebhookSubscriptions(
+  shopDomain: string,
+  token: string
+): Promise<ShopifyWebhookSubscription[]> {
+  const data = await shopifyGraphql<{
+    webhookSubscriptions: {
+      nodes: {
+        id: string;
+        topic: string;
+        endpoint: { __typename: string; callbackUrl?: string } | null;
+      }[];
+    };
+  }>(shopDomain, token, WEBHOOK_LIST_QUERY);
+  return data.webhookSubscriptions.nodes.map((node) => ({
+    id: node.id,
+    topic: node.topic,
+    callbackUrl: node.endpoint && 'callbackUrl' in node.endpoint ? (node.endpoint.callbackUrl ?? null) : null,
+  }));
+}
+
+/** Alias: list Admin API webhook subscriptions for a shop. */
+export async function listWebhooks(shop: string, token: string): Promise<ShopifyWebhookSubscription[]> {
+  return listWebhookSubscriptions(shop, token);
+}
+
+const WEBHOOK_CREATE_MUTATION = `
+mutation CreateWebhook($topic: WebhookSubscriptionTopic!, $webhookSubscription: WebhookSubscriptionInput!) {
+  webhookSubscriptionCreate(topic: $topic, webhookSubscription: $webhookSubscription) {
+    webhookSubscription { id topic }
+    userErrors { field message }
+  }
+}`;
+
+export async function createWebhookSubscription(
+  shopDomain: string,
+  token: string,
+  topic: string,
+  callbackUrl: string
+): Promise<string> {
+  const gqlTopic = toShopifyGraphqlWebhookTopic(topic);
+  const data = await shopifyGraphql<{
+    webhookSubscriptionCreate: {
+      webhookSubscription: { id: string; topic: string } | null;
+      userErrors: { field?: string[]; message: string }[];
+    };
+  }>(shopDomain, token, WEBHOOK_CREATE_MUTATION, {
+    topic: gqlTopic,
+    webhookSubscription: { uri: callbackUrl, format: 'JSON' },
+  });
+  const result = data.webhookSubscriptionCreate;
+  if (result.userErrors.length || !result.webhookSubscription) {
+    throw new ShopifyApiError(
+      result.userErrors.map((e) => e.message).join('; ') || `Could not register ${gqlTopic}`,
+      400
+    );
+  }
+  return result.webhookSubscription.id;
+}
+
+/** Alias: register one webhook (`topic` may be REST or GraphQL form). */
+export async function createWebhook(
+  shop: string,
+  token: string,
+  opts: { topic: string; address: string }
+): Promise<string> {
+  return createWebhookSubscription(shop, token, opts.topic, opts.address);
+}
+
+const WEBHOOK_DELETE_MUTATION = `
+mutation DeleteWebhook($id: ID!) {
+  webhookSubscriptionDelete(id: $id) {
+    deletedWebhookSubscriptionId
+    userErrors { field message }
+  }
+}`;
+
+export async function deleteWebhookSubscription(shopDomain: string, token: string, id: string): Promise<void> {
+  const data = await shopifyGraphql<{
+    webhookSubscriptionDelete: {
+      deletedWebhookSubscriptionId: string | null;
+      userErrors: { field?: string[]; message: string }[];
+    };
+  }>(shopDomain, token, WEBHOOK_DELETE_MUTATION, { id });
+  const errors = data.webhookSubscriptionDelete.userErrors;
+  if (errors.length) {
+    throw new ShopifyApiError(errors.map((e) => e.message).join('; '), 400);
+  }
+}
+
+/** Alias: delete a webhook subscription by Admin API id. */
+export async function deleteWebhook(shop: string, token: string, id: string): Promise<void> {
+  return deleteWebhookSubscription(shop, token, id);
 }
 
 export async function createArticle(

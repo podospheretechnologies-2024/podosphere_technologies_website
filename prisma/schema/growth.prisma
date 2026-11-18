@@ -34,11 +34,124 @@ model SocialShopifyStore {
   /// Shopify traffic (ShopifyQL) availability: null = not tried, true/false after first try.
   trafficAvailable      Boolean?
   trafficError          String?   @db.VarChar(1024)
+  /// Live order/checkout webhooks registered to /api/webhooks/shopify.
+  webhooksEnabled       Boolean   @default(false)
+  lastWebhookAt         DateTime?
+  /// Consecutive WhatsApp send failures for order flows; pause at 20.
+  consecutiveSendFailures Int     @default(0)
+  orderFlowsPaused      Boolean   @default(false)
+  orderFlowsPausedReason String?  @db.VarChar(255)
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
 
+  orderFlows            SocialWhatsAppOrderFlow[]
+  shopifyEvents         SocialShopifyWebhookEvent[]
+  orderMessages         SocialWhatsAppOrderMessage[]
+
   @@index([organizationId])
   @@map("social_shopify_stores")
+}
+
+// Fixed Interakt-style WhatsApp order notification per store (PODO_WHATSAPP_ORDER_FLOWS_PLAN).
+// One row per flowKey; off until an approved template is chosen and enabled=true.
+model SocialWhatsAppOrderFlow {
+  id               String   @id @default(uuid())
+  organizationId   String
+  customerId       String
+  storeId          String
+  /// See ORDER_FLOW_KEYS in order-flow.config.ts
+  flowKey          String   @db.VarChar(48)
+  enabled          Boolean  @default(false)
+  templateName     String?  @db.VarChar(120)
+  templateLanguage String?  @db.VarChar(16)
+  /// Delay before send: minutes (abandoned) or days (review). Null = immediate.
+  delayValue       Int?
+  delayUnit        String?  @db.VarChar(16) // minutes | hours | days
+  /// Optional filters: { minCartValue?, paymentType?: 'any'|'cod'|'prepaid' }
+  onlyIf           Json?
+  /// Map template slots → field keys: { "1": "customer_first_name", "button_url": "checkout_link" }
+  variableMap      Json?
+  /// Stop conditions: { onOrderPlaced?: bool, onStopReply?: bool }
+  stopIf           Json?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  organization Organization      @relation(fields: [organizationId], references: [id])
+  customer     SocialCustomer    @relation(fields: [customerId], references: [id])
+  store        SocialShopifyStore @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  messages     SocialWhatsAppOrderMessage[]
+
+  @@unique([storeId, flowKey])
+  @@index([organizationId, customerId])
+  @@map("social_whatsapp_order_flows")
+}
+
+// Raw Shopify webhook receipt; unique on Shopify X-Shopify-Webhook-Id for idempotency.
+model SocialShopifyWebhookEvent {
+  id             String   @id @default(uuid())
+  organizationId String
+  customerId     String
+  storeId        String
+  shopifyWebhookId String @db.VarChar(64)
+  topic          String   @db.VarChar(64)
+  shopDomain     String   @db.VarChar(255)
+  /// Shopify resource id (order id, checkout token, etc.)
+  resourceId     String?  @db.VarChar(64)
+  payload        Json
+  processedAt    DateTime?
+  createdAt      DateTime @default(now())
+
+  store SocialShopifyStore @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@unique([shopifyWebhookId])
+  @@index([storeId, topic, createdAt])
+  @@index([organizationId, customerId, createdAt], map: "sswe_org_customer_created_idx")
+  @@map("social_shopify_webhook_events")
+}
+
+// Scheduled / sent WhatsApp order-flow messages (activity + timer queue).
+model SocialWhatsAppOrderMessage {
+  id             String    @id @default(uuid())
+  organizationId String
+  customerId     String
+  storeId        String
+  flowId         String
+  flowKey        String    @db.VarChar(48)
+  /// waiting | sent | delivered | read | failed | cancelled | skipped
+  status         String    @db.VarChar(16)
+  statusReason   String?   @db.VarChar(255)
+  /// Customer phone E.164-ish
+  phone          String?   @db.VarChar(32)
+  customerName   String?   @db.VarChar(120)
+  /// Order name (#1042) or cart label
+  orderLabel     String?   @db.VarChar(64)
+  orderId        String?   @db.VarChar(64)
+  checkoutToken  String?   @db.VarChar(64)
+  cartTotal      Decimal?  @db.Decimal(14, 2)
+  currency       String?   @db.VarChar(3)
+  /// Dedup key: storeId + flowKey + resourceId (+ reminder index)
+  dedupeKey      String    @db.VarChar(160)
+  dueAt          DateTime
+  sentAt         DateTime?
+  /// Meta wamid when sent
+  wamid          String?   @db.VarChar(128)
+  /// Recovered order within 7 days of a cart reminder
+  recoveredAt    DateTime?
+  recoveredTotal Decimal?  @db.Decimal(14, 2)
+  resultLabel    String?   @db.VarChar(120)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  store SocialShopifyStore      @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  flow  SocialWhatsAppOrderFlow @relation(fields: [flowId], references: [id], onDelete: Cascade)
+
+  @@unique([dedupeKey])
+  @@index([status, dueAt])
+  @@index([organizationId, customerId, createdAt], map: "swom_org_customer_created_idx")
+  @@index([storeId, flowKey, createdAt])
+  @@index([checkoutToken])
+  @@index([orderId])
+  @@map("social_whatsapp_order_messages")
 }
 
 // One row per store per store-local day.

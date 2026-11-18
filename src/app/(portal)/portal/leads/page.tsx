@@ -11,8 +11,8 @@ export default async function PortalLeadsPage() {
   });
 
   return (
-    <PortalShell branding={ctx.branding} nav={ctx.nav}>
-      <PortalLeadsPanel data={data} />
+    <PortalShell branding={ctx.branding} nav={ctx.nav} clientName={ctx.clientName}>
+      <PortalLeadsPanel data={data} canAct={ctx.canAct('leads')} />
     </PortalShell>
   );
 }
