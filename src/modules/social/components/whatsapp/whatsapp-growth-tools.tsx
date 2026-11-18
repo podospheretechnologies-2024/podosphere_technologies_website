@@ -27,9 +27,12 @@ interface BroadcastRow {
   id: string;
   name: string;
   templateName: string;
+  language?: string;
   status: string;
   sentCount: number;
   recipientCount: number;
+  customerId?: string | null;
+  createdAt?: string;
 }
 
 type AccountHealth =
@@ -55,6 +58,7 @@ export function WhatsAppGrowthTools() {
   const [stats, setStats] = useState<MessageStats | null>(null);
   const [config, setConfig] = useState<SignupConfig | null>(null);
   const [broadcasts, setBroadcasts] = useState<BroadcastRow[]>([]);
+  const [pendingBroadcasts, setPendingBroadcasts] = useState<BroadcastRow[]>([]);
   const [message, setMessage] = useState<string | null>(null);
   const [template, setTemplate] = useState({
     name: '',
@@ -94,6 +98,12 @@ export function WhatsAppGrowthTools() {
       fetch('/api/social/whatsapp/broadcasts')
         .then((response) => response.json())
         .then((data: BroadcastRow[]) => setBroadcasts(Array.isArray(data) ? data : [])),
+      fetch('/api/social/whatsapp/broadcasts/pending')
+        .then((response) => response.json())
+        .then((data: BroadcastRow[]) =>
+          setPendingBroadcasts(Array.isArray(data) ? data : [])
+        )
+        .catch(() => setPendingBroadcasts([])),
       fetch('/api/social/whatsapp/settings')
         .then((response) => response.json())
         .then((data: AccountHealth) => setHealth(data)),
@@ -308,6 +318,38 @@ export function WhatsAppGrowthTools() {
       estimatedCostInr: payload.estimatedCostInr ?? 0,
       ratePaise: payload.ratePaise ?? 0,
     });
+  }
+
+  async function approvePending(id: string) {
+    const confirmed = window.confirm('Approve and send this client broadcast now?');
+    if (!confirmed) return;
+    setMessage(null);
+    const response = await fetch(`/api/social/whatsapp/broadcasts/${id}/approve`, {
+      method: 'POST',
+    });
+    const payload = (await response.json()) as {
+      error?: string;
+      sent?: number;
+      total?: number;
+    };
+    setMessage(
+      response.ok
+        ? `Approved and sent ${payload.sent ?? 0}/${payload.total ?? 0}.`
+        : payload.error || 'Could not approve broadcast'
+    );
+    reload();
+  }
+
+  async function rejectPending(id: string) {
+    const confirmed = window.confirm('Reject this client broadcast? Nothing will be sent.');
+    if (!confirmed) return;
+    setMessage(null);
+    const response = await fetch(`/api/social/whatsapp/broadcasts/${id}/reject`, {
+      method: 'POST',
+    });
+    const payload = (await response.json()) as { error?: string };
+    setMessage(response.ok ? 'Broadcast rejected.' : payload.error || 'Could not reject');
+    reload();
   }
 
   async function sendBroadcast() {
@@ -620,6 +662,49 @@ export function WhatsAppGrowthTools() {
             {message}
           </p>
         )}
+
+        {pendingBroadcasts.length > 0 && (
+          <div className="border-border border-t pt-4">
+            <p className="mb-2 text-xs font-semibold">Client broadcasts awaiting approval</p>
+            <ul className="space-y-2">
+              {pendingBroadcasts.map((row) => (
+                <li
+                  key={row.id}
+                  className="border-border flex flex-wrap items-center justify-between gap-2 rounded-xl border px-3 py-2 text-xs"
+                >
+                  <div className="min-w-0">
+                    <p className="font-medium">
+                      {row.name} · {row.templateName}
+                    </p>
+                    <p className="text-muted-foreground">
+                      {row.recipientCount} recipients
+                      {row.createdAt
+                        ? ` · ${new Date(row.createdAt).toLocaleString()}`
+                        : ''}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={() => void approvePending(row.id)}
+                    >
+                      Approve & send
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={() => void rejectPending(row.id)}
+                    >
+                      Reject
+                    </Button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
         {broadcasts.length > 0 && (
           <ul className="text-muted-foreground space-y-1 text-xs">
             {broadcasts.map((row) => (

@@ -1307,6 +1307,8 @@ model WhatsAppBroadcast {
   status              String    @default("draft")
   recipientCount      Int       @default(0)
   sentCount           Int       @default(0)
+  /// Template body variables (string[]) for pending client broadcasts.
+  variables           Json?
   /// Operator acknowledged recipient consent before send.
   consentAcknowledged Boolean   @default(false)
   consentAt           DateTime?
@@ -1319,6 +1321,7 @@ model WhatsAppBroadcast {
 
   @@index([organizationId, createdAt])
   @@index([organizationId, customerId])
+  @@index([organizationId, status])
   @@map("whatsapp_broadcasts")
 }
 

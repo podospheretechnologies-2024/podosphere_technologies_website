@@ -14,6 +14,10 @@ export const updatePortalTabsSchema = z.object({
   tabs: z.partialRecord(z.enum(PORTAL_TAB_IDS), levelSchema).optional(),
   order: z.array(z.enum(PORTAL_TAB_IDS)).max(PORTAL_TAB_IDS.length).optional(),
   adSpendVisible: z.boolean().optional(),
+  /** Portal WhatsApp act daily outbound cap. `null` clears override (back to default 50). */
+  whatsappDailyCap: z.number().int().min(1).max(10_000).nullable().optional(),
+  /** Client-prepared broadcasts need agency approval before send (default true). */
+  whatsappBroadcastNeedsApproval: z.boolean().optional(),
 });
 
 export type UpdatePortalTabsBody = z.infer<typeof updatePortalTabsSchema>;

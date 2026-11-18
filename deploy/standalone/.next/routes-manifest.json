@@ -39,6 +39,22 @@
       "namedRegex": "^/api/portal/agent/threads/(?<nxtPid>[^/]+?)(?:/)?$"
     },
     {
+      "page": "/api/portal/growth/blogs/[id]",
+      "regex": "^/api/portal/growth/blogs/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/portal/growth/blogs/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/api/portal/growth/campaigns/[id]",
+      "regex": "^/api/portal/growth/campaigns/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/portal/growth/campaigns/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
       "page": "/api/portal/inbox/[threadId]",
       "regex": "^/api/portal/inbox/([^/]+?)(?:/)?$",
       "routeKeys": {
@@ -61,6 +77,22 @@
         "nxtPid": "nxtPid"
       },
       "namedRegex": "^/api/portal/leads/(?<nxtPid>[^/]+?)/stage(?:/)?$"
+    },
+    {
+      "page": "/api/portal/whatsapp/conversations/[id]",
+      "regex": "^/api/portal/whatsapp/conversations/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/portal/whatsapp/conversations/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/api/portal/whatsapp/conversations/[id]/reply",
+      "regex": "^/api/portal/whatsapp/conversations/([^/]+?)/reply(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/portal/whatsapp/conversations/(?<nxtPid>[^/]+?)/reply(?:/)?$"
     },
     {
       "page": "/api/social/ads/accounts/[id]",
@@ -618,6 +650,22 @@
       "namedRegex": "^/api/social/whatsapp/auto\\-replies/(?<nxtPid>[^/]+?)(?:/)?$"
     },
     {
+      "page": "/api/social/whatsapp/broadcasts/[id]/approve",
+      "regex": "^/api/social/whatsapp/broadcasts/([^/]+?)/approve(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/social/whatsapp/broadcasts/(?<nxtPid>[^/]+?)/approve(?:/)?$"
+    },
+    {
+      "page": "/api/social/whatsapp/broadcasts/[id]/reject",
+      "regex": "^/api/social/whatsapp/broadcasts/([^/]+?)/reject(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/social/whatsapp/broadcasts/(?<nxtPid>[^/]+?)/reject(?:/)?$"
+    },
+    {
       "page": "/api/social/whatsapp/conversations/[id]",
       "regex": "^/api/social/whatsapp/conversations/([^/]+?)(?:/)?$",
       "routeKeys": {
@@ -880,6 +928,42 @@
       "namedRegex": "^/api/portal/content/request\\-post(?:/)?$"
     },
     {
+      "page": "/api/portal/growth",
+      "regex": "^/api/portal/growth(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/portal/growth(?:/)?$"
+    },
+    {
+      "page": "/api/portal/growth/blogs",
+      "regex": "^/api/portal/growth/blogs(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/portal/growth/blogs(?:/)?$"
+    },
+    {
+      "page": "/api/portal/growth/campaigns",
+      "regex": "^/api/portal/growth/campaigns(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/portal/growth/campaigns(?:/)?$"
+    },
+    {
+      "page": "/api/portal/growth/content",
+      "regex": "^/api/portal/growth/content(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/portal/growth/content(?:/)?$"
+    },
+    {
+      "page": "/api/portal/growth/ideas",
+      "regex": "^/api/portal/growth/ideas(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/portal/growth/ideas(?:/)?$"
+    },
+    {
+      "page": "/api/portal/growth/reports",
+      "regex": "^/api/portal/growth/reports(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/portal/growth/reports(?:/)?$"
+    },
+    {
       "page": "/api/portal/inbox",
       "regex": "^/api/portal/inbox(?:/)?$",
       "routeKeys": {},
@@ -932,6 +1016,42 @@
       "regex": "^/api/portal/set\\-password(?:/)?$",
       "routeKeys": {},
       "namedRegex": "^/api/portal/set\\-password(?:/)?$"
+    },
+    {
+      "page": "/api/portal/whatsapp",
+      "regex": "^/api/portal/whatsapp(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/portal/whatsapp(?:/)?$"
+    },
+    {
+      "page": "/api/portal/whatsapp/automation",
+      "regex": "^/api/portal/whatsapp/automation(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/portal/whatsapp/automation(?:/)?$"
+    },
+    {
+      "page": "/api/portal/whatsapp/broadcasts",
+      "regex": "^/api/portal/whatsapp/broadcasts(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/portal/whatsapp/broadcasts(?:/)?$"
+    },
+    {
+      "page": "/api/portal/whatsapp/conversations",
+      "regex": "^/api/portal/whatsapp/conversations(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/portal/whatsapp/conversations(?:/)?$"
+    },
+    {
+      "page": "/api/portal/whatsapp/templates",
+      "regex": "^/api/portal/whatsapp/templates(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/portal/whatsapp/templates(?:/)?$"
+    },
+    {
+      "page": "/api/portal/whatsapp/templates/send",
+      "regex": "^/api/portal/whatsapp/templates/send(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/portal/whatsapp/templates/send(?:/)?$"
     },
     {
       "page": "/api/social/ads/accounts",
@@ -1538,6 +1658,12 @@
       "regex": "^/api/social/whatsapp/broadcasts(?:/)?$",
       "routeKeys": {},
       "namedRegex": "^/api/social/whatsapp/broadcasts(?:/)?$"
+    },
+    {
+      "page": "/api/social/whatsapp/broadcasts/pending",
+      "regex": "^/api/social/whatsapp/broadcasts/pending(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/social/whatsapp/broadcasts/pending(?:/)?$"
     },
     {
       "page": "/api/social/whatsapp/conversations",

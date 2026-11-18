@@ -164,3 +164,88 @@ Shopify's own screen, and the store is connected. No IDs or secrets to copy.
 1. Who creates the test store: you, or should I guide you through it step by step?
 2. The names of the 5 client stores, so their current access can be checked (read-only).
 3. For each client: who has owner access to create the app on their store?
+
+---
+
+## Full-access app plan (added 18 Nov 2026)
+
+Goal: one app definition, "Podo Social", with every access the Growth dashboard needs now and
+later, created in the Dev Dashboard and installed on Miphoria, Siyara Beauty and Franco Leone.
+Two ways to log in are kept: Method 1 (Client ID + secret) is the main one, Method 2 (pasted
+access token) is the backup.
+
+Status: plan only. Steps 1 to 4 need no new code.
+
+### Access list for the app
+
+Tick all of these when creating the app, so the app does not have to be reinstalled later.
+
+| Access | Used for | In the dashboard today |
+| --- | --- | --- |
+| `read_orders` | Orders, sales, AOV, abandoned checkouts | Yes |
+| `read_fulfillments` | Shipped, delivered | Yes |
+| `read_customers` | Customer name, phone, repeat buyers | Yes |
+| `read_products` | Product names and pictures | Yes |
+| `read_reports` | Visitors, sources, landing pages, devices | Yes (not tested on a real store) |
+| `read_content`, `write_content` | Read and publish blogs | Yes |
+| `read_all_orders` | Orders older than 60 days | No. Shopify must approve this one |
+| `read_inventory` | Stock levels, out-of-stock warnings | No |
+| `read_discounts` | Which coupon codes bring sales | No |
+| `read_analytics` | Extra store analytics | No |
+| `write_pixels`, `read_customer_events` | Per-visitor tracking (page views, add to cart) | No. Needs the web pixel build |
+
+Also switch on **protected customer data** (name, phone, email, address), or orders arrive
+with the phone blanked out.
+
+### Method 1: Client ID + secret (main)
+
+Shopify has no user ID and password login for apps. The Client ID and Client secret are the
+app's ID and password. The dashboard swaps them for an access token by itself and renews it
+every 24 hours.
+
+- Works for: sales sync, live order events, WhatsApp order flows, blogs.
+- Rule: the app and the store must be in the same Shopify organisation.
+
+### Method 2: pasted access token (backup)
+
+A fixed token that starts with `shpat_`, pasted once in Growth → Setup → "Admin API access
+token".
+
+- It comes from an old-style custom app made inside the store admin (Settings → Apps →
+  Develop apps). Shopify stopped allowing new ones in 2026. Use this method only where the
+  store still shows "Create an app" there, or already has such an app.
+- Works for: sales sync and blogs only. Live events do not work in this mode today.
+- Small build to close that gap (about half a day): let the token mode also accept the old
+  app's "API secret key", so live events can be checked and switched on.
+
+### Steps
+
+1. **Check the organisations.** Open dev.shopify.com with the login that sees all three
+   stores. One organisation holding all three stores means one app. Separate organisations
+   mean one copy of the app per store.
+2. **Create the app** "Podo Social" with the access list above and protected customer data.
+   Release the version.
+3. **Miphoria first.** Install, copy Client ID + secret, add Miphoria on the Clients page,
+   link its ad account, then Growth → Setup → Connect → Sync now → Turn on live events.
+   Place one test order.
+4. **Watch for 2 to 3 days.** Sales match Shopify admin, events arrive with phone numbers,
+   ROAS shows.
+5. **Siyara Beauty and Franco Leone.** Same steps. Where Method 1 is not possible on a store,
+   use Method 2.
+6. **Builds, in this order, only if wanted:** token mode with live events (half a day),
+   stock and coupon data (2 days), per-visitor web pixel (3 to 4 days), older orders once
+   Shopify approves `read_all_orders`.
+7. **One shared app for every store** (Option 2 above) after 5 to 6 stores are running.
+
+### Risks
+
+- The new access rows are not read by the dashboard yet. Ticking them is harmless, but they
+  show nothing until the matching build is done.
+- `read_all_orders` and protected customer data may need a short request form on Shopify.
+- The connect screen has not been tested on a real store yet. Miphoria is the first test.
+
+### Decisions needed
+
+1. What the organisation switcher on dev.shopify.com shows (one organisation or three).
+2. Whether any of the three stores still offers the old "Create an app" screen for Method 2.
+3. Which of the builds in step 6 are wanted, and in what order.

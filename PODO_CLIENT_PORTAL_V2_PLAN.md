@@ -3,6 +3,7 @@
 Written 2026-11-17. Status: **Phases 1–5 built 2026-11-17 (not deployed, not committed).**
 Phase 6 open (phone pass + deploy on request). Build with `/client-portal`.
 Follows `PODO_CLIENT_PORTAL_PLAN.md` (phases 1–5 done: login, `/portal` shell, 11 tabs, on/off toggles).
+Next: `PODO_PORTAL_WHATSAPP_GROWTH_PLAN.md` (2026-11-18) — full WhatsApp and Growth tabs for clients.
 
 ## 1. What the user asked
 

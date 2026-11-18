@@ -34,11 +34,19 @@ const LEVEL_RANK: Record<PortalAccessLevel, number> = { off: 0, view: 1, act: 2 
 function toStoredJson(config: PortalTabsConfig): Prisma.InputJsonValue | typeof Prisma.DbNull {
   const hasTabs = config.tabs && Object.keys(config.tabs).length > 0;
   const hasOrder = config.order && config.order.length > 0;
-  if (!hasTabs && !hasOrder && config.adSpendVisible === undefined) return Prisma.DbNull;
+  const hasCaps =
+    config.adSpendVisible !== undefined ||
+    config.whatsappDailyCap !== undefined ||
+    config.whatsappBroadcastNeedsApproval !== undefined;
+  if (!hasTabs && !hasOrder && !hasCaps) return Prisma.DbNull;
   return {
     ...(hasTabs ? { tabs: config.tabs } : {}),
     ...(hasOrder ? { order: config.order } : {}),
     ...(config.adSpendVisible !== undefined ? { adSpendVisible: config.adSpendVisible } : {}),
+    ...(config.whatsappDailyCap !== undefined ? { whatsappDailyCap: config.whatsappDailyCap } : {}),
+    ...(config.whatsappBroadcastNeedsApproval !== undefined
+      ? { whatsappBroadcastNeedsApproval: config.whatsappBroadcastNeedsApproval }
+      : {}),
   } as Prisma.InputJsonValue;
 }
 
@@ -141,6 +149,18 @@ export const portalTabsService = {
       order: body.order ?? current.order,
       adSpendVisible:
         body.adSpendVisible !== undefined ? body.adSpendVisible : current.adSpendVisible,
+      whatsappDailyCap:
+        body.whatsappDailyCap === null
+          ? undefined
+          : body.whatsappDailyCap !== undefined
+            ? body.whatsappDailyCap
+            : current.whatsappDailyCap,
+      whatsappBroadcastNeedsApproval:
+        body.whatsappBroadcastNeedsApproval === null
+          ? undefined
+          : body.whatsappBroadcastNeedsApproval !== undefined
+            ? body.whatsappBroadcastNeedsApproval
+            : current.whatsappBroadcastNeedsApproval,
     };
 
     await prisma.socialCustomer.update({

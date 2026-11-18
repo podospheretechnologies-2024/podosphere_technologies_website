@@ -51,7 +51,20 @@ export type PortalTabsConfig = {
   order?: PortalTabId[];
   /** Ads tab: show spend amounts. Default true. */
   adSpendVisible?: boolean;
+  /**
+   * Portal WhatsApp "Can act": max outbound messages (replies + templates) per UTC day.
+   * Default 50 when missing or invalid.
+   */
+  whatsappDailyCap?: number;
+  /**
+   * When true, client-prepared broadcasts need agency approval before send.
+   * Default true. Unused until broadcast story A3.3.
+   */
+  whatsappBroadcastNeedsApproval?: boolean;
 };
+
+/** Default daily outbound cap for portal WhatsApp act sends. */
+export const DEFAULT_WHATSAPP_DAILY_CAP = 50;
 
 /** Connection flags used by `enabled()` — never trust URL/body for these. */
 export type PortalClientFlags = {
@@ -91,7 +104,8 @@ function defaultEnabled(id: PortalTabId, client: PortalClientFlags): boolean {
     case 'ads':
       return client.hasAds;
     case 'sales':
-      return client.hasShopify;
+      // Growth works with Shopify and/or ads (GA4 shows when assigned).
+      return client.hasShopify || client.hasAds;
     case 'leads':
       return client.hasLeadSources;
     case 'whatsapp':
@@ -169,6 +183,7 @@ export const portalTabs: PortalTabDefinition[] = [
     href: `${PORTAL_BASE_PATH}/whatsapp`,
     icon: MessageCircle,
     enabled: (client) => isPortalTabEnabled('whatsapp', client),
+    actions: 'Reply in chats and send approved templates',
     defaultHint: 'On when a WhatsApp number is linked to this client',
   },
   {
@@ -177,7 +192,8 @@ export const portalTabs: PortalTabDefinition[] = [
     href: `${PORTAL_BASE_PATH}/sales`,
     icon: TrendingUp,
     enabled: (client) => isPortalTabEnabled('sales', client),
-    defaultHint: 'On when Shopify is connected',
+    actions: 'Approve campaign plans and blogs, send ideas',
+    defaultHint: 'On when Shopify or ads are linked',
   },
   {
     id: 'requests',
@@ -255,6 +271,35 @@ export function isPortalAdSpendVisible(client: PortalClientFlags): boolean {
   return typeof value === 'boolean' ? value : true;
 }
 
+function tabsConfigOf(
+  source: PortalClientFlags | PortalTabsConfig | null | undefined
+): PortalTabsConfig | null {
+  if (!source) return null;
+  if ('portalTabs' in source) return source.portalTabs ?? null;
+  return source;
+}
+
+/** Portal WhatsApp act: messages allowed per UTC day (default 50). */
+export function portalWhatsAppDailyCap(
+  source: PortalClientFlags | PortalTabsConfig | null | undefined
+): number {
+  const value = tabsConfigOf(source)?.whatsappDailyCap;
+  if (typeof value === 'number' && Number.isFinite(value) && value >= 1) {
+    return Math.min(Math.floor(value), 10_000);
+  }
+  return DEFAULT_WHATSAPP_DAILY_CAP;
+}
+
+/**
+ * Whether portal-prepared broadcasts need agency approval (default true).
+ */
+export function portalWhatsAppBroadcastNeedsApproval(
+  source: PortalClientFlags | PortalTabsConfig | null | undefined
+): boolean {
+  const value = tabsConfigOf(source)?.whatsappBroadcastNeedsApproval;
+  return typeof value === 'boolean' ? value : true;
+}
+
 /** All tabs in the agency's order (listed ids first, the rest in default order). */
 export function orderedPortalTabs(order?: PortalTabId[] | null): PortalTabDefinition[] {
   if (!order || order.length === 0) return portalTabs;
@@ -292,12 +337,30 @@ export function parsePortalTabsConfig(value: unknown): PortalTabsConfig | null {
     ? [...new Set(raw.order.filter(isTabId))]
     : [];
   const adSpendVisible = typeof raw.adSpendVisible === 'boolean' ? raw.adSpendVisible : undefined;
-  if (Object.keys(tabs).length === 0 && order.length === 0 && adSpendVisible === undefined) {
+  const whatsappDailyCap =
+    typeof raw.whatsappDailyCap === 'number' &&
+    Number.isFinite(raw.whatsappDailyCap) &&
+    raw.whatsappDailyCap >= 1
+      ? Math.min(Math.floor(raw.whatsappDailyCap), 10_000)
+      : undefined;
+  const whatsappBroadcastNeedsApproval =
+    typeof raw.whatsappBroadcastNeedsApproval === 'boolean'
+      ? raw.whatsappBroadcastNeedsApproval
+      : undefined;
+  if (
+    Object.keys(tabs).length === 0 &&
+    order.length === 0 &&
+    adSpendVisible === undefined &&
+    whatsappDailyCap === undefined &&
+    whatsappBroadcastNeedsApproval === undefined
+  ) {
     return null;
   }
   return {
     ...(Object.keys(tabs).length > 0 ? { tabs } : {}),
     ...(order.length > 0 ? { order } : {}),
     ...(adSpendVisible !== undefined ? { adSpendVisible } : {}),
+    ...(whatsappDailyCap !== undefined ? { whatsappDailyCap } : {}),
+    ...(whatsappBroadcastNeedsApproval !== undefined ? { whatsappBroadcastNeedsApproval } : {}),
   };
 }

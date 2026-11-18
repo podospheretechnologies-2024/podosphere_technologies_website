@@ -2,7 +2,7 @@ var R=require("../../../../chunks/[turbopack]_runtime.js")("server/app/api/socia
 R.c("server/chunks/[root-of-the-server]__06wy9uj._.js")
 R.c("server/chunks/src_0-5xmqv._.js")
 R.c("server/chunks/[root-of-the-server]__1p4o0rg._.js")
-R.c("server/chunks/[root-of-the-server]__1epkwzl._.js")
+R.c("server/chunks/[root-of-the-server]__0ogw3un._.js")
 R.c("server/chunks/_11a42l8._.js")
 R.c("server/chunks/[root-of-the-server]__207arn8._.js")
 R.c("server/chunks/1q8-_next_dist_0pvdlbw._.js")

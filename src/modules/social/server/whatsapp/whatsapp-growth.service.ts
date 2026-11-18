@@ -5,6 +5,10 @@ import { getServerEnv } from '@/shared/lib/env';
 import { scopeWhere, type ClientScope } from '@/shared/server/client-scope';
 import { HttpError } from '@/shared/server/http-error';
 import { whatsappBroadcastRatePaise } from '../../config/billing';
+import {
+  parsePortalTabsConfig,
+  portalWhatsAppDailyCap,
+} from '../../config/portal-tabs';
 import { planService } from '../billing/plan.service';
 import { whatsappService } from '../whatsapp/whatsapp.service';
 
@@ -342,6 +346,87 @@ async function filterSendablePhones(organizationId: string, phones: string[]) {
   };
 }
 
+function mapBroadcastRow(row: {
+  id: string;
+  name: string;
+  templateName: string;
+  language: string;
+  status: string;
+  recipientCount: number;
+  sentCount: number;
+  customerId: string | null;
+  consentAt: Date | null;
+  estimatedCostPaise: number | null;
+  createdAt: Date;
+}) {
+  return {
+    id: row.id,
+    name: row.name,
+    templateName: row.templateName,
+    language: row.language,
+    status: row.status,
+    recipientCount: row.recipientCount,
+    sentCount: row.sentCount,
+    customerId: row.customerId,
+    consentAt: row.consentAt?.toISOString() ?? null,
+    estimatedCostPaise: row.estimatedCostPaise,
+    createdAt: row.createdAt.toISOString(),
+  };
+}
+
+function variablesFromJson(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((item): item is string => typeof item === 'string');
+}
+
+async function deliverBroadcast(
+  scope: ClientScope,
+  broadcast: {
+    id: string;
+    templateName: string;
+    language: string;
+    recipients: { id: string; phone: string; status: string }[];
+  },
+  variables: string[]
+) {
+  const sendable = broadcast.recipients.filter((row) => row.status !== 'skipped_opted_out');
+  await prisma.whatsAppBroadcast.update({
+    where: { id: broadcast.id },
+    data: { status: 'sending' },
+  });
+
+  let sent = 0;
+  for (const recipient of broadcast.recipients) {
+    if (recipient.status === 'skipped_opted_out') continue;
+    try {
+      const result = await whatsappService.send(scope, {
+        type: 'template',
+        to: recipient.phone,
+        templateName: broadcast.templateName,
+        language: broadcast.language,
+        variables,
+      });
+      sent += 1;
+      await prisma.whatsAppBroadcastRecipient.update({
+        where: { id: recipient.id },
+        data: { status: 'sent', wamid: result.messageId || null },
+      });
+    } catch (error) {
+      await prisma.whatsAppBroadcastRecipient.update({
+        where: { id: recipient.id },
+        data: { status: 'failed', error: error instanceof Error ? error.message : 'Send failed' },
+      });
+    }
+  }
+
+  await prisma.whatsAppBroadcast.update({
+    where: { id: broadcast.id },
+    data: { sentCount: sent, status: sent === sendable.length ? 'sent' : 'partial' },
+  });
+
+  return { sent, total: sendable.length };
+}
+
 export const broadcastService = {
   async list(scope: ClientScope) {
     const rows = await prisma.whatsAppBroadcast.findMany({
@@ -349,18 +434,16 @@ export const broadcastService = {
       orderBy: { createdAt: 'desc' },
       take: 20,
     });
-    return rows.map((row) => ({
-      id: row.id,
-      name: row.name,
-      templateName: row.templateName,
-      language: row.language,
-      status: row.status,
-      recipientCount: row.recipientCount,
-      sentCount: row.sentCount,
-      consentAt: row.consentAt?.toISOString() ?? null,
-      estimatedCostPaise: row.estimatedCostPaise,
-      createdAt: row.createdAt.toISOString(),
-    }));
+    return rows.map(mapBroadcastRow);
+  },
+
+  async listPending(scope: ClientScope) {
+    const rows = await prisma.whatsAppBroadcast.findMany({
+      where: { ...scopeWhere(scope), status: 'pending_approval' },
+      orderBy: { createdAt: 'asc' },
+      take: 50,
+    });
+    return rows.map(mapBroadcastRow);
   },
 
   async estimate(scope: ClientScope, phones: string[]) {
@@ -377,6 +460,77 @@ export const broadcastService = {
       ratePaise,
       estimatedCostPaise: messageCount * ratePaise,
       estimatedCostInr: (messageCount * ratePaise) / 100,
+    };
+  },
+
+  /**
+   * Client prepares a broadcast; agency must approve before Meta send.
+   * Does not call WhatsApp Cloud API.
+   */
+  async createPending(
+    scope: ClientScope,
+    input: {
+      name: string;
+      templateName: string;
+      language: string;
+      phones: string[];
+      variables: string[];
+      consentAcknowledged: boolean;
+    }
+  ) {
+    await planService.assertFeature(scope.organizationId, 'broadcasts');
+    if (!input.consentAcknowledged) {
+      throw new HttpError(400, 'Confirm that recipients have consented to WhatsApp marketing messages');
+    }
+    const customerId = customerIdForWrite(scope);
+    if (!customerId) {
+      throw new HttpError(400, 'Pick a single client before preparing a broadcast');
+    }
+
+    const normalized = normalizePhones(input.phones);
+    if (normalized.length === 0) {
+      throw new HttpError(400, 'Add at least one phone number');
+    }
+
+    const { sendable, optedOut } = await filterSendablePhones(scope.organizationId, normalized);
+    if (sendable.length === 0) {
+      throw new HttpError(400, 'All recipients have opted out of broadcasts');
+    }
+
+    const ratePaise = whatsappBroadcastRatePaise();
+    const estimatedCostPaise = sendable.length * ratePaise;
+    const consentAt = new Date();
+
+    const broadcast = await prisma.whatsAppBroadcast.create({
+      data: {
+        organizationId: scope.organizationId,
+        customerId,
+        name: input.name,
+        templateName: input.templateName,
+        language: input.language,
+        status: 'pending_approval',
+        recipientCount: sendable.length,
+        variables: input.variables,
+        consentAcknowledged: true,
+        consentAt,
+        estimatedCostPaise,
+        recipients: {
+          create: [
+            ...sendable.map((phone) => ({ phone })),
+            ...optedOut.map((phone) => ({ phone, status: 'skipped_opted_out' })),
+          ],
+        },
+      },
+    });
+
+    return {
+      id: broadcast.id,
+      status: broadcast.status,
+      recipientCount: sendable.length,
+      skippedOptedOut: optedOut.length,
+      estimatedCostPaise,
+      consentAt: consentAt.toISOString(),
+      needsApproval: true as const,
     };
   },
 
@@ -419,6 +573,7 @@ export const broadcastService = {
         language: input.language,
         status: 'sending',
         recipientCount: sendable.length,
+        variables: input.variables,
         consentAcknowledged: true,
         consentAt,
         estimatedCostPaise,
@@ -432,42 +587,93 @@ export const broadcastService = {
       include: { recipients: true },
     });
 
-    let sent = 0;
-    for (const recipient of broadcast.recipients) {
-      if (recipient.status === 'skipped_opted_out') continue;
-      try {
-        const result = await whatsappService.send(scope, {
-          type: 'template',
-          to: recipient.phone,
-          templateName: input.templateName,
-          language: input.language,
-          variables: input.variables,
-        });
-        sent += 1;
-        await prisma.whatsAppBroadcastRecipient.update({
-          where: { id: recipient.id },
-          data: { status: 'sent', wamid: result.messageId || null },
-        });
-      } catch (error) {
-        await prisma.whatsAppBroadcastRecipient.update({
-          where: { id: recipient.id },
-          data: { status: 'failed', error: error instanceof Error ? error.message : 'Send failed' },
-        });
-      }
-    }
-
-    await prisma.whatsAppBroadcast.update({
-      where: { id: broadcast.id },
-      data: { sentCount: sent, status: sent === sendable.length ? 'sent' : 'partial' },
-    });
+    const { sent, total } = await deliverBroadcast(scope, broadcast, input.variables);
 
     return {
       id: broadcast.id,
       sent,
-      total: sendable.length,
+      total,
       skippedOptedOut: optedOut.length,
       estimatedCostPaise,
       consentAt: consentAt.toISOString(),
+      needsApproval: false as const,
     };
+  },
+
+  /** Agency approves a client-prepared broadcast and sends via the client's number. */
+  async approve(scope: ClientScope, broadcastId: string) {
+    await planService.assertFeature(scope.organizationId, 'broadcasts');
+    const broadcast = await prisma.whatsAppBroadcast.findFirst({
+      where: { id: broadcastId, ...scopeWhere(scope), status: 'pending_approval' },
+      include: { recipients: true },
+    });
+    if (!broadcast) throw new HttpError(404, 'Pending broadcast not found');
+    if (!broadcast.customerId) {
+      throw new HttpError(400, 'Broadcast is not linked to a client');
+    }
+
+    const sendableCount = broadcast.recipients.filter(
+      (row) => row.status !== 'skipped_opted_out'
+    ).length;
+    const startOfDay = new Date(
+      Date.UTC(
+        new Date().getUTCFullYear(),
+        new Date().getUTCMonth(),
+        new Date().getUTCDate()
+      )
+    );
+    const [customer, sendsUsedToday] = await Promise.all([
+      prisma.socialCustomer.findFirst({
+        where: {
+          id: broadcast.customerId,
+          organizationId: scope.organizationId,
+          deletedAt: null,
+        },
+        select: { portalTabs: true },
+      }),
+      prisma.whatsAppMessage.count({
+        where: {
+          organizationId: scope.organizationId,
+          direction: 'outbound',
+          timestamp: { gte: startOfDay },
+          conversation: { customerId: broadcast.customerId },
+        },
+      }),
+    ]);
+    const dailyCap = portalWhatsAppDailyCap(parsePortalTabsConfig(customer?.portalTabs));
+    if (sendsUsedToday + sendableCount > dailyCap) {
+      throw new HttpError(
+        429,
+        `Client daily WhatsApp send limit of ${dailyCap} would be exceeded (${sendsUsedToday} used, ${sendableCount} in this broadcast).`
+      );
+    }
+
+    const sendScope: ClientScope = {
+      organizationId: scope.organizationId,
+      customerIds: [broadcast.customerId],
+    };
+    const variables = variablesFromJson(broadcast.variables);
+    const { sent, total } = await deliverBroadcast(sendScope, broadcast, variables);
+    const skippedOptedOut = broadcast.recipients.filter((row) => row.status === 'skipped_opted_out')
+      .length;
+
+    return {
+      id: broadcast.id,
+      sent,
+      total,
+      skippedOptedOut,
+      estimatedCostPaise: broadcast.estimatedCostPaise,
+      consentAt: broadcast.consentAt?.toISOString() ?? null,
+    };
+  },
+
+  /** Agency rejects a client-prepared broadcast (no Meta send). */
+  async reject(scope: ClientScope, broadcastId: string) {
+    const updated = await prisma.whatsAppBroadcast.updateMany({
+      where: { id: broadcastId, ...scopeWhere(scope), status: 'pending_approval' },
+      data: { status: 'cancelled' },
+    });
+    if (updated.count === 0) throw new HttpError(404, 'Pending broadcast not found');
+    return { id: broadcastId, status: 'cancelled' as const };
   },
 };
