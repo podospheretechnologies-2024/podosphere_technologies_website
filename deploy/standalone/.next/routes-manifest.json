@@ -466,6 +466,14 @@
       "namedRegex": "^/api/social/inbox/(?<nxtPid>[^/]+?)/hide(?:/)?$"
     },
     {
+      "page": "/api/social/inbox/[id]/remove",
+      "regex": "^/api/social/inbox/([^/]+?)/remove(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/api/social/inbox/(?<nxtPid>[^/]+?)/remove(?:/)?$"
+    },
+    {
       "page": "/api/social/inbox/[id]/reply",
       "regex": "^/api/social/inbox/([^/]+?)/reply(?:/)?$",
       "routeKeys": {
@@ -912,6 +920,12 @@
       "namedRegex": "^/api/portal/agent/messages(?:/)?$"
     },
     {
+      "page": "/api/portal/agent/provider",
+      "regex": "^/api/portal/agent/provider(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/portal/agent/provider(?:/)?$"
+    },
+    {
       "page": "/api/portal/agent/threads",
       "regex": "^/api/portal/agent/threads(?:/)?$",
       "routeKeys": {},
@@ -1066,6 +1080,30 @@
       "regex": "^/api/social/ads/accounts(?:/)?$",
       "routeKeys": {},
       "namedRegex": "^/api/social/ads/accounts(?:/)?$"
+    },
+    {
+      "page": "/api/social/ads/accounts/callback",
+      "regex": "^/api/social/ads/accounts/callback(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/social/ads/accounts/callback(?:/)?$"
+    },
+    {
+      "page": "/api/social/ads/accounts/connect",
+      "regex": "^/api/social/ads/accounts/connect(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/social/ads/accounts/connect(?:/)?$"
+    },
+    {
+      "page": "/api/social/ads/accounts/connect/confirm",
+      "regex": "^/api/social/ads/accounts/connect/confirm(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/social/ads/accounts/connect/confirm(?:/)?$"
+    },
+    {
+      "page": "/api/social/ads/accounts/pending",
+      "regex": "^/api/social/ads/accounts/pending(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/social/ads/accounts/pending(?:/)?$"
     },
     {
       "page": "/api/social/ads/accounts/sync",
