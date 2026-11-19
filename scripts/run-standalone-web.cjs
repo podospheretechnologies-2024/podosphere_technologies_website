@@ -18,7 +18,7 @@ const serverPath = path.join(root, 'deploy', 'standalone', 'server.js');
 function loadEnvFile(filePath) {
   if (!fs.existsSync(filePath)) return;
   const text = fs.readFileSync(filePath, 'utf8');
-  for (const rawLine of text.split(/\n')) {
+  for (const rawLine of text.split(/\n/)) {
     const line = rawLine.trim();
     if (!line || line.startsWith('#')) continue;
     const eq = line.indexOf('=');
