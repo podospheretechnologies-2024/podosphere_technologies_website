@@ -66,6 +66,7 @@ interface WebhookStatus {
   status: string;
   timestamp?: string;
   recipient_id?: string;
+  errors?: { code?: number; title?: string; message?: string }[];
 }
 
 interface WebhookValue {
@@ -113,6 +114,32 @@ async function resolveConnection(phoneNumberId: string | undefined | null): Prom
     select: { organizationId: true, customerId: true },
   });
   return connection;
+}
+
+/**
+ * Accept env WHATSAPP_PHONE_NUMBER_ID or any Embedded Signup connection.
+ * Skip (with one warning) only when the webhook names a phone_number_id that matches neither.
+ */
+async function shouldAcceptPhoneNumberId(
+  webhookPhoneNumberId: string | undefined | null,
+  envPhoneNumberId: string | undefined
+): Promise<boolean> {
+  if (!webhookPhoneNumberId) return true;
+  if (envPhoneNumberId && webhookPhoneNumberId === envPhoneNumberId) return true;
+  if (await resolveConnection(webhookPhoneNumberId)) return true;
+  console.warn(
+    `[whatsapp] ignoring webhook for unknown phone_number_id=${webhookPhoneNumberId}`
+  );
+  return false;
+}
+
+/** Meta delivery statuses are lowercase; map anything unexpected that means failure. */
+function normalizeDeliveryStatus(status: string): string {
+  const normalized = status.trim().toLowerCase();
+  if (normalized === 'failed' || normalized === 'failure' || normalized === 'undeliverable') {
+    return 'failed';
+  }
+  return normalized;
 }
 
 // Prefer the Embedded Signup connection for this phone_number_id; otherwise route by existing
@@ -239,7 +266,7 @@ export const whatsappWebhookService = {
     if (payload.object !== 'whatsapp_business_account') {
       return { stored: 0 };
     }
-    const phoneNumberId = getServerEnv().WHATSAPP_PHONE_NUMBER_ID;
+    const envPhoneNumberId = getServerEnv().WHATSAPP_PHONE_NUMBER_ID;
     let stored = 0;
 
     for (const entry of payload.entry ?? []) {
@@ -254,23 +281,20 @@ export const whatsappWebhookService = {
           continue;
         }
         const value = change.value;
-        if (
-          phoneNumberId &&
-          value.metadata?.phone_number_id &&
-          value.metadata.phone_number_id !== phoneNumberId
-        ) {
+        if (!(await shouldAcceptPhoneNumberId(value.metadata?.phone_number_id, envPhoneNumberId))) {
           continue;
         }
 
         for (const status of value.statuses ?? []) {
           if (status.id && status.status) {
-            await whatsappChatRepository.updateMessageStatus(status.id, status.status);
+            const deliveryStatus = normalizeDeliveryStatus(status.status);
+            await whatsappChatRepository.updateMessageStatus(status.id, deliveryStatus);
             // Keep order-flow activity in sync (delivered / read / failed).
-            void orderFlowRepository.updateMessageStatusByWamid(status.id, status.status);
+            void orderFlowRepository.updateMessageStatusByWamid(status.id, deliveryStatus);
             void podoCrmWhatsAppSyncService.relayStatus({
               phoneNumberId: value.metadata?.phone_number_id ?? null,
               wamid: status.id,
-              status: status.status,
+              status: deliveryStatus,
               recipientId: status.recipient_id ?? null,
               timestamp: status.timestamp ?? null,
             });

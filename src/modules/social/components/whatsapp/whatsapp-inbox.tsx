@@ -161,7 +161,12 @@ function StatusTicks({ status }: { status: string | null }) {
     case 'sent':
       return <Check className="size-3.5 opacity-70" aria-label="Sent" />;
     case 'failed':
-      return <AlertCircle className="text-danger size-3.5" aria-label="Failed" />;
+      return (
+        <span className="text-danger inline-flex items-center gap-0.5" title="Failed">
+          <AlertCircle className="size-3.5" aria-hidden />
+          <span className="text-[10px] font-medium">Failed</span>
+        </span>
+      );
     default:
       return <Clock className="size-3 opacity-60" aria-label="Pending" />;
   }
