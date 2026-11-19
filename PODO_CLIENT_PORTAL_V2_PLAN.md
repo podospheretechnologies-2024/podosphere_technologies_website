@@ -135,6 +135,10 @@ Org default lives in one new Json field `Organization.portalTabDefaults` (one sm
   `/portal/plugs`; isolation in `portal-plugs-isolation.test.ts`.
 - Agent (scoped chat, off by default) ✅ built 2026-11-17 — `portal-agent.service.ts`,
   `/api/portal/agent/*`, `/portal/agent`, isolation test. Feature tag `portal-agent`. Billing skipped.
+  **2026-11-18:** portal Agent requires each client’s **own** API key (mandatory). Agency
+  workspace / `.env` keys are never used for portal chat. Client saves provider+key via
+  `PUT /api/portal/agent/provider` onto `SocialAiSettings` for session `customerId` only;
+  grounded Q&A with `clientOwnedOnly`. Write tools stay admin-only.
 - Billing — skipped (decision #4).
 
 **Phase 6 — Finish**

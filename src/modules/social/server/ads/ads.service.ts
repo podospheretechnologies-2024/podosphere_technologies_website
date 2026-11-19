@@ -30,11 +30,20 @@ import {
 import {
   GraphApiError,
   graphGet,
+  graphGetAll,
   graphPost,
   type GraphConfig,
   type GraphList,
 } from '../integrations/providers/meta/graph-client';
 import type { AdsOverviewDateQuery } from './ads.schema';
+import {
+  metaAdsOAuthState,
+  metaAdsPendingStore,
+  type MetaAdsPendingAccount,
+} from './meta-ads-oauth-state';
+
+/** Facebook Login scopes for “Connect ad account” (App Review ads_read / ads_management). */
+const ADS_OAUTH_SCOPES = ['ads_read', 'ads_management', 'business_management'] as const;
 
 type GraphPagedList<T> = GraphList<T> & {
   paging?: { cursors?: { after?: string }; next?: string };
@@ -356,7 +365,7 @@ async function get<T>(
         if (accountExternalId) await markAccountRefreshNeeded(accountExternalId);
         throw new HttpError(
           503,
-          'The Meta ad account token is expired or revoked. Set a new token for this account.'
+          'The Meta ad account token is expired or revoked. Reconnect the ad account from the Ads page.'
         );
       }
       if (error.code === 10 || error.code === 200 || error.code === 294) {
@@ -385,7 +394,7 @@ async function post<T>(
         if (accountExternalId) await markAccountRefreshNeeded(accountExternalId);
         throw new HttpError(
           503,
-          'The Meta ad account token is expired or revoked. Set a new token for this account.'
+          'The Meta ad account token is expired or revoked. Reconnect the ad account from the Ads page.'
         );
       }
       if (error.code === 10 || error.code === 200 || error.code === 294) {
@@ -697,11 +706,17 @@ export const adsService = {
     return Boolean(getServerEnv().META_SYSTEM_USER_TOKEN);
   },
 
+  /** True when Facebook Login for ads is possible (same Meta app as Pages/IG). */
+  isOAuthConfigured(): boolean {
+    const env = getServerEnv();
+    return Boolean(env.META_APP_ID && env.META_APP_SECRET);
+  },
+
   /**
-   * Ads UI is usable when bootstrap sync is available or any scoped account already has a token.
+   * Ads UI is usable when system-user sync, user OAuth, or any scoped account token is available.
    */
   async isConfiguredForOrg(organizationId: string): Promise<boolean> {
-    if (this.isConfigured()) return true;
+    if (this.isConfigured() || this.isOAuthConfigured()) return true;
     const withToken = await prisma.adAccount.count({
       where: { organizationId, accessTokenEncrypted: { not: null } },
     });
@@ -733,7 +748,7 @@ export const adsService = {
     const accounts = await this.listAccounts(scope);
     const account = accounts.find((item) => item.id === accountId);
     if (!account) {
-      throw new HttpError(404, 'Ad account not found or not shared with the system user');
+      throw new HttpError(404, 'Ad account not found in this workspace');
     }
     return account;
   },
@@ -781,6 +796,231 @@ export const adsService = {
     });
   },
 
+  /** Clears the stored Meta token for one scoped ad account (Disconnect). */
+  async disconnectAccountToken(scope: ClientScope, accountId: string): Promise<void> {
+    await this.requireAccount(scope, accountId);
+    const result = await prisma.adAccount.updateMany({
+      where: { externalId: accountId, ...scopeWhere(scope) },
+      data: {
+        accessTokenEncrypted: null,
+        refreshNeeded: false,
+        tokenSource: 'system_user',
+      },
+    });
+    if (result.count === 0) {
+      throw new HttpError(404, 'Ad account not found or not shared with this workspace');
+    }
+  },
+
+  adsOAuthRedirectUri(): string {
+    return new URL('/api/social/ads/accounts/callback', getServerEnv().APP_URL).toString();
+  },
+
+  /**
+   * Starts Facebook Login for ads_read + ads_management (reuses Meta app credentials /
+   * dialog/oauth pattern from the Facebook channel provider).
+   */
+  async getConnectUrl(
+    organizationId: string,
+    customerId?: string | null
+  ): Promise<{ url: string }> {
+    const env = getServerEnv();
+    if (!env.META_APP_ID || !env.META_APP_SECRET) {
+      throw new HttpError(
+        400,
+        'Meta Ads connect is not configured. Set META_APP_ID and META_APP_SECRET in .env.'
+      );
+    }
+
+    const state = await metaAdsOAuthState.save({
+      organizationId,
+      customerId: customerId || undefined,
+    });
+    const params = new URLSearchParams({
+      client_id: env.META_APP_ID,
+      redirect_uri: this.adsOAuthRedirectUri(),
+      state,
+      scope: ADS_OAUTH_SCOPES.join(','),
+      response_type: 'code',
+    });
+
+    return {
+      url: `https://www.facebook.com/${env.META_GRAPH_VERSION}/dialog/oauth?${params}`,
+    };
+  },
+
+  /**
+   * Exchanges the OAuth code for a long-lived user token, lists me/adaccounts, and stores a
+   * pending pick so the UI can show a checklist before saving.
+   */
+  async completeConnect(
+    organizationId: string,
+    code: string,
+    state: string
+  ): Promise<{ accountCount: number }> {
+    const env = getServerEnv();
+    if (!env.META_APP_ID || !env.META_APP_SECRET) {
+      throw new HttpError(400, 'Meta Ads connect is not configured');
+    }
+
+    const saved = await metaAdsOAuthState.consume(state);
+    if (!saved || saved.organizationId !== organizationId) {
+      throw new HttpError(400, 'The connection link expired. Please try again.');
+    }
+
+    const client = {
+      client_id: env.META_APP_ID,
+      client_secret: env.META_APP_SECRET,
+    };
+    const config = graphConfig();
+
+    const shortLived = await graphGet<{ access_token: string }>(
+      config,
+      'oauth/access_token',
+      '',
+      { ...client, redirect_uri: this.adsOAuthRedirectUri(), code }
+    );
+    const longLived = await graphGet<{ access_token: string }>(
+      config,
+      'oauth/access_token',
+      '',
+      {
+        ...client,
+        grant_type: 'fb_exchange_token',
+        fb_exchange_token: shortLived.access_token,
+      }
+    );
+    const userToken = longLived.access_token;
+
+    const rows = await graphGetAll<{
+      id: string;
+      account_id?: string;
+      name?: string;
+      currency?: string;
+      account_status?: number;
+      business?: { id?: string; name?: string };
+    }>(
+      config,
+      'me/adaccounts',
+      userToken,
+      {
+        fields: 'id,account_id,name,currency,account_status,business{id,name}',
+        limit: 100,
+      }
+    );
+
+    const accounts: MetaAdsPendingAccount[] = rows.map((row) => ({
+      id: row.id,
+      accountId: row.account_id,
+      name: row.name ?? row.id,
+      currency: row.currency ?? 'INR',
+      accountStatus: row.account_status ?? 1,
+      businessName: row.business?.name ?? null,
+    }));
+
+    if (accounts.length === 0) {
+      throw new HttpError(
+        400,
+        'No Meta ad accounts were shared. Reconnect and select at least one ad account.'
+      );
+    }
+
+    await metaAdsPendingStore.save(organizationId, {
+      organizationId,
+      customerId: saved.customerId ?? null,
+      accessTokenEncrypted: encrypt(userToken),
+      accounts,
+    });
+
+    return { accountCount: accounts.length };
+  },
+
+  /** Pending ad accounts from the latest OAuth connect (token never exposed). */
+  async getPendingAccounts(organizationId: string): Promise<{
+    accounts: MetaAdsPendingAccount[];
+    customerId: string | null;
+  } | null> {
+    const pending = await metaAdsPendingStore.get(organizationId);
+    if (!pending || pending.organizationId !== organizationId) return null;
+    return {
+      accounts: pending.accounts,
+      customerId: pending.customerId ?? null,
+    };
+  },
+
+  /**
+   * Saves only the ticked ad accounts under this organization (and optional client),
+   * with tokenSource=user_oauth so syncAccounts will not overwrite the token.
+   */
+  async confirmConnectedAccounts(
+    organizationId: string,
+    externalIds: string[],
+    customerId?: string | null
+  ): Promise<{ saved: string[] }> {
+    if (externalIds.length === 0) {
+      throw new HttpError(400, 'Select at least one ad account');
+    }
+
+    const pending = await metaAdsPendingStore.consume(organizationId);
+    if (!pending || pending.organizationId !== organizationId) {
+      throw new HttpError(400, 'The connection session expired. Please connect again.');
+    }
+
+    const allowed = new Set(pending.accounts.map((account) => account.id));
+    const selected = externalIds.filter((id) => allowed.has(id));
+    if (selected.length === 0) {
+      throw new HttpError(400, 'None of the selected ad accounts were in the Facebook Login result');
+    }
+
+    const resolvedCustomerId =
+      customerId !== undefined ? customerId : (pending.customerId ?? null);
+    const saved: string[] = [];
+
+    for (const externalId of selected) {
+      const meta = pending.accounts.find((account) => account.id === externalId)!;
+      const existing = await prisma.adAccount.findUnique({ where: { externalId } });
+      if (existing && existing.organizationId !== organizationId) {
+        throw new HttpError(
+          409,
+          `Ad account ${meta.name} is already linked to another organization`
+        );
+      }
+
+      if (existing) {
+        await prisma.adAccount.update({
+          where: { id: existing.id },
+          data: {
+            name: meta.name,
+            currency: meta.currency,
+            status: meta.accountStatus,
+            customerId: resolvedCustomerId,
+            accessTokenEncrypted: pending.accessTokenEncrypted,
+            refreshNeeded: false,
+            tokenSource: 'user_oauth',
+          },
+        });
+      } else {
+        await prisma.adAccount.create({
+          data: {
+            organizationId,
+            customerId: resolvedCustomerId,
+            externalId,
+            name: meta.name,
+            currency: meta.currency,
+            timezoneName: 'UTC',
+            status: meta.accountStatus,
+            accessTokenEncrypted: pending.accessTokenEncrypted,
+            refreshNeeded: false,
+            tokenSource: 'user_oauth',
+          },
+        });
+      }
+      saved.push(externalId);
+    }
+
+    return { saved };
+  },
+
   /**
    * Agency sync: pulls Meta `me/adaccounts` into `ad_accounts` for this organization.
    * Uses META_SYSTEM_USER_TOKEN for discovery only and stores that token on each upserted account.
@@ -822,7 +1062,7 @@ export const adsService = {
     }
 
     // Stamp bootstrap token onto new/empty rows and any still on system_user source.
-    // Never overwrite tokenSource=per_account (set via admin API).
+    // Never overwrite tokenSource=per_account or user_oauth (Facebook Login / admin paste).
     await prisma.adAccount.updateMany({
       where: {
         organizationId,

@@ -87,9 +87,30 @@ function envTextConfig(): ResolvedAiConfig | null {
   return null;
 }
 
-async function resolveWithSource(
+/** This client's own SocialAiSettings row only — never workspace or .env. */
+async function resolveClientOwned(
   scope: ClientScope
+): Promise<{ config: ResolvedAiConfig; source: 'client' } | null> {
+  const organizationId = scope.organizationId;
+  const customerId = levelCustomerId(scope);
+  if (!customerId) return null;
+
+  const row = await prisma.socialAiSettings.findFirst({
+    where: { organizationId, customerId },
+    select: { provider: true, model: true, apiKeyEncrypted: true },
+  });
+  const config = activeConfig(row);
+  return config ? { config, source: 'client' } : null;
+}
+
+async function resolveWithSource(
+  scope: ClientScope,
+  options?: { clientOwnedOnly?: boolean }
 ): Promise<{ config: ResolvedAiConfig; source: AiSettingsSource } | null> {
+  if (options?.clientOwnedOnly) {
+    return resolveClientOwned(scope);
+  }
+
   const organizationId = scope.organizationId;
   const customerId = levelCustomerId(scope);
 
@@ -111,22 +132,63 @@ async function resolveWithSource(
   return env ? { config: env, source: 'env' } : null;
 }
 
+export type PortalAiProviderDisplay = {
+  configured: boolean;
+  provider: AiProvider | null;
+  model: string | null;
+  keyLast4: string | null;
+};
+
 export const aiSettingsService = {
   /** Resolved text provider for a request. Throws 503 when nothing is configured anywhere. */
-  async resolveTextConfig(scope: ClientScope): Promise<ResolvedAiConfig> {
-    const resolved = await resolveWithSource(scope);
+  async resolveTextConfig(
+    scope: ClientScope,
+    options?: { clientOwnedOnly?: boolean }
+  ): Promise<ResolvedAiConfig> {
+    const resolved = await resolveWithSource(scope, options);
     if (!resolved) {
       throw new HttpError(
         503,
-        'AI is not configured. An admin can set a provider + API key on the Agent page, or set ANTHROPIC_API_KEY.'
+        options?.clientOwnedOnly
+          ? 'Add your own AI API key to use Agent. Agency keys are not used for client chat.'
+          : 'AI is not configured. An admin can set a provider + API key on the Agent page, or set ANTHROPIC_API_KEY.'
       );
     }
     return resolved.config;
   },
 
   /** True when text generation would work for this scope (used by status()). */
-  async isTextConfigured(scope: ClientScope): Promise<boolean> {
-    return (await resolveWithSource(scope)) !== null;
+  async isTextConfigured(
+    scope: ClientScope,
+    options?: { clientOwnedOnly?: boolean }
+  ): Promise<boolean> {
+    return (await resolveWithSource(scope, options)) !== null;
+  },
+
+  /**
+   * Portal / mandatory client key: true only when this client saved their own provider key.
+   * Admin workspace + .env keys never count.
+   */
+  async isClientOwnedTextConfigured(scope: ClientScope): Promise<boolean> {
+    return this.isTextConfigured(scope, { clientOwnedOnly: true });
+  },
+
+  /** Portal-safe provider card — no full key, no other clients, no env leakage. */
+  async getPortalDisplay(scope: ClientScope): Promise<PortalAiProviderDisplay> {
+    const organizationId = scope.organizationId;
+    const customerId = requireClientId(scope);
+    const row = await prisma.socialAiSettings.findFirst({
+      where: { organizationId, customerId },
+      select: { provider: true, model: true, apiKeyEncrypted: true },
+    });
+    const provider = row && isAiProvider(row.provider) ? row.provider : null;
+    const apiKey = row?.apiKeyEncrypted ? decrypt(row.apiKeyEncrypted) : null;
+    return {
+      configured: Boolean(provider && apiKey),
+      provider,
+      model: row?.model ?? null,
+      keyLast4: apiKey ? apiKey.slice(-4) : null,
+    };
   },
 
   /**

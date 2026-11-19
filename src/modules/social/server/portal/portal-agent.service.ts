@@ -3,7 +3,11 @@ import { prisma } from '@/shared/lib/prisma';
 import { organizationScope, type ClientScope } from '@/shared/server/client-scope';
 import { HttpError } from '@/shared/server/http-error';
 import { agentService } from '../ai/agent/agent.service';
-import { isClaudeConfigured } from '../ai/claude.client';
+import {
+  aiSettingsService,
+  type AiSettingsInput,
+  type PortalAiProviderDisplay,
+} from '../ai/ai-settings.service';
 import type { PortalSession } from '../approvals/approval.service';
 
 const PORTAL_AGENT_FEATURE = 'portal-agent';
@@ -72,11 +76,39 @@ function toPortalThread(
 /**
  * Client-portal AI chat scoped to the session client only.
  * organizationId + customerId always come from the portal session — never from the request body.
+ * Each client must add their own API key — agency / .env keys are never used here.
  */
 export const portalAgentService = {
-  /** Whether the agency has an AI key configured. Never exposes the key or model settings. */
-  status(): { configured: boolean } {
-    return { configured: isClaudeConfigured() };
+  /**
+   * True only when this client saved their own provider key.
+   * Admin workspace + server .env keys do not count (mandatory BYO for every client).
+   */
+  async status(session: PortalAgentSession): Promise<{ configured: boolean }> {
+    return {
+      configured: await aiSettingsService.isClientOwnedTextConfigured(scopeFor(session)),
+    };
+  },
+
+  /** Portal-safe provider card for the setup form (no full key, no other clients). */
+  async getProvider(session: PortalAgentSession): Promise<PortalAiProviderDisplay> {
+    return aiSettingsService.getPortalDisplay(scopeFor(session));
+  },
+
+  /**
+   * Client saves their own AI provider + key onto SocialAiSettings for session.customerId only.
+   * First save requires an apiKey (mandatory).
+   */
+  async saveProvider(
+    session: PortalAgentSession,
+    input: AiSettingsInput
+  ): Promise<PortalAiProviderDisplay> {
+    const scope = scopeFor(session);
+    const existing = await aiSettingsService.getPortalDisplay(scope);
+    if (!existing.configured && !input.apiKey?.trim()) {
+      throw new HttpError(400, 'Enter your AI API key to turn Agent on.');
+    }
+    await aiSettingsService.save(scope, input);
+    return aiSettingsService.getPortalDisplay(scope);
   },
 
   async listThreads(session: PortalAgentSession): Promise<PortalAgentThreadSummary[]> {
@@ -122,12 +154,20 @@ export const portalAgentService = {
   /**
    * Send a message. Creates a new thread when `threadId` is omitted.
    * Usage is recorded under feature `portal-agent` against this org + client budget.
+   * Refuses when this client has not saved their own API key.
    */
   async sendMessage(
     session: PortalAgentSession,
     input: { message: string; threadId?: string }
   ): Promise<PortalAgentThread> {
     const scope = scopeFor(session);
+    if (!(await aiSettingsService.isClientOwnedTextConfigured(scope))) {
+      throw new HttpError(
+        503,
+        'Add your own AI API key to use Agent. Agency keys are not used for client chat.'
+      );
+    }
+
     let threadId = input.threadId;
 
     if (!threadId) {

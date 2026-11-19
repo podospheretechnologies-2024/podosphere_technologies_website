@@ -1135,6 +1135,8 @@ model SocialInboxThread {
   slaBreachedAt   DateTime?
   // Set when a FB/IG comment on this thread is hidden via Graph is_hidden.
   hiddenAt        DateTime?
+  // Set when a FB/IG comment is deleted via Graph DELETE /{comment-id}.
+  closedAt        DateTime?
   // AI triage (on-demand POST …/triage). Labels: question|complaint|lead|spam|praise|other.
   aiLabel         String?   @map("ai_label") @db.VarChar(32)
   // low|normal|high|urgent

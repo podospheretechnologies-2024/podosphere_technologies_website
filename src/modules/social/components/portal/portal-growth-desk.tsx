@@ -23,6 +23,23 @@ const TABS = [
 
 type TabId = (typeof TABS)[number]['id'];
 
+const PRESETS = [
+  { id: '7d', label: 'Last 7 days', days: 7 },
+  { id: '30d', label: 'Last 30 days', days: 30 },
+  { id: 'month', label: 'This month', days: 0 },
+  { id: 'life', label: 'Lifetime', days: 365 },
+] as const;
+
+type PresetId = (typeof PRESETS)[number]['id'];
+
+function daysForPreset(id: PresetId) {
+  if (id === 'month') {
+    const now = new Date();
+    return Math.max(1, now.getDate());
+  }
+  return PRESETS.find((p) => p.id === id)?.days ?? 30;
+}
+
 function money(value: number | null | undefined, currency: string) {
   if (value == null) return '—';
   try {
@@ -46,12 +63,27 @@ function times(value: number | null | undefined) {
   return `${value}x`;
 }
 
+function pct(num: number | null | undefined, den: number | null | undefined) {
+  if (num == null || den == null || den <= 0) return '—';
+  return `${((num / den) * 100).toFixed(1)}%`;
+}
+
 function Stat({ label, value, note }: { label: string; value: string; note?: string }) {
   return (
     <div className="rounded-xl border border-border bg-surface p-4 shadow-sm">
       <p className="text-sm text-muted-foreground">{label}</p>
       <p className="mt-1 text-2xl font-bold text-foreground tabular-nums">{value}</p>
       {note ? <p className="mt-1 text-xs text-muted-foreground">{note}</p> : null}
+    </div>
+  );
+}
+
+function HeroStat({ label, value, note }: { label: string; value: string; note?: string }) {
+  return (
+    <div className="rounded-xl bg-white/10 px-3 py-2">
+      <p className="text-[11px] font-semibold tracking-wide text-white/70 uppercase">{label}</p>
+      <p className="mt-0.5 text-xl font-bold tabular-nums text-white">{value}</p>
+      {note ? <p className="mt-0.5 text-[11px] text-white/65">{note}</p> : null}
     </div>
   );
 }
@@ -72,48 +104,124 @@ export function PortalGrowthDesk({
   canAct: boolean;
 }) {
   const [tab, setTab] = useState<TabId>('overview');
+  const [preset, setPreset] = useState<PresetId>('30d');
   const [overview, setOverview] = useState(initial);
+  const [loadingRange, setLoadingRange] = useState(false);
   const hero = overview.hero;
   const currency = hero.currency;
 
+  const reloadOverview = useCallback(async (days: number) => {
+    setLoadingRange(true);
+    try {
+      const data = await apiFetch<PortalGrowthOverview>(`/api/portal/growth?days=${days}`);
+      setOverview(data);
+    } catch {
+      /* keep current overview */
+    } finally {
+      setLoadingRange(false);
+    }
+  }, []);
+
+  function pickPreset(id: PresetId) {
+    if (id === preset) return;
+    setPreset(id);
+    void reloadOverview(daysForPreset(id));
+  }
+
   return (
-    <div className="min-w-0 overflow-x-hidden">
-      <div className="mb-6">
+    <div className="min-w-0 space-y-4 overflow-x-hidden">
+      <div>
         <h2 className="text-2xl font-bold text-foreground">Growth</h2>
-        <p className="mt-1 text-muted-foreground">
-          {hero.storeConnected && hero.shopify.shopName ? `${hero.shopify.shopName} · ` : ''}
-          {hero.since} → {hero.until}
+        <p className="text-muted-foreground mt-1 text-sm">
+          Ads spend and ROAS for your website
+          {hero.storeConnected ? '; Shopify sales when the store is linked.' : '.'}
         </p>
-        {hero.storeNote ? (
-          <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-            {hero.storeNote}
-          </p>
-        ) : null}
       </div>
 
-      <div className="-mx-1 mb-6 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:thin]">
+      {hero.storeNote ? (
+        <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          {hero.storeNote}
+        </p>
+      ) : null}
+
+      <div className="border-border bg-surface flex flex-wrap items-center justify-between gap-3 rounded-xl border px-4 py-3">
+        <div className="flex flex-wrap items-center gap-1">
+          {PRESETS.map((p) => (
+            <button
+              key={p.id}
+              type="button"
+              aria-pressed={preset === p.id}
+              disabled={loadingRange}
+              onClick={() => pickPreset(p.id)}
+              className={cn(
+                'rounded-full px-3 py-1 text-sm',
+                preset === p.id
+                  ? 'bg-primary text-primary-foreground'
+                  : 'text-muted-foreground hover:bg-surface-muted'
+              )}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+        <span className="text-muted-foreground text-sm">
+          {hero.since} to {hero.until}
+        </span>
+      </div>
+
+      <OverviewHero hero={hero} currency={currency} onGo={setTab} />
+
+      <nav
+        aria-label="Growth sections"
+        className="bg-background sticky top-0 z-10 -mx-1 flex gap-1 overflow-x-auto px-1 py-1"
+      >
         {TABS.map((t) => (
           <button
             key={t.id}
             type="button"
+            aria-pressed={tab === t.id}
             onClick={() => setTab(t.id)}
             className={cn(
-              'min-h-10 shrink-0 rounded-lg px-3 py-2 text-sm whitespace-nowrap',
+              'border-border min-h-10 shrink-0 rounded-full border px-3 py-1.5 text-sm whitespace-nowrap',
               tab === t.id
                 ? 'bg-foreground text-background'
-                : 'border border-border bg-surface text-muted-foreground hover:bg-surface-muted'
+                : 'bg-surface text-muted-foreground hover:bg-surface-muted'
             )}
           >
             {t.label}
-            {t.id === 'campaigns' && hero.kpis.pendingCampaigns > 0
-              ? ` (${hero.kpis.pendingCampaigns})`
-              : ''}
-            {t.id === 'blogs' && hero.kpis.draftBlogs > 0 ? ` (${hero.kpis.draftBlogs})` : ''}
+            {t.id === 'campaigns' && hero.kpis.pendingCampaigns > 0 ? (
+              <span className="bg-danger ml-1.5 rounded-full px-1.5 text-xs text-white">
+                {hero.kpis.pendingCampaigns}
+              </span>
+            ) : null}
+            {t.id === 'blogs' && hero.kpis.draftBlogs > 0 ? (
+              <span className="bg-danger ml-1.5 rounded-full px-1.5 text-xs text-white">
+                {hero.kpis.draftBlogs}
+              </span>
+            ) : null}
           </button>
         ))}
-      </div>
+      </nav>
 
-      {tab === 'overview' ? <OverviewPanel hero={hero} currency={currency} /> : null}
+      {tab === 'overview' ? (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <Stat label="Posts published" value={count(hero.kpis.posts)} />
+          <Stat
+            label="Waiting on you"
+            value={String(hero.kpis.pendingCampaigns + hero.kpis.draftBlogs)}
+            note={`${hero.kpis.pendingCampaigns} ads · ${hero.kpis.draftBlogs} blogs`}
+          />
+          {!hero.storeConnected ? (
+            <Stat label="Store" value="Not connected" note="Ads and website analytics still show" />
+          ) : (
+            <Stat
+              label="Store"
+              value={hero.shopify.shopName ?? 'Shopify'}
+              note="Connected"
+            />
+          )}
+        </div>
+      ) : null}
       {tab === 'performance' ? (
         <PerformancePanel data={overview.performance} currency={currency} />
       ) : null}
@@ -124,7 +232,7 @@ export function PortalGrowthDesk({
         <CampaignsPanel
           canAct={canAct}
           onChanged={() => {
-            void apiFetch<PortalGrowthOverview>('/api/portal/growth').then(setOverview);
+            void reloadOverview(daysForPreset(preset));
           }}
         />
       ) : null}
@@ -132,7 +240,7 @@ export function PortalGrowthDesk({
         <BlogsPanel
           canAct={canAct}
           onChanged={() => {
-            void apiFetch<PortalGrowthOverview>('/api/portal/growth').then(setOverview);
+            void reloadOverview(daysForPreset(preset));
           }}
         />
       ) : null}
@@ -141,67 +249,203 @@ export function PortalGrowthDesk({
   );
 }
 
-function OverviewPanel({
+function OverviewHero({
   hero,
   currency,
+  onGo,
 }: {
   hero: PortalGrowthOverview['hero'];
   currency: string;
+  onGo: (tab: TabId) => void;
 }) {
-  const pct =
+  const websiteMode = hero.websiteMode;
+  const targetCpl = hero.targetCpl;
+  const cpl = hero.cpl;
+  const roasBar =
     hero.roas == null || hero.targetRoas <= 0
       ? 0
       : Math.min(100, (hero.roas / hero.targetRoas) * 100);
+  const cplBar =
+    cpl == null || targetCpl <= 0
+      ? 0
+      : Math.min(100, Math.max(8, (targetCpl / Math.max(cpl, 0.01)) * 100));
+
+  const needs: { label: string; hot: boolean; go: TabId }[] = [
+    {
+      label: `${hero.kpis.pendingCampaigns} ad${hero.kpis.pendingCampaigns === 1 ? '' : 's'} waiting for approval`,
+      hot: hero.kpis.pendingCampaigns > 0,
+      go: 'campaigns',
+    },
+    {
+      label: `${hero.kpis.approvedCampaigns} approved, to build`,
+      hot: hero.kpis.approvedCampaigns > 0,
+      go: 'campaigns',
+    },
+    {
+      label: `${hero.kpis.draftBlogs} blog draft${hero.kpis.draftBlogs === 1 ? '' : 's'}`,
+      hot: hero.kpis.draftBlogs > 0,
+      go: 'blogs',
+    },
+  ];
+  if (hero.kpis.reportDue) needs.push({ label: 'Report is due', hot: true, go: 'reports' });
+  if (!hero.hasAds) needs.unshift({ label: 'Ads not linked yet', hot: true, go: 'performance' });
 
   return (
-    <div className="space-y-6">
-      <section className="rounded-2xl bg-gradient-to-br from-slate-800 to-slate-600 p-5 text-white">
-        <p className="text-xs font-semibold tracking-wider text-white/70 uppercase">
-          ROAS vs target ({hero.targetRoas}x)
-        </p>
-        <p className="mt-1 text-5xl font-bold tabular-nums">{times(hero.roas)}</p>
-        <div className="relative mt-3 mb-1 h-3 rounded-full bg-white/20">
-          <i
-            className="absolute inset-y-0 left-0 rounded-full bg-surface"
-            style={{ width: `${pct}%`, minWidth: 4 }}
-          />
-        </div>
-        <p className="text-xs text-white/75">
-          {!hero.showSpend
-            ? 'Ad spend is hidden for this portal.'
-            : hero.onTarget == null
-              ? 'Waiting for sales and spend in this period.'
-              : hero.onTarget
-                ? 'On or above target.'
-                : 'Below target — check ads and offers.'}
-        </p>
-      </section>
-
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        <Stat label="Posts published" value={count(hero.kpis.posts)} />
-        <Stat
-          label="Orders"
-          value={count(hero.kpis.orders)}
-          note={hero.storeConnected ? 'Shopify' : 'Store not connected'}
-        />
-        <Stat
-          label="Revenue"
-          value={money(hero.kpis.sales, currency)}
-          note={hero.storeConnected ? undefined : 'Store not connected'}
-        />
-        {hero.showSpend ? (
-          <Stat label="Ad spend" value={money(hero.kpis.spend, currency)} />
+    <section className="grid gap-5 rounded-2xl bg-gradient-to-br from-[#3d2163] to-[#7a3f8f] p-5 text-white md:grid-cols-[1.1fr_1.4fr]">
+      <div>
+        {websiteMode ? (
+          <>
+            <div className="text-xs font-semibold tracking-wider text-white/70 uppercase">
+              Cost per lead vs target ({money(targetCpl, currency)})
+            </div>
+            <div className="mt-1 text-5xl font-bold tabular-nums">
+              {cpl != null ? money(cpl, currency) : '—'}
+            </div>
+            <div className="relative mt-3 mb-1 h-3 rounded-full bg-white/20">
+              <i
+                className="absolute inset-y-0 left-0 rounded-full bg-white"
+                style={{ width: `${cplBar}%`, minWidth: 4 }}
+              />
+            </div>
+            <div className="text-xs text-white/75">
+              {!hero.showSpend
+                ? 'Ad spend is hidden for this portal.'
+                : cpl != null
+                  ? `Website / lead desk · Meta spend ÷ leads.${hero.kpis.spend != null ? ` Spend ${money(hero.kpis.spend, currency)}.` : ''} ${
+                      cpl <= targetCpl ? 'On or under target.' : 'Above target — check ads and form quality.'
+                    }`
+                  : !hero.hasAds
+                    ? 'Ads are not linked for your brand yet.'
+                    : 'Waiting for Meta leads in this date range.'}
+            </div>
+          </>
         ) : (
-          <Stat label="Ad spend" value="Hidden" note="Ask your agency to show spend" />
+          <>
+            <div className="text-xs font-semibold tracking-wider text-white/70 uppercase">
+              {hero.usingShopifyRoas ? 'Shopify ROAS' : 'Ads ROAS'} vs target ({hero.targetRoas}x)
+            </div>
+            <div className="mt-1 text-5xl font-bold tabular-nums">{times(hero.roas)}</div>
+            <div className="relative mt-3 mb-1 h-3 rounded-full bg-white/20">
+              <i
+                className="absolute inset-y-0 left-0 rounded-full bg-white"
+                style={{ width: `${roasBar}%`, minWidth: 4 }}
+              />
+            </div>
+            <div className="text-xs text-white/75">
+              {!hero.showSpend
+                ? 'Ad spend is hidden for this portal.'
+                : hero.onTarget == null
+                  ? 'Waiting for sales and spend in this period.'
+                  : hero.onTarget
+                    ? 'On or above target.'
+                    : 'Below target — check ads and offers.'}
+            </div>
+          </>
         )}
-        <Stat label="Sessions" value={count(hero.kpis.sessions)} note="Website" />
-        <Stat
-          label="Waiting on you"
-          value={String(hero.kpis.pendingCampaigns + hero.kpis.draftBlogs)}
-          note={`${hero.kpis.pendingCampaigns} ads · ${hero.kpis.draftBlogs} blogs`}
-        />
       </div>
-    </div>
+
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+        {websiteMode ? (
+          <>
+            <HeroStat label="Leads" value={count(hero.kpis.leads)} note="From Meta ads" />
+            <HeroStat
+              label="CPL"
+              value={cpl != null ? money(cpl, currency) : '—'}
+              note={`Target ${money(targetCpl, currency)}`}
+            />
+            <HeroStat
+              label="Ad spend"
+              value={hero.showSpend ? money(hero.kpis.spend, currency) : 'Hidden'}
+              note={
+                hero.showSpend && hero.kpis.metaSpend != null
+                  ? `Meta ${money(hero.kpis.metaSpend, currency)}`
+                  : undefined
+              }
+            />
+            <HeroStat
+              label="Form / pixel"
+              value={count(hero.kpis.purchases)}
+              note={hero.kpis.purchases ? 'Rare on lead ads' : 'Purchases N/A for lead ads'}
+            />
+            <HeroStat
+              label="Sessions"
+              value={count(hero.kpis.sessions)}
+              note={hero.kpis.sessions ? 'From GA4' : 'Website'}
+            />
+            <HeroStat label="Mode" value="Website" note="Shopify not required" />
+          </>
+        ) : (
+          <>
+            <HeroStat
+              label="Sales"
+              value={money(hero.kpis.sales, currency)}
+              note={hero.storeConnected ? 'Shopify' : 'Store not connected'}
+            />
+            <HeroStat
+              label="Ad spend"
+              value={hero.showSpend ? money(hero.kpis.spend, currency) : 'Hidden'}
+              note={
+                hero.showSpend && hero.kpis.metaSpend != null
+                  ? `Meta ${money(hero.kpis.metaSpend, currency)}`
+                  : undefined
+              }
+            />
+            <HeroStat
+              label="Orders"
+              value={count(hero.kpis.orders)}
+              note={
+                hero.kpis.aov != null
+                  ? `AOV ${money(hero.kpis.aov, currency)}`
+                  : hero.storeConnected
+                    ? undefined
+                    : 'Store not connected'
+              }
+            />
+            <HeroStat
+              label="Sessions"
+              value={count(hero.kpis.sessions)}
+              note={
+                hero.kpis.sessions && hero.kpis.orders != null
+                  ? `Order rate ${pct(hero.kpis.orders, hero.kpis.sessions)}`
+                  : 'Website'
+              }
+            />
+            <HeroStat
+              label="Leads"
+              value={count(hero.kpis.leads)}
+              note={
+                hero.kpis.leads && hero.kpis.metaSpend
+                  ? `CPL ${money(hero.kpis.metaSpend / hero.kpis.leads, currency)}`
+                  : 'From Meta ads'
+              }
+            />
+            <HeroStat
+              label="Meta purchases"
+              value={count(hero.kpis.purchases)}
+              note="Pixel purchases"
+            />
+          </>
+        )}
+      </div>
+
+      <div className="flex flex-wrap gap-2 md:col-span-2">
+        {needs.map((n) => (
+          <button
+            key={n.label}
+            type="button"
+            onClick={() => onGo(n.go)}
+            className={cn(
+              'rounded-lg border px-3 py-1 text-sm',
+              n.hot
+                ? 'border-white bg-white font-semibold text-[#3d2163]'
+                : 'border-white/30 bg-white/10 text-white'
+            )}
+          >
+            {n.label}
+          </button>
+        ))}
+      </div>
+    </section>
   );
 }
 

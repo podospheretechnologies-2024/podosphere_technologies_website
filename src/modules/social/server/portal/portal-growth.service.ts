@@ -2,7 +2,7 @@ import 'server-only';
 import { prisma } from '@/shared/lib/prisma';
 import { isPortalAdSpendVisible } from '../../config/portal-tabs';
 import { getSettings } from '../growth/growth.service';
-import { roas } from '../growth/growth-metrics';
+import { localDay, reportDue, roas } from '../growth/growth-metrics';
 import type { PortalSession } from '../approvals/approval.service';
 import { portalTabsService } from './portal-tabs.service';
 import {
@@ -20,17 +20,29 @@ export type PortalGrowthHero = {
   /** B3: clear note when Shopify is missing but ads/GA4 still show. */
   storeNote: string | null;
   showSpend: boolean;
+  /** Lead/website desk when Shopify is off and Meta leads (or ads) are the story. */
+  websiteMode: boolean;
+  usingShopifyRoas: boolean;
   targetRoas: number;
+  targetCpl: number;
   roas: number | null;
+  cpl: number | null;
   onTarget: boolean | null;
+  hasAds: boolean;
   kpis: {
     posts: number;
     orders: number | null;
     sales: number | null;
+    aov: number | null;
     spend: number | null;
+    metaSpend: number | null;
     sessions: number | null;
+    leads: number;
+    purchases: number;
     pendingCampaigns: number;
+    approvedCampaigns: number;
     draftBlogs: number;
+    reportDue: boolean;
   };
   shopify: PortalShopifySummary;
   website: PortalWebsiteSummary | null;
@@ -103,31 +115,40 @@ export const portalGrowthService = {
     const org = session.organizationId;
     const customerId = session.customerId;
 
-    const [sales, settings, flags, metaAccounts, postsCount, pendingAds, draftBlogs] = await Promise.all([
-      portalSalesService.summary(session, { days: daysBack }),
-      getSettings(org, customerId),
-      portalTabsService.getClientFlags(org, customerId),
-      prisma.adAccount.findMany({
-        where: { organizationId: org, customerId },
-        select: { id: true },
-      }),
-      prisma.socialPost.count({
-        where: {
-          organizationId: org,
-          customerId,
-          deletedAt: null,
-          parentPostId: null,
-          state: 'PUBLISHED',
-          publishDate: { gte: since, lte: until },
-        },
-      }),
-      prisma.socialAdPlanItem.count({
-        where: { organizationId: org, customerId, status: 'pending' },
-      }),
-      prisma.socialBlog.count({
-        where: { organizationId: org, customerId, status: { in: ['draft', 'changes'] } },
-      }),
-    ]);
+    const [sales, settings, flags, metaAccounts, postsCount, pendingAds, approvedAds, draftBlogs, lastReport] =
+      await Promise.all([
+        portalSalesService.summary(session, { days: daysBack }),
+        getSettings(org, customerId),
+        portalTabsService.getClientFlags(org, customerId),
+        prisma.adAccount.findMany({
+          where: { organizationId: org, customerId },
+          select: { id: true },
+        }),
+        prisma.socialPost.count({
+          where: {
+            organizationId: org,
+            customerId,
+            deletedAt: null,
+            parentPostId: null,
+            state: 'PUBLISHED',
+            publishDate: { gte: since, lte: until },
+          },
+        }),
+        prisma.socialAdPlanItem.count({
+          where: { organizationId: org, customerId, status: 'pending' },
+        }),
+        prisma.socialAdPlanItem.count({
+          where: { organizationId: org, customerId, status: 'approved' },
+        }),
+        prisma.socialBlog.count({
+          where: { organizationId: org, customerId, status: { in: ['draft', 'changes'] } },
+        }),
+        prisma.socialGrowthReport.findFirst({
+          where: { organizationId: org, customerId },
+          orderBy: { createdAt: 'desc' },
+          select: { createdAt: true },
+        }),
+      ]);
 
     const showSpend = isPortalAdSpendVisible(flags);
     const storeConnected = sales.shopify.connected;
@@ -222,12 +243,27 @@ export const portalGrowthService = {
         .slice(0, 20);
     }
 
+    const hasAds = accountIds.length > 0;
+    const metaSpend = showSpend ? adsSpend : null;
     const heroRoas = showSpend
       ? storeConnected
         ? sales.shopify.totals.roas
         : roas(adsRevenue, adsSpend)
       : null;
     const targetRoas = settings.targetRoas;
+    const targetCpl = settings.targetCpl ?? 200;
+    const cpl =
+      showSpend && adsLeads > 0 && metaSpend != null && metaSpend > 0
+        ? Math.round((metaSpend / adsLeads) * 100) / 100
+        : null;
+    const websiteMode = !storeConnected && (adsLeads > 0 || hasAds);
+    const usingShopifyRoas = storeConnected && sales.shopify.totals.roas != null;
+    const tz = 'Asia/Kolkata';
+    const due = reportDue(
+      lastReport ? localDay(lastReport.createdAt, tz) : null,
+      localDay(new Date(), tz),
+      settings.reportEveryDays ?? 15
+    );
 
     const hero: PortalGrowthHero = {
       since: sales.shopify.since,
@@ -236,17 +272,34 @@ export const portalGrowthService = {
       storeConnected,
       storeNote,
       showSpend,
+      websiteMode,
+      usingShopifyRoas,
       targetRoas,
+      targetCpl,
       roas: heroRoas,
-      onTarget: heroRoas == null ? null : heroRoas >= targetRoas,
+      cpl,
+      onTarget: websiteMode
+        ? cpl == null
+          ? null
+          : cpl <= targetCpl
+        : heroRoas == null
+          ? null
+          : heroRoas >= targetRoas,
+      hasAds,
       kpis: {
         posts: postsCount,
         orders: storeConnected ? sales.shopify.totals.orders : null,
         sales: storeConnected ? sales.shopify.totals.sales : null,
+        aov: storeConnected ? sales.shopify.totals.aov : null,
         spend: showSpend ? (storeConnected ? sales.shopify.totals.spend : adsSpend) : null,
+        metaSpend,
         sessions: sales.website?.sessions ?? null,
+        leads: adsLeads,
+        purchases: adsPurchases,
         pendingCampaigns: pendingAds,
+        approvedCampaigns: approvedAds,
         draftBlogs,
+        reportDue: due.due,
       },
       shopify: sales.shopify,
       website: sales.website,

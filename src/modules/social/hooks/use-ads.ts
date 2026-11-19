@@ -21,11 +21,72 @@ export type AdsOverviewDateInput =
 
 export function useAdAccounts() {
   const scopeKey = useClientScopeKey();
-  return useSWR<{ configured: boolean; accounts: AdAccountItem[] }>(
-    [ADS_ACCOUNTS_API_ROUTE, scopeKey],
-    ([url]) => fetcher(url),
-    { revalidateOnFocus: false }
-  );
+  return useSWR<{
+    configured: boolean;
+    oauthConfigured?: boolean;
+    accounts: AdAccountItem[];
+  }>([ADS_ACCOUNTS_API_ROUTE, scopeKey], ([url]) => fetcher(url), {
+    revalidateOnFocus: false,
+  });
+}
+
+export async function startMetaAdsConnect(): Promise<void> {
+  const res = await fetch(`${ADS_ACCOUNTS_API_ROUTE}/connect`);
+  const body = (await res.json().catch(() => null)) as { url?: string; error?: string } | null;
+  if (!res.ok || !body?.url) {
+    throw new Error(body?.error ?? `Could not start Meta Ads connect (${res.status})`);
+  }
+  window.location.assign(body.url);
+}
+
+export async function fetchMetaAdsPending(): Promise<{
+  accounts: {
+    id: string;
+    name: string;
+    currency: string;
+    accountStatus: number;
+    businessName?: string | null;
+  }[];
+  customerId: string | null;
+} | null> {
+  const res = await fetch(`${ADS_ACCOUNTS_API_ROUTE}/pending`);
+  const body = (await res.json().catch(() => null)) as {
+    pending?: {
+      accounts: {
+        id: string;
+        name: string;
+        currency: string;
+        accountStatus: number;
+        businessName?: string | null;
+      }[];
+      customerId: string | null;
+    } | null;
+    error?: string;
+  } | null;
+  if (!res.ok) {
+    throw new Error(body?.error ?? `Could not load pending ad accounts (${res.status})`);
+  }
+  return body?.pending ?? null;
+}
+
+export async function confirmMetaAdsConnect(accountIds: string[]): Promise<void> {
+  const res = await fetch(`${ADS_ACCOUNTS_API_ROUTE}/connect/confirm`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ accountIds }),
+  });
+  const body = (await res.json().catch(() => null)) as { error?: string } | null;
+  if (!res.ok) {
+    throw new Error(body?.error ?? `Could not save ad accounts (${res.status})`);
+  }
+}
+
+export async function disconnectMetaAdAccount(accountId: string): Promise<void> {
+  const res = await fetch(`${ADS_ACCOUNTS_API_ROUTE}/${accountId}/token`, { method: 'DELETE' });
+  const body = (await res.json().catch(() => null)) as { error?: string } | null;
+  if (!res.ok) {
+    throw new Error(body?.error ?? `Could not disconnect ad account (${res.status})`);
+  }
 }
 
 function overviewKey(accountId: string | null, date: AdsOverviewDateInput) {

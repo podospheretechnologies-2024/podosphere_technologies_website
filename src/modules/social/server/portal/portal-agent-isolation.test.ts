@@ -8,6 +8,21 @@ const { createThread, getThread, postMessage } = vi.hoisted(() => ({
   postMessage: vi.fn(),
 }));
 
+const {
+  isClientOwnedTextConfigured,
+  getPortalDisplay,
+  save: saveAiSettings,
+} = vi.hoisted(() => ({
+  isClientOwnedTextConfigured: vi.fn(async () => true),
+  getPortalDisplay: vi.fn(async () => ({
+    configured: true,
+    provider: 'gemini' as const,
+    model: 'gemini-3-flash-preview',
+    keyLast4: 'abcd',
+  })),
+  save: vi.fn(async () => ({})),
+}));
+
 vi.mock('../ai/agent/agent.service', () => ({
   agentService: {
     createThread,
@@ -16,8 +31,12 @@ vi.mock('../ai/agent/agent.service', () => ({
   },
 }));
 
-vi.mock('../ai/claude.client', () => ({
-  isClaudeConfigured: vi.fn(() => true),
+vi.mock('../ai/ai-settings.service', () => ({
+  aiSettingsService: {
+    isClientOwnedTextConfigured,
+    getPortalDisplay,
+    save: saveAiSettings,
+  },
 }));
 
 vi.mock('@/shared/lib/prisma', () => ({
@@ -28,6 +47,7 @@ vi.mock('@/shared/lib/prisma', () => ({
   },
 }));
 
+import { aiSettingsService } from '../ai/ai-settings.service';
 import { prisma } from '@/shared/lib/prisma';
 import { portalAgentService } from './portal-agent.service';
 
@@ -55,6 +75,13 @@ function whereOf(fn: ReturnType<typeof vi.fn>) {
 describe('portal agent tenant isolation', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    isClientOwnedTextConfigured.mockResolvedValue(true);
+    getPortalDisplay.mockResolvedValue({
+      configured: true,
+      provider: 'gemini',
+      model: 'gemini-3-flash-preview',
+      keyLast4: 'abcd',
+    });
     createThread.mockResolvedValue({
       id: 'thread-a',
       organizationId: ORG,
@@ -95,6 +122,48 @@ describe('portal agent tenant isolation', () => {
       configured: true,
       replyText: 'Sure',
     });
+  });
+
+  it('status requires this client’s own key (never agency / env)', async () => {
+    await portalAgentService.status(sessionA);
+    expect(aiSettingsService.isClientOwnedTextConfigured).toHaveBeenCalledWith({
+      organizationId: ORG,
+      customerIds: [CLIENT_A],
+    });
+  });
+
+  it('provider display and save stay on the session client scope only', async () => {
+    await portalAgentService.getProvider(sessionA);
+    expect(aiSettingsService.getPortalDisplay).toHaveBeenCalledWith({
+      organizationId: ORG,
+      customerIds: [CLIENT_A],
+    });
+
+    await portalAgentService.saveProvider(sessionA, {
+      provider: 'openai',
+      apiKey: 'sk-client-a-only',
+    });
+    expect(aiSettingsService.save).toHaveBeenCalledWith(
+      { organizationId: ORG, customerIds: [CLIENT_A] },
+      { provider: 'openai', apiKey: 'sk-client-a-only' }
+    );
+
+    await portalAgentService.saveProvider(sessionB, {
+      provider: 'gemini',
+      apiKey: 'sk-client-b-only',
+    });
+    expect(aiSettingsService.save).toHaveBeenLastCalledWith(
+      { organizationId: ORG, customerIds: [CLIENT_B] },
+      { provider: 'gemini', apiKey: 'sk-client-b-only' }
+    );
+  });
+
+  it('refuses chat when this client has no own key (even if agency env is set)', async () => {
+    isClientOwnedTextConfigured.mockResolvedValueOnce(false);
+    await expect(
+      portalAgentService.sendMessage(sessionA, { message: 'How are my posts?' })
+    ).rejects.toThrow(/Add your own AI API key/);
+    expect(postMessage).not.toHaveBeenCalled();
   });
 
   it('lists threads only for session org + client (never all-clients / null customerId)', async () => {

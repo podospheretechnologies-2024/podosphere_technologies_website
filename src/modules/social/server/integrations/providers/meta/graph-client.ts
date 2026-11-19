@@ -134,6 +134,16 @@ export async function graphPost<T>(
   });
 }
 
+/** DELETE a Graph object (e.g. Facebook / Instagram comment). */
+export async function graphDelete<T>(
+  config: GraphConfig,
+  path: string,
+  token: string
+): Promise<T> {
+  const url = buildGraphUrl(config, path, token, {});
+  return fetchJson<T>(url, { method: 'DELETE' });
+}
+
 function buildGraphUrl(config: GraphConfig, path: string, token: string, params: Params): URL {
   const url = new URL(`https://graph.facebook.com/${config.version}/${path.replace(/^\//, '')}`);
   for (const [key, value] of Object.entries(params)) {

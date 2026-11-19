@@ -202,6 +202,38 @@ export async function subscribeScopedMetaPages(scope: ClientScope): Promise<Subs
   return results;
 }
 
+/**
+ * Per-Page `DELETE /{page-id}/subscribed_apps` so Meta stops delivering webhooks for this app.
+ * Uses the Page access token. Does not throw — returns ok:false on Graph/network errors.
+ */
+export async function unsubscribePageApps(
+  pageId: string,
+  pageAccessToken: string
+): Promise<SubscribeResult> {
+  try {
+    const params = new URLSearchParams({ access_token: pageAccessToken });
+    const response = await fetch(
+      `https://graph.facebook.com/${graphVersion()}/${pageId}/subscribed_apps?${params}`,
+      { method: 'DELETE' }
+    );
+    if (!response.ok) {
+      const body = (await response.json().catch(() => ({}))) as GraphErrorBody;
+      return {
+        ok: false,
+        target: `page:${pageId}`,
+        detail: body.error?.message ?? `HTTP ${response.status}`,
+      };
+    }
+    return { ok: true, target: `page:${pageId}`, detail: 'unsubscribed' };
+  } catch (error) {
+    return {
+      ok: false,
+      target: `page:${pageId}`,
+      detail: error instanceof Error ? error.message : 'unsubscribe_apps failed',
+    };
+  }
+}
+
 /** Best-effort subscribe after a Page/IG connect; never throws into the OAuth callback. */
 export async function trySubscribePageAfterConnect(
   pageId: string | null | undefined,
@@ -213,5 +245,19 @@ export async function trySubscribePageAfterConnect(
   const result = await subscribePageApps(pageId, pageAccessToken);
   if (!result.ok) {
     console.warn(`[meta] subscribed_apps failed for ${pageId}: ${result.detail}`);
+  }
+}
+
+/** Best-effort unsubscribe before a Page/IG disconnect; never throws. */
+export async function tryUnsubscribePageBeforeDisconnect(
+  pageId: string | null | undefined,
+  pageAccessToken: string | null | undefined
+): Promise<void> {
+  if (!pageId || !pageAccessToken) {
+    return;
+  }
+  const result = await unsubscribePageApps(pageId, pageAccessToken);
+  if (!result.ok) {
+    console.warn(`[meta] unsubscribe subscribed_apps failed for ${pageId}: ${result.detail}`);
   }
 }

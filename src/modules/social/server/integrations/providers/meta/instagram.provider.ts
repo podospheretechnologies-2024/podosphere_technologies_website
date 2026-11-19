@@ -48,6 +48,8 @@ export class InstagramProvider extends MetaProviderBase {
     'pages_show_list',
     'pages_read_engagement',
     'business_management',
+    // Required for POST /{page-id}/subscribed_apps when a Page is connected via IG login.
+    'pages_manage_metadata',
   ] as const;
   protected readonly noAccountsMessage =
     'No Instagram account was found. Link an Instagram Business or Creator account to a Facebook Page, then reconnect and select that Page.';

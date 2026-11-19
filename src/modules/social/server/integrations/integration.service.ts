@@ -19,7 +19,10 @@ import { integrationRepository } from './integration.repository';
 import type { CallbackQuery } from './integration.schema';
 import { oauthStateStore } from './oauth-state';
 import { getIntegrationQueue, INTEGRATION_JOB } from './integration.queue';
-import { trySubscribePageAfterConnect } from './providers/meta/meta-webhook-subscribe';
+import {
+  trySubscribePageAfterConnect,
+  tryUnsubscribePageBeforeDisconnect,
+} from './providers/meta/meta-webhook-subscribe';
 import { planService } from '../billing/plan.service';
 import { clientTemplateService } from '../client-templates/client-template.service';
 import { getAnalyticsQueue, ANALYTICS_JOB } from '../analytics/analytics.queue';
@@ -278,6 +281,28 @@ export const integrationService = {
     if (!integration) {
       throw new HttpError(404, 'Channel not found');
     }
+
+    // Stop Meta webhook deliveries for this Page before the token is discarded.
+    if (
+      integration.providerIdentifier === 'facebook' ||
+      integration.providerIdentifier === 'instagram'
+    ) {
+      try {
+        const pageToken = decrypt(integration.accessToken);
+        const settings = integration.additionalSettings as { facebookPageId?: string } | null;
+        const pageId =
+          integration.providerIdentifier === 'facebook'
+            ? integration.internalId
+            : (settings?.facebookPageId ?? null);
+        await tryUnsubscribePageBeforeDisconnect(pageId, pageToken);
+      } catch (error) {
+        console.warn(
+          `[meta] could not unsubscribe webhooks before disconnect for ${integration.id}:`,
+          error instanceof Error ? error.message : error
+        );
+      }
+    }
+
     await integrationRepository.softDelete(integration.id);
     await getIntegrationQueue().add(INTEGRATION_JOB.deleteData, { integrationId: integration.id });
     

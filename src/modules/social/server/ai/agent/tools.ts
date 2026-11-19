@@ -12,6 +12,8 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 export type AgentToolContext = {
   scope: ClientScope;
   threadId: string;
+  /** Portal chat: analytics / posts / leads only — no draft or reply write tools. */
+  readOnly?: boolean;
 };
 
 function compactJson(value: unknown): string {
@@ -180,5 +182,70 @@ export function buildAgentTools(ctx: AgentToolContext) {
     },
   });
 
+  if (ctx.readOnly) {
+    return [getAnalytics, listScheduledPosts, listLeads];
+  }
   return [getAnalytics, listScheduledPosts, listLeads, createPostDraft, replyToConversation];
+}
+
+/**
+ * Snapshot of this client’s posts / analytics / leads for grounded Q&A when the
+ * Anthropic tool runner is unavailable (OpenAI / Gemini BYO or env keys).
+ */
+export async function gatherClientAgentContext(scope: ClientScope): Promise<string> {
+  const now = new Date();
+  const start = new Date(now.getTime() - 30 * DAY_MS);
+  const end = new Date(now.getTime() + 30 * DAY_MS);
+
+  const [summary, scheduled, leads] = await Promise.all([
+    analyticsService.summary(
+      scope.organizationId,
+      { startDate: start.toISOString(), endDate: now.toISOString() },
+      scope.customerIds
+    ),
+    prisma.socialPost.findMany({
+      where: {
+        ...scopeWhere(scope),
+        deletedAt: null,
+        parentPostId: null,
+        state: 'QUEUE',
+        publishDate: { gte: now, lt: end },
+      },
+      select: {
+        content: true,
+        publishDate: true,
+        integration: { select: { name: true, providerIdentifier: true } },
+      },
+      orderBy: { publishDate: 'asc' },
+      take: 20,
+    }),
+    inboxService.listLeads(scope, {}),
+  ]);
+
+  return compactJson({
+    analyticsLast30Days: {
+      totals: summary.totals,
+      successRate: summary.successRate,
+      channels: summary.channels.map((c) => ({
+        name: c.name,
+        provider: c.providerName,
+        published: c.published,
+        failed: c.failed,
+        metrics: c.metrics,
+      })),
+      topPosts: summary.posts.slice(0, 8).map((p) => ({
+        content: p.content.slice(0, 160),
+        publishDate: p.publishDate,
+        channel: p.channel.name,
+        metrics: p.metrics,
+      })),
+    },
+    upcomingScheduledPosts: scheduled.map((row) => ({
+      content: row.content.slice(0, 200),
+      publishDate: row.publishDate.toISOString(),
+      channel: row.integration.name,
+      provider: row.integration.providerIdentifier,
+    })),
+    leads: leads.slice(0, 40),
+  });
 }

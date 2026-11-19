@@ -387,6 +387,10 @@ export interface AskOptions<Schema extends z.ZodType> {
   /** Prior turns (append-only). Sent before the current user message. */
   history?: ClaudeHistoryTurn[];
   effort?: 'low' | 'medium' | 'high';
+  /**
+   * Portal Agent: use only this client's saved API key — never agency workspace or .env keys.
+   */
+  clientOwnedOnly?: boolean;
 }
 
 /**
@@ -404,10 +408,11 @@ export async function askAI<Schema extends z.ZodType>({
   images,
   history = [],
   effort = 'medium',
+  clientOwnedOnly = false,
 }: AskOptions<Schema>): Promise<z.infer<Schema>> {
   const organizationId = scope.organizationId;
   const customerId = customerIdFromScope(scope);
-  const config = await aiSettingsService.resolveTextConfig(scope);
+  const config = await aiSettingsService.resolveTextConfig(scope, { clientOwnedOnly });
   await ensureWithinBudget(scope);
   const brandKit = await resolveBrandKit(scope);
 

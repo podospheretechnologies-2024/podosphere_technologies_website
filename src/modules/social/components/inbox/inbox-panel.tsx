@@ -19,6 +19,7 @@ interface Thread {
   assigneeName: string | null;
   slaDueAt: string | null;
   hiddenAt: string | null;
+  closedAt: string | null;
   aiLabel: string | null;
   aiPriority: string | null;
   aiSentiment: string | null;
@@ -52,6 +53,7 @@ export function InboxPanel() {
   const [replyText, setReplyText] = useState('');
   const [sending, setSending] = useState(false);
   const [hiding, setHiding] = useState(false);
+  const [removing, setRemoving] = useState(false);
   const [triaging, setTriaging] = useState(false);
   const [selectedKind, setSelectedKind] = useState<'comment' | 'dm' | null>(null);
   const [labelFilter, setLabelFilter] = useState<string>('all');
@@ -192,6 +194,34 @@ export function InboxPanel() {
     }
   }
 
+  async function deleteComment() {
+    if (!selectedId || removing) return;
+    if (!window.confirm('Delete this comment on Facebook/Instagram? This cannot be undone.')) {
+      return;
+    }
+    setRemoving(true);
+    setError(null);
+    try {
+      const response = await fetch(`/api/social/inbox/${selectedId}/remove`, { method: 'POST' });
+      const payload = (await response.json()) as
+        | { ok?: boolean; closedAt?: string | null; error?: string }
+        | { error?: string };
+      if (!response.ok) {
+        setError('error' in payload && payload.error ? payload.error : 'Could not delete comment');
+        return;
+      }
+      const closedAt =
+        'closedAt' in payload && payload.closedAt ? payload.closedAt : new Date().toISOString();
+      setThreads((prev) =>
+        prev.map((thread) => (thread.id === selectedId ? { ...thread, closedAt } : thread))
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not delete comment');
+    } finally {
+      setRemoving(false);
+    }
+  }
+
   async function runTriage() {
     if (!selectedId || triaging) return;
     setTriaging(true);
@@ -218,7 +248,9 @@ export function InboxPanel() {
   }
 
   const selected = threads.find((thread) => thread.id === selectedId) ?? null;
-  const canHide = (selectedKind ?? selected?.kind) === 'comment' && !selected?.hiddenAt;
+  const canHide =
+    (selectedKind ?? selected?.kind) === 'comment' && !selected?.hiddenAt && !selected?.closedAt;
+  const canDelete = (selectedKind ?? selected?.kind) === 'comment' && !selected?.closedAt;
   const draftText = selectedDraft ?? selected?.aiDraft ?? null;
 
   return (
@@ -377,6 +409,9 @@ export function InboxPanel() {
               {selected.hiddenAt && (
                 <span className="text-muted-foreground text-xs">Comment hidden</span>
               )}
+              {selected.closedAt && (
+                <span className="text-muted-foreground text-xs">Comment deleted</span>
+              )}
               <div className="ml-auto flex flex-wrap items-center gap-2">
                 <button
                   type="button"
@@ -398,6 +433,18 @@ export function InboxPanel() {
                     }}
                   >
                     {hiding ? 'Hiding…' : 'Hide comment'}
+                  </button>
+                )}
+                {canDelete && (
+                  <button
+                    type="button"
+                    className="border-border text-muted-foreground hover:bg-surface-muted rounded-lg border px-2 py-1 text-xs"
+                    disabled={removing}
+                    onClick={() => {
+                      void deleteComment();
+                    }}
+                  >
+                    {removing ? 'Deleting…' : 'Delete comment'}
                   </button>
                 )}
               </div>

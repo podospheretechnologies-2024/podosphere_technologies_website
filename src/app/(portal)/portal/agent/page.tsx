@@ -5,18 +5,21 @@ import { requirePortalPage } from '@/modules/social/server/portal/portal-page';
 
 export default async function PortalAgentPage() {
   const ctx = await requirePortalPage('agent');
-  const status = portalAgentService.status();
-  const threads = status.configured
-    ? await portalAgentService.listThreads({
-        organizationId: ctx.organizationId,
-        customerId: ctx.customerId,
-      })
-    : [];
+  const session = {
+    organizationId: ctx.organizationId,
+    customerId: ctx.customerId,
+  };
+  const [status, provider] = await Promise.all([
+    portalAgentService.status(session),
+    portalAgentService.getProvider(session),
+  ]);
+  const threads = status.configured ? await portalAgentService.listThreads(session) : [];
 
   return (
     <PortalShell branding={ctx.branding} nav={ctx.nav} clientName={ctx.clientName}>
       <PortalAgentPanel
         configured={status.configured}
+        provider={provider}
         initialThreads={threads}
         canAct={ctx.canAct('agent')}
       />

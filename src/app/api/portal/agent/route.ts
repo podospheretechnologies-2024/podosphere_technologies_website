@@ -7,7 +7,7 @@ export async function GET() {
   try {
     const session = await requirePortalTab('agent', 'view');
     const [status, threads] = await Promise.all([
-      Promise.resolve(portalAgentService.status()),
+      portalAgentService.status(session),
       portalAgentService.listThreads(session),
     ]);
     return Response.json({ ...status, threads });

@@ -38,6 +38,9 @@ export class FacebookProvider extends MetaProviderBase {
     'pages_messaging',
     // Lead-form answers (name, phone, email) for the Leads page and WhatsApp lead flow.
     'leads_retrieval',
+    // Required for POST /{page-id}/subscribed_apps (webhooks) and Page lead forms.
+    'pages_manage_metadata',
+    'pages_manage_ads',
   ] as const;
   protected readonly noAccountsMessage =
     'No Facebook Page was shared. Reconnect and select at least one Page.';

@@ -5,16 +5,24 @@ import { getCurrentOrganization } from '@/shared/server/current-organization';
 import { errorResponse } from '@/shared/server/http-error';
 
 // Assigned ad accounts for the current client scope (OWNER/ADMIN see every client; a member
-// needs `ads_view` on the client).
+// needs `ads_view` on the client). Never returns accounts outside the org / client scope (P1).
 export async function GET() {
   try {
     const scope = await getClientScope('ads_view');
     const org = await getCurrentOrganization();
 
     if (!canUseAds(org) || !(await adsService.isConfiguredForOrg(org.id))) {
-      return Response.json({ configured: false, accounts: [] });
+      return Response.json({
+        configured: false,
+        oauthConfigured: adsService.isOAuthConfigured(),
+        accounts: [],
+      });
     }
-    return Response.json({ configured: true, accounts: await adsService.listAccounts(scope) });
+    return Response.json({
+      configured: true,
+      oauthConfigured: adsService.isOAuthConfigured(),
+      accounts: await adsService.listAccounts(scope),
+    });
   } catch (error) {
     return errorResponse(error);
   }

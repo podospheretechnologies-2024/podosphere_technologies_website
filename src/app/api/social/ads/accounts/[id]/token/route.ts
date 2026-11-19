@@ -6,6 +6,7 @@ import {
 import { adsService } from '@/modules/social/server/ads/ads.service';
 import { canUseAds } from '@/shared/config/organization';
 import { requireRole } from '@/shared/server/access';
+import { getClientScope } from '@/shared/server/client-scope';
 import { getCurrentOrganization } from '@/shared/server/current-organization';
 import { errorResponse, HttpError } from '@/shared/server/http-error';
 
@@ -35,6 +36,28 @@ export async function PUT(
       hasToken: true,
       refreshNeeded: false,
     });
+  } catch (error) {
+    return errorResponse(error);
+  }
+}
+
+/** ADMIN+: clear the stored Meta token for one scoped ad account (Disconnect). */
+export async function DELETE(
+  _request: NextRequest,
+  ctx: RouteContext<'/api/social/ads/accounts/[id]/token'>
+) {
+  try {
+    const org = await getCurrentOrganization();
+    await requireRole('ADMIN');
+    if (!canUseAds(org)) {
+      throw new HttpError(404, 'Not found');
+    }
+
+    const scope = await getClientScope('ads_view');
+    const accountId = adAccountIdSchema.parse((await ctx.params).id);
+    await adsService.disconnectAccountToken(scope, accountId);
+
+    return Response.json({ success: true, accountId, hasToken: false });
   } catch (error) {
     return errorResponse(error);
   }

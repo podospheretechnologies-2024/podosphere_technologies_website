@@ -9,6 +9,7 @@ import { integrationService } from '../integrations/integration.service';
 import { notificationService } from '../notifications/notification.service';
 import {
   GraphApiError,
+  graphDelete,
   graphGet,
   graphPost,
   type GraphConfig,
@@ -217,6 +218,7 @@ function mapThread(row: {
   firstResponseAt: Date | null;
   slaBreachedAt?: Date | null;
   hiddenAt?: Date | null;
+  closedAt?: Date | null;
   aiLabel?: string | null;
   aiPriority?: string | null;
   aiSentiment?: string | null;
@@ -241,6 +243,7 @@ function mapThread(row: {
     firstResponseAt,
     slaBreachedAt: row.slaBreachedAt?.toISOString() ?? null,
     hiddenAt: row.hiddenAt?.toISOString() ?? null,
+    closedAt: row.closedAt?.toISOString() ?? null,
     aiLabel: row.aiLabel ?? null,
     aiPriority: row.aiPriority ?? null,
     aiSentiment: row.aiSentiment ?? null,
@@ -560,6 +563,48 @@ export const inboxService = {
       ok: true as const,
       commentId,
       alreadyHidden: false as const,
+    };
+  },
+
+  /** Deletes a Facebook / Instagram comment via Graph and marks the inbox thread closed. */
+  async remove(scope: ClientScope, threadId: string) {
+    const thread = await loadThreadInScope(scope, threadId);
+    const kind = resolveKind(thread, thread.messages);
+    if (kind !== 'comment') {
+      throw new HttpError(400, 'Only Facebook and Instagram comments can be deleted');
+    }
+    if (thread.closedAt) {
+      return {
+        ...mapThread(thread),
+        ok: true as const,
+        commentId: lastInboundCommentId(thread.messages),
+        alreadyClosed: true as const,
+      };
+    }
+
+    const commentId = lastInboundCommentId(thread.messages);
+    const integration = await resolveChannel(scope, thread);
+    const token = await integrationService.getAccessToken(integration);
+    const graph = graphConfig();
+
+    await callGraph(() => graphDelete<{ success?: boolean }>(graph, commentId, token));
+
+    const now = new Date();
+    const updated = await prisma.socialInboxThread.update({
+      where: { id: thread.id },
+      data: {
+        closedAt: now,
+        ...(thread.kind ? {} : { kind }),
+        ...(thread.channelInternalId ? {} : { channelInternalId: integration.internalId }),
+      },
+      include: { assignee: { select: { id: true, name: true } } },
+    });
+
+    return {
+      ...mapThread(updated),
+      ok: true as const,
+      commentId,
+      alreadyClosed: false as const,
     };
   },
 
