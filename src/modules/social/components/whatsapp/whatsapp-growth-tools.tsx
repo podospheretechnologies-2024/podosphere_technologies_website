@@ -144,6 +144,28 @@ export function WhatsAppGrowthTools() {
     setMessage('Number assigned.');
   }
 
+  async function disconnectConnection(connectionId?: string) {
+    if (
+      !window.confirm(
+        'Disconnect this WhatsApp number? Incoming messages will stop until you connect again.'
+      )
+    ) {
+      return;
+    }
+    const response = await fetch('/api/social/whatsapp/embedded-signup', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(connectionId ? { connectionId } : {}),
+    });
+    const payload = (await response.json()) as { error?: string };
+    if (!response.ok) {
+      setMessage(payload.error || 'Could not disconnect WhatsApp');
+      return;
+    }
+    setMessage('WhatsApp number disconnected.');
+    reload();
+  }
+
   useEffect(() => {
     if (!config?.appId || document.getElementById('facebook-jssdk')) return;
     const script = document.createElement('script');
@@ -471,9 +493,18 @@ export function WhatsAppGrowthTools() {
               {connection.businessName ? ` · ${connection.businessName}` : ''}
             </p>
           </div>
-          <Button type="button" variant="secondary" onClick={() => void connect()}>
-            Reconnect / add number
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="secondary" onClick={() => void connect()}>
+              Reconnect / add number
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => void disconnectConnection(connection.id)}
+            >
+              Disconnect
+            </Button>
+          </div>
         </div>
 
         {(config?.connections?.length ?? 0) > 0 && (

@@ -17,6 +17,56 @@ function customerIdForWrite(scope: ClientScope): string | null {
   return scope.customerIds !== 'all' && scope.customerIds.length === 1 ? scope.customerIds[0] : null;
 }
 
+/**
+ * Attach this app to a WABA so Meta delivers messages/statuses to /api/webhooks/whatsapp.
+ * App-level /{app-id}/subscriptions alone is not enough for Embedded Signup numbers.
+ */
+async function subscribeWabaApps(wabaId: string, accessToken: string): Promise<void> {
+  const env = getServerEnv();
+  const response = await fetch(
+    `https://graph.facebook.com/${env.META_GRAPH_VERSION}/${wabaId}/subscribed_apps`,
+    {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${accessToken}` },
+    }
+  );
+  if (!response.ok) {
+    const detail = (await response.json().catch(() => ({}))) as { error?: { message?: string } };
+    throw new HttpError(
+      502,
+      detail.error?.message || 'Could not subscribe this WhatsApp account to Podo Social webhooks'
+    );
+  }
+}
+
+/** Best-effort detach on disconnect — never blocks deleting the local connection. */
+async function unsubscribeWabaApps(wabaId: string, accessToken: string): Promise<void> {
+  const env = getServerEnv();
+  try {
+    const response = await fetch(
+      `https://graph.facebook.com/${env.META_GRAPH_VERSION}/${wabaId}/subscribed_apps`,
+      {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${accessToken}` },
+      }
+    );
+    if (!response.ok) {
+      const detail = (await response.json().catch(() => ({}))) as { error?: { message?: string } };
+      console.warn(
+        `[whatsapp] unsubscribe subscribed_apps failed for waba=${wabaId}: ${
+          detail.error?.message ?? `HTTP ${response.status}`
+        }`
+      );
+    }
+  } catch (error) {
+    console.warn(
+      `[whatsapp] unsubscribe subscribed_apps failed for waba=${wabaId}: ${
+        error instanceof Error ? error.message : 'unknown error'
+      }`
+    );
+  }
+}
+
 export const whatsappOnboardingService = {
   config() {
     const env = getServerEnv();
@@ -134,7 +184,39 @@ export const whatsappOnboardingService = {
         accessToken: encrypt(payload.access_token),
       },
     });
+    // Without this, Meta never delivers this WABA's messages/statuses to our webhook.
+    await subscribeWabaApps(input.wabaId, payload.access_token);
     return this.connection(scope);
+  },
+
+  /**
+   * Disconnect one Embedded Signup number: unsubscribe the WABA, then delete the local row.
+   * Unsubscribe failures are logged and ignored so the workspace can still clear the token.
+   */
+  async disconnect(scope: ClientScope, connectionId?: string) {
+    const connection = connectionId
+      ? await prisma.socialWhatsAppConnection.findFirst({
+          where: { id: connectionId, organizationId: scope.organizationId },
+        })
+      : await prisma.socialWhatsAppConnection.findFirst({ where: scopeWhere(scope) });
+    if (!connection) {
+      throw new HttpError(404, 'WhatsApp connection not found');
+    }
+
+    let token: string | null = null;
+    try {
+      token = decrypt(connection.accessToken);
+    } catch {
+      console.warn(
+        `[whatsapp] could not decrypt token before disconnect for connection=${connection.id}`
+      );
+    }
+    if (token) {
+      await unsubscribeWabaApps(connection.wabaId, token);
+    }
+
+    await prisma.socialWhatsAppConnection.delete({ where: { id: connection.id } });
+    return { success: true as const, id: connection.id };
   },
 
   async createTemplate(
@@ -264,7 +346,23 @@ export const whatsappOnboardingService = {
       const detail = (await response.json().catch(() => ({}))) as { error?: { message?: string } };
       throw new HttpError(502, detail.error?.message || 'Could not subscribe WhatsApp webhook on Meta');
     }
-    return { success: true, callbackUrl: webhookUrl, fields: fields.split(',') };
+
+    // Repair Embedded Signup connections made before per-WABA subscribed_apps existed.
+    const connection = await prisma.socialWhatsAppConnection.findFirst({
+      where: scopeWhere(_scope),
+    });
+    let wabaSubscribed: string | null = null;
+    if (connection) {
+      await subscribeWabaApps(connection.wabaId, decrypt(connection.accessToken));
+      wabaSubscribed = connection.wabaId;
+    }
+
+    return {
+      success: true,
+      callbackUrl: webhookUrl,
+      fields: fields.split(','),
+      wabaSubscribed,
+    };
   },
 
   async getAccountHealth(scope: ClientScope) {

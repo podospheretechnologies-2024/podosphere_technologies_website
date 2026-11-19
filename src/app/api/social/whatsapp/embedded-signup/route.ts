@@ -62,3 +62,21 @@ export async function PATCH(request: NextRequest) {
     return errorResponse(error);
   }
 }
+
+const disconnectSchema = z.object({
+  connectionId: z.string().min(1).optional(),
+});
+
+/** Disconnect a WhatsApp number (unsubscribes the WABA, then deletes the local connection). */
+export async function DELETE(request: NextRequest) {
+  try {
+    await requireRole('ADMIN');
+    const scope = await getClientScope('inbox');
+    const body = disconnectSchema.parse(
+      await request.json().catch(() => ({}))
+    );
+    return Response.json(await whatsappOnboardingService.disconnect(scope, body.connectionId));
+  } catch (error) {
+    return errorResponse(error);
+  }
+}
