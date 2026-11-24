@@ -5,6 +5,7 @@ vi.mock('@/shared/lib/prisma', () => {
   const model = () => ({
     findMany: vi.fn().mockResolvedValue([]),
     findFirst: vi.fn().mockResolvedValue(null),
+    findUnique: vi.fn().mockResolvedValue({ timeZone: 'Asia/Kolkata' }),
     count: vi.fn().mockResolvedValue(0),
     aggregate: vi.fn().mockResolvedValue({ _sum: {} }),
   });
@@ -24,6 +25,7 @@ vi.mock('@/shared/lib/prisma', () => {
       shopifyDailyMetric: model(),
       socialPost: model(),
       socialInboxThread: model(),
+      organization: model(),
     },
   };
 });
@@ -64,6 +66,7 @@ describe('portal overview tenant isolation', () => {
     expect(whereOf(db.adAccount.findMany)).toEqual({
       organizationId: ORG,
       customerId: CLIENT_A,
+      isAgencyAccount: false,
     });
 
     expect(whereOf(db.socialPost.count, 0)).toMatchObject({
@@ -78,9 +81,12 @@ describe('portal overview tenant isolation', () => {
       approvalStep: 'CLIENT',
     });
 
-    expect(whereOf(db.socialInboxThread.findMany)).toEqual({
+    expect(whereOf(db.socialInboxThread.count)).toEqual({
       organizationId: ORG,
       customerId: CLIENT_A,
+      lastDirection: 'inbound',
+      closedAt: null,
+      hiddenAt: null,
     });
 
     expect(whereOf(db.socialLead.count, 0)).toMatchObject({

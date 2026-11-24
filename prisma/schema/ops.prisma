@@ -26,12 +26,14 @@ model OpsClient {
   updatedAt        DateTime  @updatedAt
   deletedAt        DateTime?
 
-  organization Organization       @relation(fields: [organizationId], references: [id])
-  services     OpsClientService[]
-  payments     OpsPayment[]
+  organization   Organization    @relation(fields: [organizationId], references: [id])
+  socialCustomer SocialCustomer? @relation(fields: [socialCustomerId], references: [id], onDelete: SetNull)
+  services       OpsClientService[]
+  payments       OpsPayment[]
 
   @@index([organizationId, status])
   @@index([organizationId, deletedAt])
+  @@index([socialCustomerId])
   @@map("ops_clients")
 }
 

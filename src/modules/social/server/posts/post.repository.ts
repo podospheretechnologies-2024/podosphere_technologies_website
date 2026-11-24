@@ -2,7 +2,7 @@ import 'server-only';
 import type { Prisma, SocialCreationMethod, SocialPostState } from '@/generated/prisma/client';
 import { prisma } from '@/shared/lib/prisma';
 import type { ClientScope } from '@/shared/server/client-scope';
-import { scopeWhere } from '@/shared/server/client-scope';
+import { customerIdFilter, scopeWhere } from '@/shared/server/client-scope';
 import { POSTS_PAGE_SIZE, type PostListFilter } from '../../config/posts';
 import type { PostMedia } from '../../types/post';
 
@@ -106,9 +106,9 @@ export const postRepository = {
       organizationId,
       deletedAt: null,
       parentPostId: null,
-      integration: { 
+      integration: {
         deletedAt: null,
-        customerId: customerIds === 'all' ? undefined : { in: customerIds },
+        customerId: customerIdFilter(customerIds),
       },
       ...filterWhere,
     };
@@ -134,9 +134,9 @@ export const postRepository = {
         organizationId,
         deletedAt: null,
         parentPostId: null,
-        integration: { 
+        integration: {
           deletedAt: null,
-          customerId: customerIds === 'all' ? undefined : { in: customerIds },
+          customerId: customerIdFilter(customerIds),
         },
         publishDate: { gte: start, lt: end },
       },

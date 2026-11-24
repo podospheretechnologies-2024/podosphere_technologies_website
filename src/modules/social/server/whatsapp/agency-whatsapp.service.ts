@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import { prisma } from '@/shared/lib/prisma';
 import { getServerEnv } from '@/shared/lib/env';
-import { organizationScope, type ClientScope } from '@/shared/server/client-scope';
+import { organizationScope, scopeWhere, type ClientScope } from '@/shared/server/client-scope';
 import { HttpError } from '@/shared/server/http-error';
 import type {
   WhatsAppAdChatRow,
@@ -422,8 +422,7 @@ export const agencyWhatsAppService = {
   /** Click-to-WhatsApp ad performance for the selected client scope. */
   async adChatSummary(scope: ClientScope): Promise<WhatsAppAdChatRow[]> {
     const where = {
-      ...{ organizationId: scope.organizationId },
-      ...(scope.customerIds === 'all' ? {} : { customerId: { in: scope.customerIds } }),
+      ...scopeWhere(scope),
       adSourceId: { not: null },
     };
     const conversations = await prisma.whatsAppConversation.findMany({
@@ -457,8 +456,7 @@ export const agencyWhatsAppService = {
 
     const wonByWaId = await prisma.socialLead.findMany({
       where: {
-        organizationId: scope.organizationId,
-        ...(scope.customerIds === 'all' ? {} : { customerId: { in: scope.customerIds } }),
+        ...scopeWhere(scope),
         source: 'whatsapp_ad',
         stage: 'won',
         waId: { not: null },

@@ -30,20 +30,27 @@ export async function GET(
       throw new HttpError(400, 'Invalid response from the provider');
     }
 
-    const { integrations, customerId } = await integrationService.completeConnect(
+    const { integrations, fromPortal, pendingPages } = await integrationService.completeConnect(
       organization.id,
       provider,
       query.data
     );
 
-    if (customerId) {
+    // Only a connect started from the client portal goes back to the portal. An agency connect with
+    // a client picked in the switcher stays on the agency Channels page.
+    if (fromPortal) {
       redirectUrl = new URL('/portal/channels', getServerEnv().APP_URL);
     }
 
-    redirectUrl.searchParams.set(
-      'connected',
-      integrations.map((integration) => integration.name).join(', ')
-    );
+    if (pendingPages) {
+      // PS-01: Meta returned several Pages; the admin ticks the ones to save.
+      redirectUrl.searchParams.set('pickPages', provider);
+    } else {
+      redirectUrl.searchParams.set(
+        'connected',
+        integrations.map((integration) => integration.name).join(', ')
+      );
+    }
   } catch (error) {
     redirectUrl.searchParams.set('error', toUserMessage(error));
   }

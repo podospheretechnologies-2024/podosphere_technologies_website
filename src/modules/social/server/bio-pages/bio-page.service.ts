@@ -1,6 +1,6 @@
 import 'server-only';
 import { randomUUID } from 'node:crypto';
-import type { ClientScope } from '@/shared/server/client-scope';
+import { singleAssignedCustomerId, type ClientScope } from '@/shared/server/client-scope';
 import { HttpError } from '@/shared/server/http-error';
 import { BIO_PAGE_SLUG_MAX_LENGTH } from '../../config/settings';
 import type { BioPageItem, PublicBioPage } from '../../types/bio';
@@ -38,7 +38,7 @@ function toItem(page: BioPageWithLinks): BioPageItem {
 
 /** Single selected client → that id; 'all' → null (agency-shared). */
 function customerIdForWrite(scope: ClientScope): string | null {
-  return scope.customerIds !== 'all' && scope.customerIds.length === 1 ? scope.customerIds[0] : null;
+  return singleAssignedCustomerId(scope);
 }
 
 async function uniqueSlug(desired: string, exceptId?: string): Promise<string> {

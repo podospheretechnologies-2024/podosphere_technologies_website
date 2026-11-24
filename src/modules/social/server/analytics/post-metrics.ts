@@ -95,29 +95,36 @@ async function facebookMetrics(
     if (!(error instanceof GraphApiError)) throw error;
   }
 
-  try {
-    const insights = await graphGet<GraphList<InsightRow>>(config, `${releaseId}/insights`, token, {
-      metric: [
-        'post_impressions',
-        'post_impressions_unique',
-        'post_impressions_organic',
-        'post_engaged_users',
-        'post_clicks',
-        'post_video_views',
-        'post_media_view',
-      ].join(','),
-    });
-    metrics.impressions = firstInsight(insights.data, [
-      'post_impressions',
-      'post_impressions_organic',
-    ]);
-    metrics.reach = insightValue(insights.data, 'post_impressions_unique');
-    metrics.engagement = insightValue(insights.data, 'post_engaged_users');
-    metrics.clicks = insightValue(insights.data, 'post_clicks');
-    metrics.views = firstInsight(insights.data, ['post_video_views', 'post_media_view']);
-  } catch (error) {
-    if (error instanceof GraphApiError && (error.isAuthError || error.isRateLimitError)) throw error;
-    // Insights need pages_read_engagement / read_insights; counts above may still work.
+  // Graph v26: post_impressions* / post_engaged_users / post_video_views are deprecated above v25
+  // (one bad metric fails the whole call), so each current metric is requested on its own.
+  const fetchOne = async (metric: string): Promise<InsightRow[] | undefined> => {
+    try {
+      const res = await graphGet<GraphList<InsightRow>>(config, `${releaseId}/insights`, token, {
+        metric,
+      });
+      return res.data;
+    } catch (error) {
+      if (error instanceof GraphApiError && (error.isAuthError || error.isRateLimitError)) throw error;
+      console.warn(
+        `[post-metrics] facebook insight ${metric} failed for ${releaseId}:`,
+        error instanceof Error ? error.message : error
+      );
+      return undefined;
+    }
+  };
+
+  const mediaView = await fetchOne('post_media_view');
+  const mediaViewUnique = await fetchOne('post_total_media_view_unique');
+  const clicksByType = await fetchOne('post_clicks_by_type');
+  metrics.views = insightValue(mediaView, 'post_media_view');
+  metrics.impressions = metrics.views;
+  metrics.reach = insightValue(mediaViewUnique, 'post_total_media_view_unique');
+  metrics.clicks = insightValue(clicksByType, 'post_clicks_by_type');
+  const interactions = [metrics.likes, metrics.comments, metrics.shares].filter(
+    (value): value is number => value !== null
+  );
+  if (interactions.length > 0) {
+    metrics.engagement = interactions.reduce((sum, value) => sum + value, 0);
   }
 
   const hasAny = Object.values(metrics).some((value) => value !== null);

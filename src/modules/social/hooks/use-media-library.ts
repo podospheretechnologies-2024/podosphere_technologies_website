@@ -17,6 +17,5 @@ export function useMediaLibrary(page: number, search: string, format?: MediaForm
 
   const url = `${MEDIA_API_ROUTE}?${params}`;
   return useSWR<MediaPage>([url, scopeKey], ([path]) => fetcher(path), {
-    keepPreviousData: true,
   });
 }

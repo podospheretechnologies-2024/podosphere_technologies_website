@@ -24,7 +24,6 @@ export function useGoogleAdsOverview(accountId: string | null, date: AdsOverview
   const url = accountId ? `${GOOGLE_ADS_API_ROUTE}/accounts/${accountId}?${dateQuery(date)}` : null;
   return useSWR<GoogleAdsOverview>(url ? [url, scopeKey] : null, ([path]) => fetcher(path), {
     revalidateOnFocus: false,
-    keepPreviousData: true,
   });
 }
 

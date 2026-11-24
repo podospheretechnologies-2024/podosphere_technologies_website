@@ -4,6 +4,8 @@ export interface AiStatus {
   configured: boolean;
   /** Image generation (OpenAI or Gemini) is set up; text AI can work without it. */
   imageConfigured: boolean;
+  /** Under "All clients": how many clients have their own key (the server key may be absent). */
+  clientKeys?: { count: number; providers: AiProvider[] };
 }
 
 export type AiSettingsSource = 'client' | 'workspace' | 'env';

@@ -1,10 +1,18 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
+  concreteCustomerIds,
+  customerIdAllowed,
+  customerIdFilter,
+  requiredCustomerIdFilter,
+  scopeWhereRequired,
+  singleAssignedCustomerId,
   organizationScope,
   pinSelectedClientId,
   resolveSelectedClientId,
   scopeFromAccess,
   scopeWhere,
+  socialCustomerIdWhere,
+  UNASSIGNED_CLIENT_SCOPE,
 } from './client-scope';
 import type { AccessContext } from './access';
 
@@ -77,6 +85,19 @@ describe('client scope', () => {
   it('MEMBER with several clients and no pick is pinned to the first assigned client', () => {
     expect(scopeFromAccess(ctx(['client-a', 'client-b'])).customerIds).toEqual(['client-a']);
   });
+
+  it('OWNER/ADMIN can pick Unassigned (customerId null)', () => {
+    const scope = scopeFromAccess(ctx('all'), UNASSIGNED_CLIENT_SCOPE);
+    expect(scope.customerIds).toBe('unassigned');
+    expect(scopeWhere(scope)).toEqual({ organizationId: 'org-1', customerId: null });
+    expect(socialCustomerIdWhere(scope)).toEqual({ id: { in: [] } });
+    expect(customerIdAllowed(scope, null)).toBe(true);
+    expect(customerIdAllowed(scope, 'client-a')).toBe(false);
+  });
+
+  it('MEMBER cannot pick Unassigned (404)', () => {
+    expect(() => scopeFromAccess(ctx(['client-a']), UNASSIGNED_CLIENT_SCOPE)).toThrow('Not found');
+  });
 });
 
 describe('resolveSelectedClientId', () => {
@@ -128,5 +149,44 @@ describe('pinSelectedClientId', () => {
   it('does not invent a pick for ADMIN or OWNER', () => {
     expect(pinSelectedClientId('ADMIN', clients, null)).toBeNull();
     expect(pinSelectedClientId('OWNER', [{ id: 'client-a' }], null)).toBeNull();
+  });
+
+  it('keeps Unassigned for OWNER/ADMIN and drops it for MEMBER', () => {
+    expect(pinSelectedClientId('ADMIN', clients, UNASSIGNED_CLIENT_SCOPE)).toBe(
+      UNASSIGNED_CLIENT_SCOPE
+    );
+    expect(pinSelectedClientId('OWNER', clients, UNASSIGNED_CLIENT_SCOPE)).toBe(
+      UNASSIGNED_CLIENT_SCOPE
+    );
+    expect(pinSelectedClientId('MEMBER', clients, UNASSIGNED_CLIENT_SCOPE)).toBe('client-a');
+  });
+});
+
+describe('unassigned scope filters (R2, R7)', () => {
+  const unassigned = { organizationId: 'org-1', customerIds: 'unassigned' as const };
+  const memberA = { organizationId: 'org-1', customerIds: ['client-a'] };
+
+  it('nullable columns: unassigned is customerId = null, a client list is { in }', () => {
+    expect(customerIdFilter('all')).toBeUndefined();
+    expect(customerIdFilter('unassigned')).toBeNull();
+    expect(customerIdFilter(['client-a'])).toEqual({ in: ['client-a'] });
+  });
+
+  it('required columns: unassigned matches no row', () => {
+    expect(requiredCustomerIdFilter('unassigned')).toEqual({ in: [] });
+    expect(scopeWhereRequired(unassigned)).toEqual({ organizationId: 'org-1', customerId: { in: [] } });
+    expect(scopeWhereRequired(memberA)).toEqual({ organizationId: 'org-1', customerId: { in: ['client-a'] } });
+  });
+
+  it('a client scope never includes null (unassigned) rows', () => {
+    expect(scopeWhere(memberA)).toEqual({ organizationId: 'org-1', customerId: { in: ['client-a'] } });
+    expect(customerIdAllowed(memberA, null)).toBe(false);
+  });
+
+  it('single client helper ignores all / unassigned', () => {
+    expect(singleAssignedCustomerId(unassigned)).toBeNull();
+    expect(singleAssignedCustomerId({ organizationId: 'org-1', customerIds: 'all' })).toBeNull();
+    expect(singleAssignedCustomerId(memberA)).toBe('client-a');
+    expect(concreteCustomerIds('unassigned')).toEqual([]);
   });
 });

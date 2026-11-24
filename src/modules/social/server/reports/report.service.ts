@@ -61,6 +61,17 @@ function previousCalendarMonth(now = new Date()): { periodStart: Date; periodEnd
   return { periodStart, periodEnd };
 }
 
+/** 'YYYY-MM' -> that calendar month in UTC; null when malformed or in the future. */
+function calendarMonth(month: string): { periodStart: Date; periodEnd: Date } | null {
+  const match = /^(\d{4})-(0[1-9]|1[0-2])$/.exec(month);
+  if (!match) return null;
+  const year = Number(match[1]);
+  const index = Number(match[2]) - 1;
+  const periodStart = new Date(Date.UTC(year, index, 1));
+  if (periodStart.getTime() > Date.now()) return null;
+  return { periodStart, periodEnd: new Date(Date.UTC(year, index + 1, 0, 23, 59, 59, 999)) };
+}
+
 function periodLabel(start: Date, end: Date): string {
   const opts: Intl.DateTimeFormatOptions = { month: 'long', year: 'numeric', timeZone: 'UTC' };
   const startLabel = start.toLocaleDateString('en-IN', opts);
@@ -142,6 +153,7 @@ async function emailReportToApprovers(opts: {
 }
 
 async function resolveCustomerIds(scope: ClientScope): Promise<string[]> {
+  if (scope.customerIds === 'unassigned') return [];
   if (scope.customerIds !== 'all') {
     return scope.customerIds;
   }
@@ -153,9 +165,14 @@ async function resolveCustomerIds(scope: ClientScope): Promise<string[]> {
 }
 
 export const reportService = {
-  async list(scope: ClientScope) {
+  async list(scope: ClientScope, filters: { customerId?: string | null; month?: string | null } = {}) {
+    const period = filters.month ? calendarMonth(filters.month) : null;
     const rows = await prisma.socialClientReport.findMany({
-      where: scopeWhere(scope),
+      where: {
+        ...scopeWhere(scope),
+        ...(filters.customerId ? { customerId: filters.customerId } : {}),
+        ...(period ? { periodStart: { gte: period.periodStart, lte: period.periodEnd } } : {}),
+      },
       orderBy: { createdAt: 'desc' },
       take: 24,
     });
@@ -176,14 +193,20 @@ export const reportService = {
    * Enqueues one monthly PDF job per client in the current scope (manual UI).
    * Does not email approvers — use the monthly schedule job for delivery.
    */
-  async enqueueMonthlyPdfs(scope: ClientScope) {
+  async enqueueMonthlyPdfs(scope: ClientScope, options: { customerId?: string; month?: string } = {}) {
     await planService.assertFeature(scope.organizationId, 'reports');
-    const customerIds = await resolveCustomerIds(scope);
+    let customerIds = await resolveCustomerIds(scope);
+    if (options.customerId) {
+      if (!customerIds.includes(options.customerId)) throw new HttpError(404, 'Client not found');
+      customerIds = [options.customerId];
+    }
     if (customerIds.length === 0) {
       throw new HttpError(400, 'Select a client before generating a PDF report');
     }
 
-    const { periodStart, periodEnd } = previousCalendarMonth();
+    const chosen = options.month ? calendarMonth(options.month) : null;
+    if (options.month && !chosen) throw new HttpError(400, 'Pick a past month as YYYY-MM');
+    const { periodStart, periodEnd } = chosen ?? previousCalendarMonth();
     const queue = getReportQueue();
     const jobs: Array<{ customerId: string; jobId: string | undefined }> = [];
 
@@ -267,7 +290,13 @@ export const reportService = {
     const periodStart = new Date(periodEnd.getTime() - 30 * 24 * 60 * 60 * 1000);
     const [posts, leads, threads] = await Promise.all([
       prisma.socialPost.count({
-        where: { organizationId, state: 'PUBLISHED', publishDate: { gte: periodStart, lte: periodEnd } },
+        where: {
+          organizationId,
+          state: 'PUBLISHED',
+          parentPostId: null,
+          deletedAt: null,
+          publishDate: { gte: periodStart, lte: periodEnd },
+        },
       }),
       prisma.socialLead.count({ where: { organizationId, createdAt: { gte: periodStart } } }),
       prisma.socialInboxThread.count({ where: { organizationId, lastMessageAt: { gte: periodStart } } }),
@@ -353,6 +382,8 @@ export const reportService = {
         where: {
           ...where,
           state: 'PUBLISHED',
+          parentPostId: null,
+          deletedAt: null,
           publishDate: { gte: periodStart, lte: periodEnd },
         },
       }),

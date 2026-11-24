@@ -1,5 +1,6 @@
 import 'server-only';
 import { HttpError } from '@/shared/server/http-error';
+import type { ScopeCustomerIds } from '@/shared/server/client-scope';
 import { ANALYTICS_MAX_RANGE_DAYS } from '../../config/analytics';
 import type {
   AnalyticsChannel,
@@ -206,7 +207,7 @@ function aggregateBestTimes(
 }
 
 export const analyticsService = {
-  async summary(organizationId: string, query: AnalyticsQuery, clientIds: 'all' | string[] = 'all'): Promise<AnalyticsSummary> {
+  async summary(organizationId: string, query: AnalyticsQuery, clientIds: ScopeCustomerIds = 'all'): Promise<AnalyticsSummary> {
     const deadline = Date.now() + ANALYTICS_BUDGET_MS;
     const start = new Date(query.startDate);
     const end = new Date(query.endDate);
@@ -274,9 +275,9 @@ export const analyticsService = {
           shares: post.shares,
           reach: post.reach,
           impressions: post.impressions,
-          engagement: post.engagementRate ? Number(post.engagementRate) : null,
+          engagement: post.engagement ?? (post.engagementRate ? Number(post.engagementRate) : null),
           saved: post.saves,
-          clicks: null,
+          clicks: post.clicks,
         },
       },
     }));
@@ -421,7 +422,7 @@ export const analyticsService = {
   async bestTimes(
     organizationId: string,
     query: BestTimesQuery,
-    clientIds: 'all' | string[] = 'all'
+    clientIds: ScopeCustomerIds = 'all'
   ): Promise<BestTimesResult> {
     const integration = await analyticsRepository.findScopedIntegration(
       organizationId,

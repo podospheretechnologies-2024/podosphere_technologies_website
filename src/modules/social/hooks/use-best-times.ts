@@ -12,7 +12,6 @@ export function useBestTimes(integrationId: string | null) {
       ? `${BEST_TIMES_API_ROUTE}?${new URLSearchParams({ integrationId })}`
       : null;
   return useSWR<BestTimesResult>(url ? [url, scopeKey] : null, ([path]) => fetcher(path), {
-    keepPreviousData: true,
     revalidateOnFocus: false,
   });
 }

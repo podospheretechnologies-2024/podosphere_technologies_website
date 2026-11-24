@@ -4,7 +4,7 @@ import { getServerEnv } from '@/shared/lib/env';
 import { decrypt, encrypt } from '@/shared/lib/crypto';
 import { prisma } from '@/shared/lib/prisma';
 import { HttpError } from '@/shared/server/http-error';
-import type { ClientScope } from '@/shared/server/client-scope';
+import { singleAssignedCustomerId, type ClientScope } from '@/shared/server/client-scope';
 import { AI_PROVIDERS, isAiProvider, type AiProvider } from '../../config/ai';
 import type { AiConfiguredClientKey, AiProviderDisplay, AiSettingsSource } from '../../types/ai';
 import { generateStructured, type ResolvedAiConfig } from './providers';
@@ -44,7 +44,8 @@ function defaultModel(provider: AiProvider): string {
 /** Single selected client → its id; 'All clients' → null (read-only: env / leftover workspace row). */
 function levelCustomerId(scope: ClientScope): string | null {
   if (scope.customerIds === 'all') return null;
-  if (scope.customerIds.length === 1) return scope.customerIds[0];
+  const single = singleAssignedCustomerId(scope);
+  if (single) return single;
   throw new HttpError(400, 'Pick a single client to set the AI provider.');
 }
 

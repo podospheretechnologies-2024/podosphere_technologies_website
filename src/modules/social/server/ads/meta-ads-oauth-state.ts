@@ -20,6 +20,7 @@ const pendingAccountSchema = z.object({
   currency: z.string(),
   accountStatus: z.number(),
   businessName: z.string().nullable().optional(),
+  timezoneName: z.string().optional(),
 });
 
 const pendingSchema = z.object({

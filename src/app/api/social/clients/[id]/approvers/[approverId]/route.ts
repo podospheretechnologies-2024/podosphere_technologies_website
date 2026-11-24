@@ -14,14 +14,30 @@ export async function PATCH(
     const { id, approverId } = await props.params;
     const ctx = await requireClient(id, 'approve');
     const body = updatePortalApproverSchema.parse(await request.json());
-    if (body.disabled === undefined && body.phone === undefined) {
+    if (
+      body.disabled === undefined &&
+      body.phone === undefined &&
+      body.email === undefined &&
+      body.name === undefined
+    ) {
       throw new HttpError(400, 'Nothing to update');
     }
 
     const approver = await portalAuthService.updateApprover(ctx.organization.id, id, approverId, {
       disabled: body.disabled,
       phone: body.phone,
+      email: body.email,
+      name: body.name,
     });
+
+    if (body.email !== undefined || body.name !== undefined) {
+      await logAudit({
+        action: 'update_portal_approver_details',
+        targetType: 'ClientApprover',
+        targetId: approverId,
+        metadata: { customerId: id, emailChanged: body.email !== undefined },
+      });
+    }
 
     if (body.disabled !== undefined) {
       await logAudit({

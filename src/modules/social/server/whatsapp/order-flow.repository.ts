@@ -2,7 +2,7 @@ import 'server-only';
 import type { Prisma, SocialWhatsAppOrderFlow, SocialWhatsAppOrderMessage } from '@/generated/prisma/client';
 import { prisma } from '@/shared/lib/prisma';
 import type { ClientScope } from '@/shared/server/client-scope';
-import { scopeWhere } from '@/shared/server/client-scope';
+import { scopeWhereRequired } from '@/shared/server/client-scope';
 import {
   ORDER_FLOW_BY_KEY,
   ORDER_FLOW_KEYS,
@@ -136,7 +136,7 @@ export const orderFlowRepository = {
     }
   ) {
     const where: Prisma.SocialWhatsAppOrderMessageWhereInput = {
-      ...scopeWhere(scope),
+      ...scopeWhereRequired(scope),
       ...(filters.flowKey ? { flowKey: filters.flowKey } : {}),
       ...(filters.status ? { status: filters.status } : {}),
       ...(filters.from || filters.to
@@ -166,7 +166,7 @@ export const orderFlowRepository = {
     to: Date
   ) {
     const where: Prisma.SocialWhatsAppOrderMessageWhereInput = {
-      ...scopeWhere(scope),
+      ...scopeWhereRequired(scope),
       createdAt: { gte: from, lte: to },
     };
     const [sentGroups, recoveredGroups] = await Promise.all([
@@ -178,7 +178,7 @@ export const orderFlowRepository = {
       prisma.socialWhatsAppOrderMessage.groupBy({
         by: ['flowKey'],
         where: {
-          ...scopeWhere(scope),
+          ...scopeWhereRequired(scope),
           recoveredAt: { gte: from, lte: to },
         },
         _count: { _all: true },

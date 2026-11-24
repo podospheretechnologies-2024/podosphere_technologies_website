@@ -1,6 +1,6 @@
 import 'server-only';
 import type { SocialAutoPost } from '@/generated/prisma/client';
-import { organizationScope, type ClientScope } from '@/shared/server/client-scope';
+import { singleAssignedCustomerId, organizationScope, type ClientScope } from '@/shared/server/client-scope';
 import { HttpError } from '@/shared/server/http-error';
 import { AI_MIN_POST_LENGTH } from '../../config/ai';
 import { AUTOPOST_DEFAULT_TEMPLATE, AUTOPOST_MAX_ITEMS_PER_RUN } from '../../config/automation';
@@ -17,7 +17,7 @@ import { fetchFeed, type FeedItem } from './rss-feed';
 
 /** Single selected client → that id; 'all' → null (agency-shared). */
 function customerIdForWrite(scope: ClientScope): string | null {
-  return scope.customerIds !== 'all' && scope.customerIds.length === 1 ? scope.customerIds[0] : null;
+  return singleAssignedCustomerId(scope);
 }
 
 // integrationIds is a JSON column (MySQL has no list columns); always read it through here.

@@ -2,7 +2,7 @@ import 'server-only';
 import { z } from 'zod';
 import type { SocialLead, SocialWhatsAppLeadFlow } from '@/generated/prisma/client';
 import { prisma } from '@/shared/lib/prisma';
-import { organizationScope, scopeWhere, type ClientScope } from '@/shared/server/client-scope';
+import { singleAssignedCustomerId, organizationScope, scopeWhere, type ClientScope } from '@/shared/server/client-scope';
 import { HttpError } from '@/shared/server/http-error';
 import type { WhatsAppTemplate } from '../../types/whatsapp';
 import type { WhatsAppLeadFlow } from '../../types/whatsapp-lead-flow';
@@ -45,7 +45,7 @@ export const sendLeadTemplateSchema = z.object({
 });
 
 function customerIdForWrite(scope: ClientScope): string | null {
-  return scope.customerIds !== 'all' && scope.customerIds.length === 1 ? scope.customerIds[0] : null;
+  return singleAssignedCustomerId(scope);
 }
 
 function sourceLabel(lead: Pick<SocialLead, 'source' | 'payload'>): string {

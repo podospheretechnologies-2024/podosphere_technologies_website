@@ -1,6 +1,6 @@
 'use client';
 
-import { CircleDollarSign, Handshake, Settings, type LucideIcon } from 'lucide-react';
+import { Settings, type LucideIcon } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import type { ReactNode } from 'react';
@@ -15,19 +15,8 @@ export type IconRailItem = {
   icon: LucideIcon;
 };
 
+// PS-28: Billing is already in the main list and Affiliate has no page, so only Settings stays here.
 const bottomItems: IconRailItem[] = [
-  {
-    key: 'affiliate',
-    label: 'Affiliate',
-    href: `${SOCIAL_BASE_PATH}/settings`,
-    icon: Handshake,
-  },
-  {
-    key: 'billing',
-    label: 'Billing',
-    href: `${SOCIAL_BASE_PATH}/settings`,
-    icon: CircleDollarSign,
-  },
   {
     key: 'settings',
     label: 'Settings',
@@ -63,7 +52,7 @@ export function IconRail({
   homeHref?: string;
   /** Replaces the "P" square at the top. */
   brand?: ReactNode;
-  /** Replaces the agency bottom links (Affiliate / Billing / Settings). */
+  /** Replaces the agency bottom link (Settings). */
   footer?: ReactNode;
   className?: string;
 }) {
@@ -79,12 +68,16 @@ export function IconRail({
     const active =
       isAgencyRail && item.key === 'settings'
         ? isSettingsRoute
-        : isAgencyRail && (item.key === 'affiliate' || item.key === 'billing')
-          ? false
-          : pathname === item.href || pathname.startsWith(`${item.href}/`);
+        : pathname === item.href || pathname.startsWith(`${item.href}/`);
 
     return (
-      <Link key={item.key} href={item.href} title={item.label} className={iconRailItemClass(active)}>
+      <Link
+        key={item.key}
+        href={item.href}
+        prefetch={false}
+        title={item.label}
+        className={iconRailItemClass(active)}
+      >
         <Icon className="size-5" />
         <span className="leading-tight">{item.label}</span>
       </Link>
@@ -97,6 +90,7 @@ export function IconRail({
     >
       <Link
         href={homeHref ?? socialAppHome}
+        prefetch={false}
         className="bg-primary text-primary-foreground mb-6 flex size-10 items-center justify-center overflow-hidden rounded-xl text-sm font-bold"
         title={isAgencyRail ? 'Podosphere' : 'Home'}
       >

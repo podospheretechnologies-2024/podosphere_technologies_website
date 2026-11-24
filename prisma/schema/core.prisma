@@ -34,6 +34,8 @@ model Organization {
   buyerGstin         String?            @db.VarChar(20)
   /** Place of supply (state name or GST state code) for tax split. */
   placeOfSupply      String?            @db.VarChar(120)
+  /** IANA timezone for metrics, calendar, and server-rendered dates. */
+  timeZone           String             @default("Asia/Kolkata") @db.VarChar(64)
 
   users               User[]
   socialIntegrations  SocialIntegration[]

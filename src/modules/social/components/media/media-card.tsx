@@ -10,12 +10,21 @@ import { InstagramFrame } from './instagram-frames';
 interface MediaCardProps {
   media: MediaItem;
   accountName: string;
+  /** Under "All clients": which client the file belongs to (PS-24). */
+  clientLabel?: string;
   deleting: boolean;
   onPreview: (media: MediaItem) => void;
   onDelete: (media: MediaItem) => void;
 }
 
-export function MediaCard({ media, accountName, deleting, onPreview, onDelete }: MediaCardProps) {
+export function MediaCard({
+  media,
+  accountName,
+  clientLabel,
+  deleting,
+  onPreview,
+  onDelete,
+}: MediaCardProps) {
   const [hovered, setHovered] = useState(false);
   const formatLabel = MEDIA_FORMAT_OPTIONS.find((option) => option.value === media.format)?.label;
 
@@ -40,6 +49,7 @@ export function MediaCard({ media, accountName, deleting, onPreview, onDelete }:
           </p>
           <p className="text-muted-foreground text-xs">
             {formatLabel} · {formatFileSize(media.fileSize)}
+            {clientLabel ? ` · ${clientLabel}` : ''}
           </p>
         </div>
         <Button

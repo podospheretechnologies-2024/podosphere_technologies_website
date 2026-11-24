@@ -1,5 +1,5 @@
 import 'server-only';
-import type { SocialIntegration } from '@/generated/prisma/client';
+import type { Prisma, SocialIntegration } from '@/generated/prisma/client';
 import { decrypt, encrypt } from '@/shared/lib/crypto';
 import { prisma } from '@/shared/lib/prisma';
 import { getServerEnv } from '@/shared/lib/env';
@@ -11,12 +11,15 @@ import type {
   ChannelItem,
   ChannelsResponse,
   ConnectUrlResponse,
+  PendingPagesResponse,
 } from '../../types/integration';
+import { CHANNEL_MAPPING_SELECT, moveChannelRows } from '../customers/channel-mapping';
 import { integrationRegistry } from './core/integration.registry';
 import { ProviderError, RefreshTokenError } from './core/provider.errors';
 import type { AuthTokenDetails, SocialProvider } from './core/social-provider.interface';
 import { integrationRepository } from './integration.repository';
 import type { CallbackQuery } from './integration.schema';
+import { metaPagesPendingStore } from './meta-pages-pending';
 import { oauthStateStore } from './oauth-state';
 import { getIntegrationQueue, INTEGRATION_JOB } from './integration.queue';
 import {
@@ -93,6 +96,120 @@ const EXTRA_CHANNEL_PROVIDERS: AvailableProvider[] = [
   },
 ];
 
+function isMetaPagesProvider(identifier: string): boolean {
+  return identifier === 'facebook' || identifier === 'instagram';
+}
+
+type ConnectedAccountInput = {
+  internalId: string;
+  name: string;
+  username: string | null;
+  picture: string | null;
+  metadata?: Record<string, unknown>;
+  /** Plain Page token, only used to subscribe webhooks; never stored unencrypted. */
+  accessTokenPlain: string;
+  tokens: { accessToken: string; refreshToken: string | null; tokenExpiration: Date | null };
+};
+
+/**
+ * Saves connected accounts. Client rule (R1/R5/R6): a channel that is already on a client keeps it —
+ * moving it is done on the client page with a confirm. A new or Unassigned channel takes `customerId`
+ * (the client picked in the switcher), or stays Unassigned when there is none.
+ */
+async function persistConnectedAccounts(
+  organizationId: string,
+  identifier: string,
+  provider: SocialProvider,
+  accounts: ConnectedAccountInput[],
+  customerId: string | null
+): Promise<SocialIntegration[]> {
+  const existing = await prisma.socialIntegration.findMany({
+    where: {
+      organizationId,
+      providerIdentifier: identifier,
+      internalId: { in: accounts.map((account) => account.internalId) },
+    },
+    select: { ...CHANNEL_MAPPING_SELECT, deletedAt: true },
+  });
+  const existingByInternalId = new Map(existing.map((row) => [row.internalId, row]));
+
+  const integrations: SocialIntegration[] = [];
+  for (const details of accounts) {
+    const before = existingByInternalId.get(details.internalId);
+    const keepClient = before && !before.deletedAt && before.customerId ? before.customerId : null;
+    const targetCustomerId = keepClient ?? customerId;
+    const saved = await integrationRepository.upsert({
+      organizationId,
+      providerIdentifier: identifier,
+      internalId: details.internalId,
+      name: details.name,
+      username: details.username,
+      picture: details.picture,
+      inBetweenSteps: provider.isBetweenSteps,
+      customerId: targetCustomerId,
+      additionalSettings: (details.metadata ?? []) as Prisma.InputJsonValue,
+      ...details.tokens,
+    });
+    integrations.push(saved);
+
+    // An Unassigned channel that now gets a client: its earlier rows follow it (R6).
+    if (before && before.customerId === null && targetCustomerId) {
+      await prisma.$transaction((tx) =>
+        moveChannelRows(tx, organizationId, saved, null, targetCustomerId)
+      );
+    }
+
+    // Page + Instagram webhooks: subscribe the Facebook Page so Meta delivers
+    // feed/messages/leadgen to POST /api/webhooks/meta. Best-effort; never blocks connect.
+    if (isMetaPagesProvider(identifier)) {
+      const meta = details.metadata as { facebookPageId?: string } | undefined;
+      const pageId = identifier === 'facebook' ? details.internalId : meta?.facebookPageId;
+      void trySubscribePageAfterConnect(pageId, details.accessTokenPlain);
+
+      // ~90-day media/insights backfill (analytics worker skips if already done).
+      void getAnalyticsQueue()
+        .add(
+          ANALYTICS_JOB.backfill,
+          { integrationId: saved.id },
+          {
+            jobId: `meta.backfill:${saved.id}`,
+            removeOnComplete: true,
+            removeOnFail: true,
+          }
+        )
+        .catch((error) => {
+          console.error('[social] enqueue analytics backfill failed', error);
+        });
+    }
+  }
+
+  await logAudit({
+    action: 'integration.connect',
+    targetType: 'integration',
+    targetId: integrations[0]?.id,
+    metadata: { identifier, count: accounts.length, customerId },
+  });
+
+  // Template bootstrap: posting schedule hints + set channel remapping.
+  const forClient = customerId ? integrations.filter((row) => row.customerId === customerId) : [];
+  if (customerId && forClient.length > 0) {
+    try {
+      await clientTemplateService.applyChannelBootstrap(
+        organizationId,
+        customerId,
+        forClient.map((i) => ({
+          id: i.id,
+          providerIdentifier: i.providerIdentifier,
+        }))
+      );
+    } catch (error) {
+      console.error('[social] template channel bootstrap failed', error);
+    }
+  }
+
+  return integrations;
+}
+
 export const integrationService = {
   async list(scope: ClientScope): Promise<ChannelsResponse> {
     const rows = await integrationRepository.list(scope);
@@ -106,7 +223,8 @@ export const integrationService = {
     organizationId: string,
     identifier: string,
     refreshIntegrationId?: string,
-    customerId?: string
+    customerId?: string,
+    options: { fromPortal?: boolean } = {}
   ): Promise<ConnectUrlResponse> {
     const provider = getProviderOrThrow(identifier);
     await planService.assertChannelCapacity(organizationId);
@@ -131,6 +249,7 @@ export const integrationService = {
       codeVerifier,
       refreshIntegrationId,
       customerId,
+      fromPortal: options.fromPortal || undefined,
     });
 
     return { url };
@@ -140,7 +259,12 @@ export const integrationService = {
     organizationId: string,
     identifier: string,
     query: CallbackQuery
-  ): Promise<{ integrations: SocialIntegration[], customerId?: string }> {
+  ): Promise<{
+    integrations: SocialIntegration[];
+    customerId?: string;
+    fromPortal?: boolean;
+    pendingPages?: boolean;
+  }> {
     if ('error' in query) {
       throw new HttpError(400, query.error_description || 'The connection was cancelled');
     }
@@ -190,74 +314,158 @@ export const integrationService = {
       }
     }
 
-    const integrations: SocialIntegration[] = [];
-    for (const details of accounts) {
-      integrations.push(
-        await integrationRepository.upsert({
-          organizationId,
-          providerIdentifier: identifier,
-          internalId: details.internalId,
-          name: details.name,
-          username: details.username ?? null,
-          picture: details.picture ?? null,
-          inBetweenSteps: provider.isBetweenSteps,
-          customerId: state.customerId,
-          additionalSettings: details.metadata ?? [],
-          ...toTokenFields(details),
-        })
-      );
-
-      // Page + Instagram webhooks: subscribe the Facebook Page so Meta delivers
-      // feed/messages/leadgen to POST /api/webhooks/meta. Best-effort; never blocks connect.
-      if (identifier === 'facebook' || identifier === 'instagram') {
-        const meta = details.metadata as { facebookPageId?: string } | undefined;
-        const pageId =
-          identifier === 'facebook' ? details.internalId : meta?.facebookPageId;
-        void trySubscribePageAfterConnect(pageId, details.accessToken);
-
-        // ~90-day media/insights backfill (analytics worker skips if already done).
-        const connected = integrations[integrations.length - 1];
-        void getAnalyticsQueue()
-          .add(
-            ANALYTICS_JOB.backfill,
-            { integrationId: connected.id },
-            {
-              jobId: `meta.backfill:${connected.id}`,
-              removeOnComplete: true,
-              removeOnFail: true,
-            }
-          )
-          .catch((error) => {
-            console.error('[social] enqueue analytics backfill failed', error);
-          });
-      }
+    // PS-01: Meta returns every Page the person manages. With more than one, hold them for 15 minutes
+    // and let the admin tick the ones that belong here instead of importing all of them.
+    if (
+      isMetaPagesProvider(identifier) &&
+      !state.refreshIntegrationId &&
+      !state.fromPortal &&
+      accounts.length > 1
+    ) {
+      await metaPagesPendingStore.save(organizationId, {
+        organizationId,
+        providerIdentifier: identifier,
+        customerId: state.customerId ?? null,
+        accounts: accounts.map((details) => {
+          const tokens = toTokenFields(details);
+          return {
+            internalId: details.internalId,
+            name: details.name,
+            username: details.username ?? null,
+            picture: details.picture ?? null,
+            accessTokenEncrypted: tokens.accessToken,
+            refreshTokenEncrypted: tokens.refreshToken,
+            tokenExpiration: tokens.tokenExpiration?.toISOString() ?? null,
+            metadata: details.metadata,
+          };
+        }),
+      });
+      return { integrations: [], customerId: state.customerId, fromPortal: false, pendingPages: true };
     }
 
-    // Log the connection event
-    await logAudit({
-      action: 'integration.connect',
-      targetType: 'integration',
-      targetId: integrations[0]?.id,
-      metadata: { identifier, count: accounts.length }
+    const integrations = await persistConnectedAccounts(
+      organizationId,
+      identifier,
+      provider,
+      accounts.map((details) => ({
+        internalId: details.internalId,
+        name: details.name,
+        username: details.username ?? null,
+        picture: details.picture ?? null,
+        metadata: details.metadata,
+        accessTokenPlain: details.accessToken,
+        tokens: toTokenFields(details),
+      })),
+      state.customerId ?? null
+    );
+
+    return { integrations, customerId: state.customerId, fromPortal: state.fromPortal === true };
+  },
+
+  /** Page picker (PS-01): the Pages held after Meta OAuth, without tokens. */
+  async listPendingPages(organizationId: string): Promise<PendingPagesResponse | null> {
+    const pending = await metaPagesPendingStore.get(organizationId);
+    if (!pending) return null;
+    const existing = await prisma.socialIntegration.findMany({
+      where: {
+        organizationId,
+        providerIdentifier: pending.providerIdentifier,
+        internalId: { in: pending.accounts.map((account) => account.internalId) },
+        deletedAt: null,
+      },
+      select: { internalId: true, customer: { select: { id: true, name: true } } },
     });
+    const byInternalId = new Map(existing.map((row) => [row.internalId, row]));
+    const client = pending.customerId
+      ? await prisma.socialCustomer.findFirst({
+          where: { id: pending.customerId, organizationId, deletedAt: null },
+          select: { id: true, name: true },
+        })
+      : null;
+    return {
+      providerIdentifier: pending.providerIdentifier,
+      client,
+      pages: pending.accounts.map((account) => {
+        const row = byInternalId.get(account.internalId);
+        return {
+          internalId: account.internalId,
+          name: account.name,
+          username: account.username,
+          picture: account.picture,
+          connected: Boolean(row),
+          client: row?.customer ?? null,
+        };
+      }),
+    };
+  },
 
-    // Template bootstrap: posting schedule hints + set channel remapping.
-    if (state.customerId && integrations.length > 0) {
-      try {
-        await clientTemplateService.applyChannelBootstrap(
-          organizationId,
-          state.customerId,
-          integrations.map((i) => ({
-            id: i.id,
-            providerIdentifier: i.providerIdentifier,
-          }))
-        );
-      } catch (error) {
-        console.error('[social] template channel bootstrap failed', error);
-      }
+  /** Page picker (PS-01): save only the ticked Pages. Pages not ticked are never stored. */
+  async savePendingPages(
+    organizationId: string,
+    body: { internalIds: string[]; customerId?: string | null }
+  ): Promise<{ integrations: SocialIntegration[] }> {
+    const pending = await metaPagesPendingStore.consume(organizationId);
+    if (!pending || pending.organizationId !== organizationId) {
+      throw new HttpError(400, 'The Page list expired. Connect again to pick Pages.');
+    }
+    const provider = getProviderOrThrow(pending.providerIdentifier);
+    const wanted = new Set(body.internalIds);
+    const picked = pending.accounts.filter((account) => wanted.has(account.internalId));
+    if (picked.length === 0) {
+      return { integrations: [] };
     }
 
-    return { integrations, customerId: state.customerId };
+    const customerId = body.customerId === undefined ? (pending.customerId ?? null) : body.customerId;
+    if (customerId) {
+      const client = await prisma.socialCustomer.findFirst({
+        where: { id: customerId, organizationId, deletedAt: null },
+        select: { id: true },
+      });
+      if (!client) throw new HttpError(404, 'Client not found');
+    }
+
+    const org = await prisma.organization.findUnique({ where: { id: organizationId } });
+    if (!org) throw new HttpError(404, 'Organization not found');
+    const already = await prisma.socialIntegration.findMany({
+      where: {
+        organizationId,
+        providerIdentifier: pending.providerIdentifier,
+        internalId: { in: picked.map((account) => account.internalId) },
+        deletedAt: null,
+      },
+      select: { internalId: true },
+    });
+    const channelCount = await prisma.socialIntegration.count({
+      where: { organizationId, deletedAt: null },
+    });
+    const adding = picked.length - already.length;
+    if (channelCount + adding > org.maxChannels) {
+      throw new HttpError(
+        403,
+        `Plan limit reached: ${adding} new channels would exceed ${org.maxChannels}. Pick fewer Pages or upgrade your plan.`
+      );
+    }
+
+    const integrations = await persistConnectedAccounts(
+      organizationId,
+      pending.providerIdentifier,
+      provider,
+      picked.map((account) => ({
+        internalId: account.internalId,
+        name: account.name,
+        username: account.username,
+        picture: account.picture,
+        metadata: account.metadata,
+        accessTokenPlain: decrypt(account.accessTokenEncrypted),
+        tokens: {
+          accessToken: account.accessTokenEncrypted,
+          refreshToken: account.refreshTokenEncrypted,
+          tokenExpiration: account.tokenExpiration ? new Date(account.tokenExpiration) : null,
+        },
+      })),
+      customerId
+    );
+    return { integrations };
   },
 
   async setDisabled(organizationId: string, id: string, disabled: boolean): Promise<void> {

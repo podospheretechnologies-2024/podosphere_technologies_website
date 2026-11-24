@@ -24,6 +24,15 @@ export interface UpdateTokensData {
   tokenExpiration: Date | null;
 }
 
+/** PS-26: trim, drop control characters and unbalanced double quotes from a channel name. */
+export function cleanChannelName(name: string): string {
+  // eslint-disable-next-line no-control-regex
+  let out = name.replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim();
+  if ((out.match(/"/g) ?? []).length % 2 === 1) out = out.replace(/"/g, '').trim();
+  if (out.startsWith("'") && !out.slice(1).includes("'")) out = out.slice(1).trim();
+  return out;
+}
+
 export const integrationRepository = {
   async list(scope: ClientScope) {
     return prisma.socialIntegration.findMany({
@@ -59,7 +68,8 @@ export const integrationRepository = {
   // Reconnecting an account (even a previously deleted one) reuses the same row,
   // so existing posts keep pointing at it.
   upsert(data: UpsertIntegrationData): Promise<SocialIntegration> {
-    const { organizationId, providerIdentifier, internalId, ...fields } = data;
+    const { organizationId, providerIdentifier, internalId, ...rawFields } = data;
+    const fields = { ...rawFields, name: cleanChannelName(rawFields.name) || rawFields.name };
     const reset = { ...fields, disabled: false, refreshNeeded: false, deletedAt: null };
 
     return prisma.socialIntegration.upsert({

@@ -91,6 +91,7 @@ function SocialShellBody({
           <header className="bg-surface flex h-16 shrink-0 items-center gap-4 px-5">
             <Link
               href={socialAppHome}
+              prefetch={false}
               className="flex shrink-0 items-center gap-2.5 font-semibold"
               title="Podosphere"
             >

@@ -33,6 +33,7 @@ type ClientRow = {
   id: string;
   name: string;
   onboardingStep?: string | null;
+  clientType?: string | null;
   approvers: { id: string; name: string | null; email: string }[];
   adAccounts: { id: string; name: string; externalId: string }[];
   googleAdsAccounts: { id: string; name: string; googleCustomerId: string }[];
@@ -55,6 +56,7 @@ type AssignableResponse = {
 
 type LinkForm = {
   name: string;
+  clientType: string;
   approverName: string;
   approverEmail: string;
   integrationIds: string[];
@@ -64,6 +66,7 @@ type LinkForm = {
 
 const EMPTY_FORM: LinkForm = {
   name: '',
+  clientType: '',
   approverName: '',
   approverEmail: '',
   integrationIds: [],
@@ -193,6 +196,7 @@ export default function ClientsPage() {
   function openEdit(client: ClientRow) {
     setForm({
       name: client.name,
+      clientType: client.clientType ?? '',
       approverName: '',
       approverEmail: '',
       integrationIds: (client.integrations ?? []).map((channel) => channel.id),
@@ -223,6 +227,7 @@ export default function ClientsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: form.name,
+          clientType: form.clientType || undefined,
           approverName: form.approverName,
           approverEmail: form.approverEmail,
           integrationIds: form.integrationIds,
@@ -250,6 +255,7 @@ export default function ClientsPage() {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          clientType: form.clientType || null,
           integrationIds: form.integrationIds,
           adAccountIds: form.adAccountIds,
           googleAdAccountIds: form.googleAdAccountIds,
@@ -373,6 +379,22 @@ export default function ClientsPage() {
     label: account.name,
     hint: assetHint(account, account.id),
   }));
+
+  const clientTypePicker = (
+    <div className="space-y-2">
+      <label className="text-sm font-medium">Client type</label>
+      <select
+        value={form.clientType}
+        onChange={(e) => setForm({ ...form, clientType: e.target.value })}
+        className="bg-surface border-border flex h-10 w-full rounded-md border px-3 py-2 text-sm"
+      >
+        <option value="">Not set</option>
+        <option value="store">Online store (Shopify, ROAS)</option>
+        <option value="website">Website (traffic, CPL)</option>
+        <option value="leads">Leads only (CPL)</option>
+      </select>
+    </div>
+  );
 
   const linkPickers = (
     <>
@@ -575,6 +597,7 @@ export default function ClientsPage() {
                   placeholder="e.g. sushant@example.com"
                 />
               </div>
+              {clientTypePicker}
               {linkPickers}
             </div>
             {formError ? <p className="text-sm text-red-600">{formError}</p> : null}
@@ -603,7 +626,10 @@ export default function ClientsPage() {
           <h3 className="text-lg font-medium mb-1">Link channels &amp; ad accounts</h3>
           <p className="text-muted-foreground mb-4 text-sm">{editingClient.name}</p>
           <form onSubmit={handleUpdateLinks} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">{linkPickers}</div>
+            <div className="grid grid-cols-2 gap-4">
+              {clientTypePicker}
+              {linkPickers}
+            </div>
             {formError ? <p className="text-sm text-red-600">{formError}</p> : null}
             <div className="flex justify-end gap-3 pt-4">
               <button

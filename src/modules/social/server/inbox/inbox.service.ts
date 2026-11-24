@@ -1,8 +1,9 @@
 import 'server-only';
+import { commentNeedsReply } from './inbox-sla';
 import type { SocialIntegration } from '@/generated/prisma/client';
 import { getServerEnv } from '@/shared/lib/env';
 import { prisma } from '@/shared/lib/prisma';
-import { organizationScope, scopeWhere, type ClientScope } from '@/shared/server/client-scope';
+import { customerIdFilter, organizationScope, scopeWhere, type ClientScope } from '@/shared/server/client-scope';
 import { HttpError } from '@/shared/server/http-error';
 import { askClaude, isClaudeConfigured } from '../ai/claude.client';
 import { integrationService } from '../integrations/integration.service';
@@ -116,12 +117,10 @@ async function ownerForPage(pageId: string): Promise<{ organizationId: string; c
     select: { organizationId: true, customerId: true },
   });
   if (integration) return { organizationId: integration.organizationId, customerId: integration.customerId };
-  const fallback = await prisma.organization.findFirst({
-    where: { deletedAt: null },
-    orderBy: { createdAt: 'asc' },
-    select: { id: true },
-  });
-  return fallback ? { organizationId: fallback.id, customerId: null } : null;
+  // PS-31: a Page that is not connected in any workspace has no owner. Never file it under another
+  // tenant (the old fallback used the oldest organization); drop it and log for follow-up.
+  console.warn(`[inbox] webhook for unconnected page/account ${pageId} dropped`);
+  return null;
 }
 
 interface LeadFormDetails {
@@ -324,7 +323,7 @@ async function resolveChannel(
         internalId: thread.channelInternalId,
         deletedAt: null,
         disabled: false,
-        ...(scope.customerIds === 'all' ? {} : { customerId: { in: scope.customerIds } }),
+        ...(scope.customerIds === 'all' ? {} : { customerId: customerIdFilter(scope.customerIds) }),
       },
     });
     if (byChannel) return byChannel;
@@ -340,7 +339,7 @@ async function resolveChannel(
         ? { customerId: thread.customerId }
         : scope.customerIds === 'all'
           ? {}
-          : { customerId: { in: scope.customerIds } }),
+          : { customerId: customerIdFilter(scope.customerIds) }),
     },
     orderBy: { createdAt: 'asc' },
     take: 5,
@@ -371,6 +370,68 @@ function lastInboundCommentId(messages: { direction: string; externalId: string 
   return lastInbound.externalId;
 }
 
+/**
+ * PS-13: the webhook only carries the sender's PSID/IGSID. Look up a readable name with the channel
+ * token (Messenger: name, Instagram: username). Best effort; null means keep the id for now.
+ */
+async function resolveContactName(
+  pageId: string,
+  platform: 'facebook' | 'instagram',
+  senderId: string
+): Promise<string | null> {
+  try {
+    const integration = await prisma.socialIntegration.findFirst({
+      where: { internalId: pageId, providerIdentifier: platform, deletedAt: null },
+    });
+    if (!integration) return null;
+    const token = await integrationService.getAccessToken(integration).catch(() => '');
+    if (!token) return null;
+    const profile = await graphGet<{ name?: string; username?: string }>(graphConfig(), senderId, token, {
+      fields: platform === 'instagram' ? 'name,username' : 'name',
+    });
+    const name = platform === 'instagram' ? profile.username ?? profile.name : profile.name;
+    return name?.trim() || null;
+  } catch (error) {
+    console.warn(
+      `[inbox] name lookup failed for ${platform} sender ${senderId}: ${error instanceof Error ? error.message : 'unknown'}`
+    );
+    return null;
+  }
+}
+
+/**
+ * One-off job: resolve names for existing DM threads whose contactName is still the raw sender id.
+ * Enqueued manually via the analytics queue job `inbox.names.backfill`; not scheduled.
+ */
+export async function backfillInboxContactNames(limit = 500): Promise<{ checked: number; updated: number }> {
+  const threads = await prisma.socialInboxThread.findMany({
+    where: {
+      kind: 'dm',
+      platform: { in: ['facebook', 'instagram'] },
+      channelInternalId: { not: null },
+    },
+    select: { id: true, platform: true, externalId: true, contactName: true, channelInternalId: true },
+    orderBy: { lastMessageAt: 'desc' },
+    take: limit,
+  });
+  let checked = 0;
+  let updated = 0;
+  for (const thread of threads) {
+    if (thread.contactName && thread.contactName !== thread.externalId) continue;
+    if (!thread.channelInternalId) continue;
+    checked += 1;
+    const name = await resolveContactName(
+      thread.channelInternalId,
+      thread.platform === 'instagram' ? 'instagram' : 'facebook',
+      thread.externalId
+    );
+    if (!name) continue;
+    await prisma.socialInboxThread.update({ where: { id: thread.id }, data: { contactName: name } });
+    updated += 1;
+  }
+  return { checked, updated };
+}
+
 export const inboxService = {
   async listMembers(scope: ClientScope) {
     return prisma.user.findMany({
@@ -382,7 +443,14 @@ export const inboxService = {
 
   async listThreads(
     scope: ClientScope,
-    options?: { assigneeId?: string | null; aiLabel?: string; aiPriority?: string }
+    options?: {
+      assigneeId?: string | null;
+      aiLabel?: string;
+      aiPriority?: string;
+      /** PS-14: page through older threads (cursor = lastMessageAt of the last row shown). */
+      before?: Date;
+      limit?: number;
+    }
   ) {
     const rows = await prisma.socialInboxThread.findMany({
       where: {
@@ -390,9 +458,10 @@ export const inboxService = {
         ...(options?.assigneeId !== undefined ? { assigneeId: options.assigneeId } : {}),
         ...(options?.aiLabel ? { aiLabel: options.aiLabel } : {}),
         ...(options?.aiPriority ? { aiPriority: options.aiPriority } : {}),
+        ...(options?.before ? { lastMessageAt: { lt: options.before } } : {}),
       },
       orderBy: { lastMessageAt: 'desc' },
-      take: 100,
+      take: Math.min(Math.max(options?.limit ?? 50, 1), 100),
       include: { assignee: { select: { id: true, name: true } } },
     });
     return rows.map(mapThread);
@@ -502,6 +571,7 @@ export const inboxService = {
       data: {
         lastPreview: body.slice(0, 500),
         lastMessageAt: new Date(),
+        lastDirection: 'outbound',
         firstResponseAt: thread.firstResponseAt ?? new Date(),
         ...(thread.kind ? {} : { kind }),
         ...(thread.channelInternalId ? {} : { channelInternalId: integration.internalId }),
@@ -871,7 +941,10 @@ export const inboxService = {
     object?: string;
     entry?: {
       id: string;
-      messaging?: { sender?: { id?: string }; message?: { mid?: string; text?: string } }[];
+      messaging?: {
+        sender?: { id?: string };
+        message?: { mid?: string; text?: string; is_echo?: boolean };
+      }[];
       changes?: { field: string; value: Record<string, unknown> }[];
     }[];
   }): Promise<{ stored: number }> {
@@ -889,6 +962,15 @@ export const inboxService = {
         const text = event.message?.text?.trim();
         const sender = event.sender?.id;
         if (!text || !sender) continue;
+        // Echo of a message the Page itself sent (sender = the Page) is not a customer message.
+        if (sender === entry.id || event.message?.is_echo) continue;
+        const existingThread = await prisma.socialInboxThread.findUnique({
+          where: {
+            organizationId_platform_externalId: { organizationId, platform, externalId: sender },
+          },
+          select: { id: true },
+        });
+        const resolvedName = existingThread ? null : await resolveContactName(entry.id, platform, sender);
         const thread = await prisma.socialInboxThread.upsert({
           where: {
             organizationId_platform_externalId: {
@@ -904,14 +986,16 @@ export const inboxService = {
             kind: 'dm',
             channelInternalId: entry.id,
             externalId: sender,
-            contactName: sender,
+            contactName: resolvedName ?? sender,
             lastPreview: text.slice(0, 500),
             lastMessageAt: new Date(),
+            lastDirection: 'inbound',
             slaDueAt: slaDueFromNow(),
           },
           update: {
             lastPreview: text.slice(0, 500),
             lastMessageAt: new Date(),
+            lastDirection: 'inbound',
             kind: 'dm',
             channelInternalId: entry.id,
           },
@@ -1047,9 +1131,12 @@ export const inboxService = {
         if (change.field === 'feed' || change.field === 'comments') {
           const value = change.value;
           const message = String(value.message ?? value.text ?? '').trim();
-          const from = (value.from as { id?: string; name?: string } | undefined) ?? {};
+          const from = (value.from as { id?: string; name?: string; username?: string } | undefined) ?? {};
+          const fromName = from.name ?? from.username;
           const commentId = String(value.comment_id ?? value.id ?? '');
           if (!message || !commentId) continue;
+          // The Page's own comments/replies are not customer messages; counting them made "waiting" wrong.
+          if (from.id && from.id === entry.id) continue;
           const externalId = from.id || commentId;
           const thread = await prisma.socialInboxThread.upsert({
             where: {
@@ -1066,20 +1153,22 @@ export const inboxService = {
               kind: 'comment',
               channelInternalId: entry.id,
               externalId,
-              contactName: from.name ?? externalId,
+              contactName: fromName ?? externalId,
               lastPreview: message.slice(0, 500),
               lastMessageAt: new Date(),
-              slaDueAt: slaDueFromNow(),
+              lastDirection: 'inbound',
+              slaDueAt: commentNeedsReply(message) ? slaDueFromNow() : null,
             },
             update: {
-              contactName: from.name ?? undefined,
+              contactName: fromName ?? undefined,
               lastPreview: message.slice(0, 500),
               lastMessageAt: new Date(),
+              lastDirection: 'inbound',
               kind: 'comment',
               channelInternalId: entry.id,
             },
           });
-          await ensureSlaIfUnset(thread.id, thread.slaDueAt);
+          if (commentNeedsReply(message)) await ensureSlaIfUnset(thread.id, thread.slaDueAt);
           await prisma.socialInboxMessage.create({
             data: { threadId: thread.id, direction: 'inbound', body: message, externalId: commentId },
           });

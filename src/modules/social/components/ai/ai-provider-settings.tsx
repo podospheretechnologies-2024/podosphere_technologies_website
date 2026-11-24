@@ -216,7 +216,13 @@ export function AiProviderSettings() {
           {display.effective.source === 'env' ? 'the server default' : display.effective.source}.
         </p>
       ) : (
-        <p className="text-xs text-amber-600">No AI provider is configured yet.</p>
+        <p className="text-xs text-amber-600">
+          {configuredKeys.length > 0
+            ? `No server key · ${configuredKeys.length} ${configuredKeys.length === 1 ? 'client has' : 'clients have'} their own ${[
+                ...new Set(configuredKeys.map((item) => providerLabel(item.provider))),
+              ].join(' / ')} key`
+            : 'No AI provider is configured yet.'}
+        </p>
       )}
 
       <div className="border-border bg-surface-muted/30 space-y-3 rounded-2xl border p-3">

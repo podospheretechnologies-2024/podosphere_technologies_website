@@ -21,6 +21,17 @@ function formatWhen(iso: string | null) {
   }
 }
 
+function pingStale(iso: string | null) {
+  return !iso || Date.now() - new Date(iso).getTime() > 24 * 60 * 60 * 1000;
+}
+
+function agoLabel(iso: string) {
+  const hours = Math.round((Date.now() - new Date(iso).getTime()) / 3_600_000);
+  if (hours < 48) return `${hours} h ago`;
+  const days = Math.round(hours / 24);
+  return days < 14 ? `${days} days ago` : `${Math.round(days / 7)} weeks ago`;
+}
+
 export function PodoCrmWhatsAppLinkCard() {
   const { data, error, isLoading, mutate } = usePodoCrmWhatsAppSync();
   const [code, setCode] = useState('');
@@ -132,7 +143,15 @@ export function PodoCrmWhatsAppLinkCard() {
             </div>
             <div>
               <dt className="font-medium text-[11px] tracking-wide uppercase">Last ping</dt>
-              <dd className="text-foreground mt-0.5">{formatWhen(data.lastPingAt) ?? 'Not yet'}</dd>
+              <dd
+                className={
+                  pingStale(data.lastPingAt) ? 'text-danger mt-0.5 font-medium' : 'text-foreground mt-0.5'
+                }
+              >
+                {data.lastPingAt
+                  ? `${formatWhen(data.lastPingAt)}${pingStale(data.lastPingAt) ? ` (Last ping ${agoLabel(data.lastPingAt)} - older than 24 h)` : ''}`
+                  : 'Not yet (no ping since linking)'}
+              </dd>
             </div>
           </dl>
           <div className="flex flex-wrap gap-2 pt-1">
@@ -158,7 +177,8 @@ export function PodoCrmWhatsAppLinkCard() {
             </Button>
           </div>
         </div>
-      ) : (
+      ) : !data ? null : (
+        // PS-27a: wait for the status instead of flashing "Not linked" while it loads.
         <div className="space-y-3">
           <p className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
             Not linked

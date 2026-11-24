@@ -11,8 +11,11 @@ function uniqueIds<T extends string>(ids: T[]): T[] {
 
 const emptyToUndefined = z.literal('').transform(() => undefined);
 
+export const clientTypeSchema = z.enum(['store', 'website', 'leads']);
+
 export const createClientSchema = z.object({
   name: z.string().trim().min(1).max(120),
+  clientType: clientTypeSchema.optional(),
   approverName: z.string().trim().min(1).max(120),
   approverEmail: z.string().trim().email().max(320),
   integrationIds: z.array(integrationIdSchema).max(50).optional(),
@@ -22,12 +25,17 @@ export const createClientSchema = z.object({
   integrationId: z.union([integrationIdSchema, emptyToUndefined]).optional(),
   /** Older single-select form field (Meta `act_…`). */
   adAccountId: z.union([adAccountIdSchema, emptyToUndefined]).optional(),
+  /** Confirmed move of a channel / ad account that is already on another client (R6, PS-04). */
+  force: z.boolean().optional(),
 });
 
 export const updateClientLinksSchema = z.object({
+  clientType: clientTypeSchema.nullable().optional(),
   integrationIds: z.array(integrationIdSchema).max(50).optional(),
   adAccountIds: z.array(adAccountIdSchema).max(50).optional(),
   googleAdAccountIds: z.array(googleAdsCustomerIdSchema).max(50).optional(),
+  /** Confirmed move of a channel / ad account that is already on another client (R6, PS-04). */
+  force: z.boolean().optional(),
 });
 
 export type CreateClientBody = z.infer<typeof createClientSchema>;

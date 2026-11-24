@@ -28,7 +28,6 @@ import { MediaPicker } from '../posts/composer/media-picker';
 import { PostComposer, type ComposerInitialItem } from '../posts/composer/post-composer';
 import { useWorkspaceRole } from '../shell/workspace-role-context';
 import { CaptionTonePicker } from './caption-tone-picker';
-import { UpcomingOccasions, type OccasionSeed } from './upcoming-occasions';
 
 type ComposerState = { open: false } | { open: true; items: ComposerInitialItem[] };
 
@@ -137,12 +136,6 @@ export function AiStudio() {
       return;
     }
     setComposer({ open: true, items });
-  }
-
-  function seedFromOccasion(seed: OccasionSeed) {
-    setInput(seed.topic);
-    setTonePresetId(seed.tonePresetId);
-    setError(null);
   }
 
   async function runGenerate(
@@ -300,7 +293,8 @@ export function AiStudio() {
   }
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_17.5rem]">
+    <div className="grid gap-4">
+      {/* PS-20a: "Upcoming occasions" is shown once, by ContentStudio above on the same page. */}
       <div className="flex h-[calc(100vh-8.5rem)] min-h-[28rem] flex-col">
       {(statusError || error) && (
         <div
@@ -561,11 +555,6 @@ export function AiStudio() {
         />
       ) : null}
       </div>
-
-      <UpcomingOccasions
-        className="h-fit lg:sticky lg:top-4"
-        onSelect={seedFromOccasion}
-      />
     </div>
   );
 }

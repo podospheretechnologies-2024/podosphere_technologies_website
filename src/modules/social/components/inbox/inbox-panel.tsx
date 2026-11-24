@@ -9,12 +9,15 @@ interface Member {
   email: string;
 }
 
+const THREADS_PAGE_SIZE = 50;
+
 interface Thread {
   id: string;
   platform: string;
   kind: 'comment' | 'dm' | null;
   contactName: string | null;
   lastPreview: string | null;
+  lastMessageAt: string;
   assigneeId: string | null;
   assigneeName: string | null;
   slaDueAt: string | null;
@@ -59,8 +62,13 @@ export function InboxPanel() {
   const [labelFilter, setLabelFilter] = useState<string>('all');
   const [selectedDraft, setSelectedDraft] = useState<string | null>(null);
 
-  function loadThreads(filter = assigneeFilter, label = labelFilter) {
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+
+  function loadThreads(filter = assigneeFilter, label = labelFilter, before?: string) {
     const params = new URLSearchParams();
+    params.set('limit', String(THREADS_PAGE_SIZE));
+    if (before) params.set('before', before);
     if (filter === 'unassigned') params.set('assigneeId', 'unassigned');
     else if (filter !== 'all') params.set('assigneeId', filter);
     if (label !== 'all') params.set('aiLabel', label);
@@ -69,9 +77,18 @@ export function InboxPanel() {
       .then(async (response) => {
         const payload = (await response.json()) as Thread[] | { error?: string };
         if (!response.ok) throw new Error('error' in payload ? payload.error : 'Could not load inbox');
-        setThreads(payload as Thread[]);
+        const page = payload as Thread[];
+        setHasMore(page.length === THREADS_PAGE_SIZE);
+        setThreads((prev) => (before ? [...prev, ...page] : page));
       })
       .catch((err: Error) => setError(err.message));
+  }
+
+  function loadOlder() {
+    const last = threads[threads.length - 1];
+    if (!last) return;
+    setLoadingMore(true);
+    void loadThreads(assigneeFilter, labelFilter, last.lastMessageAt).finally(() => setLoadingMore(false));
   }
 
   useEffect(() => {
@@ -377,6 +394,18 @@ export function InboxPanel() {
             </li>
           ))}
           {threads.length === 0 && <li className="text-muted-foreground p-3 text-sm">No Page or Instagram messages yet.</li>}
+          {hasMore ? (
+            <li className="p-2">
+              <button
+                type="button"
+                onClick={loadOlder}
+                disabled={loadingMore}
+                className="text-primary w-full rounded-lg py-2 text-sm font-medium disabled:opacity-60"
+              >
+                {loadingMore ? 'Loading…' : 'Load older conversations'}
+              </button>
+            </li>
+          ) : null}
         </ul>
         <div className="border-border min-h-80 space-y-3 rounded-2xl border p-4">
           {error && <p className="text-danger text-sm">{error}</p>}

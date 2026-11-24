@@ -1,5 +1,7 @@
 import 'server-only';
+import { last30Days, resolveTimeZone } from '@/shared/lib/metric-window';
 import { prisma } from '@/shared/lib/prisma';
+import { PUBLISHED_POST_TYPE_VALUES } from '../../config/published-posts';
 import { PORTAL_BASE_PATH, isPortalAdSpendVisible, parsePortalTabsConfig } from '../../config/portal-tabs';
 import type { PortalSession } from '../approvals/approval.service';
 import { parsePortalGoals, type PortalGoalsConfig } from './portal-goals.schema';
@@ -64,13 +66,6 @@ function monthStart(): Date {
   return new Date(d.getFullYear(), d.getMonth(), 1);
 }
 
-function daysAgo(n: number): Date {
-  const d = new Date();
-  d.setDate(d.getDate() - n);
-  d.setHours(0, 0, 0, 0);
-  return d;
-}
-
 function formatCount(value: number | null): string {
   if (value == null) return '—';
   return new Intl.NumberFormat('en-IN').format(value);
@@ -79,21 +74,16 @@ function formatCount(value: number | null): string {
 async function countInboxWaiting(
   session: Pick<PortalSession, 'organizationId' | 'customerId'>
 ): Promise<number> {
-  const threads = await prisma.socialInboxThread.findMany({
+  // PS-14: a real count, same definition as the agency Overview.
+  return prisma.socialInboxThread.count({
     where: {
       organizationId: session.organizationId,
       customerId: session.customerId,
+      lastDirection: 'inbound',
+      closedAt: null,
+      hiddenAt: null,
     },
-    select: {
-      messages: {
-        orderBy: { createdAt: 'desc' },
-        take: 1,
-        select: { direction: true },
-      },
-    },
-    take: 500,
   });
-  return threads.filter((thread) => thread.messages[0]?.direction === 'inbound').length;
 }
 
 export const portalOverviewService = {
@@ -103,8 +93,13 @@ export const portalOverviewService = {
     const { organizationId, customerId } = session;
     const now = new Date();
     const weekAhead = new Date(now.getTime() + 7 * DAY_MS);
-    const since30 = daysAgo(30);
     const startOfMonth = monthStart();
+    const org = await prisma.organization.findUnique({
+      where: { id: organizationId },
+      select: { timeZone: true },
+    });
+    // PS-08/09: same 30 complete days (org timezone) as the agency Overview and the Ads page.
+    const window = last30Days(resolveTimeZone(org?.timeZone), now);
 
     const [integrations, customer, metaAccounts, googleCount, shopify] = await Promise.all([
       prisma.socialIntegration.findMany({
@@ -116,7 +111,7 @@ export const portalOverviewService = {
         select: { portalTabs: true, portalGoals: true },
       }),
       prisma.adAccount.findMany({
-        where: { organizationId, customerId },
+        where: { organizationId, customerId, isAgencyAccount: false },
         select: { id: true, currency: true },
       }),
       prisma.socialGoogleAdsAccount.count({
@@ -183,7 +178,7 @@ export const portalOverviewService = {
         },
       }),
       prisma.socialLead.count({
-        where: { organizationId, customerId },
+        where: { organizationId, customerId, createdAt: { gte: window.fromAt, lt: window.until } },
       }),
       countInboxWaiting(session),
       integrationIds.length
@@ -199,7 +194,7 @@ export const portalOverviewService = {
             where: {
               adAccountId: { in: metaIds },
               level: 'campaign',
-              date: { gte: since30 },
+              date: { gte: window.from, lte: window.to },
             },
             _sum: { spend: true },
           })
@@ -216,7 +211,7 @@ export const portalOverviewService = {
         : Promise.resolve({ _sum: { spend: null } }),
       integrationIds.length
         ? prisma.socialExternalPost.findMany({
-            where: { integrationId: { in: integrationIds } },
+            where: { integrationId: { in: integrationIds }, type: { in: PUBLISHED_POST_TYPE_VALUES } },
             orderBy: { publishedAt: 'desc' },
             take: 6,
             select: {
@@ -287,7 +282,7 @@ export const portalOverviewService = {
       },
       {
         id: 'leads',
-        label: 'Leads',
+        label: 'Leads captured (30d)',
         value: formatCount(leadsTotal),
         href: `${PORTAL_BASE_PATH}/leads`,
       },

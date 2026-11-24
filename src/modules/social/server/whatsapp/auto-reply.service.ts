@@ -1,6 +1,6 @@
 import 'server-only';
 import type { SocialWhatsAppAutoReply } from '@/generated/prisma/client';
-import { organizationScope, type ClientScope } from '@/shared/server/client-scope';
+import { singleAssignedCustomerId, organizationScope, type ClientScope } from '@/shared/server/client-scope';
 import { HttpError } from '@/shared/server/http-error';
 import {
   WHATSAPP_AUTO_REPLY_MATCH_TYPES,
@@ -63,7 +63,7 @@ function toItem(row: SocialWhatsAppAutoReply): WhatsAppAutoReplyItem {
 }
 
 function customerIdForWrite(scope: ClientScope): string | null {
-  return scope.customerIds !== 'all' && scope.customerIds.length === 1 ? scope.customerIds[0] : null;
+  return singleAssignedCustomerId(scope);
 }
 
 async function findOrThrow(scope: ClientScope, id: string) {

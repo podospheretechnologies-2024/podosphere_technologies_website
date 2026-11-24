@@ -140,8 +140,52 @@ async function requireOpsClient(organizationId: string, clientId: string) {
   return client;
 }
 
+/** The Social client must belong to the same organization (the FK alone does not check that). */
+async function assertSocialCustomerInOrg(organizationId: string, socialCustomerId: string | null | undefined) {
+  if (!socialCustomerId) return;
+  const found = await prisma.socialCustomer.findFirst({
+    where: { id: socialCustomerId, organizationId, deletedAt: null },
+    select: { id: true },
+  });
+  if (!found) throw new HttpError(400, 'Linked Social client not found in this workspace');
+}
+
+/**
+ * PS-12: Client Desk lists the same clients as Social. Each Social client without a desk row gets one:
+ * an unlinked desk row with the same name is linked, otherwise a new row is created.
+ */
+async function ensureOpsClientsForSocialCustomers(organizationId: string) {
+  const [socialClients, deskRows] = await Promise.all([
+    prisma.socialCustomer.findMany({
+      where: { organizationId, deletedAt: null },
+      select: { id: true, name: true },
+    }),
+    prisma.opsClient.findMany({
+      where: { organizationId, deletedAt: null },
+      select: { id: true, name: true, socialCustomerId: true },
+    }),
+  ]);
+  const linked = new Set(deskRows.map((row) => row.socialCustomerId).filter(Boolean));
+  const unlinkedByName = new Map(
+    deskRows.filter((row) => !row.socialCustomerId).map((row) => [row.name.trim().toLowerCase(), row.id])
+  );
+  for (const client of socialClients) {
+    if (linked.has(client.id)) continue;
+    const sameName = unlinkedByName.get(client.name.trim().toLowerCase());
+    if (sameName) {
+      await prisma.opsClient.update({ where: { id: sameName }, data: { socialCustomerId: client.id } });
+      unlinkedByName.delete(client.name.trim().toLowerCase());
+    } else {
+      await prisma.opsClient.create({
+        data: { organizationId, name: client.name, socialCustomerId: client.id },
+      });
+    }
+  }
+}
+
 export const opsService = {
   async listClients(organizationId: string) {
+    await ensureOpsClientsForSocialCustomers(organizationId);
     const rows = await prisma.opsClient.findMany({
       where: { organizationId, deletedAt: null },
       include: { services: { orderBy: [{ category: 'asc' }, { subtype: 'asc' }] } },
@@ -160,6 +204,7 @@ export const opsService = {
   },
 
   async createClient(organizationId: string, body: CreateOpsClientBody) {
+    await assertSocialCustomerInOrg(organizationId, body.socialCustomerId);
     const services = body.services ?? [];
     const row = await prisma.opsClient.create({
       data: {
@@ -192,8 +237,9 @@ export const opsService = {
 
   async updateClient(organizationId: string, clientId: string, body: UpdateOpsClientBody) {
     await requireOpsClient(organizationId, clientId);
+    await assertSocialCustomerInOrg(organizationId, body.socialCustomerId);
 
-    const data: Prisma.OpsClientUpdateInput = {};
+    const data: Prisma.OpsClientUncheckedUpdateInput = {};
     if (body.name !== undefined) data.name = body.name;
     if (body.status !== undefined) data.status = body.status;
     if (body.engagementType !== undefined) data.engagementType = body.engagementType;

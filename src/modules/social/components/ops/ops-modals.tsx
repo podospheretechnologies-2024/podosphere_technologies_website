@@ -10,6 +10,7 @@ import {
   OPS_SERVICE_SUBTYPES,
   type OpsServiceCategory,
 } from '@/modules/social/server/ops/ops.constants';
+import { useClientScopeState } from '../../hooks/use-client-scope';
 import { opsCall, type OpsClient } from './ops-api';
 
 function ModalShell({
@@ -54,6 +55,10 @@ export function AddClientModal({
   const editing = Boolean(initial);
   const [name, setName] = useState(initial?.name ?? '');
   const [status, setStatus] = useState(initial?.status ?? 'not_started');
+  // PS-12: link the desk row to the Social client of the same brand.
+  const { data: scopeState } = useClientScopeState();
+  const socialClients = scopeState?.clients ?? [];
+  const [socialCustomerId, setSocialCustomerId] = useState(initial?.socialCustomerId ?? '');
   const [engagementType, setEngagementType] = useState(initial?.engagementType ?? 'retainer');
   const [monthlyFee, setMonthlyFee] = useState(
     initial?.monthlyFee != null ? String(initial.monthlyFee) : ''
@@ -95,6 +100,7 @@ export function AddClientModal({
       name,
       status,
       engagementType: engagementType || null,
+      socialCustomerId: socialCustomerId || null,
       monthlyFee: monthlyFee === '' ? null : Number(monthlyFee),
       teamNames: teamNames || null,
       retainerStart: retainerStart || null,
@@ -133,6 +139,21 @@ export function AddClientModal({
             onChange={(e) => setName(e.target.value)}
             className="border-border bg-background w-full rounded-lg border px-3 py-2"
           />
+        </label>
+        <label className="block space-y-1 text-sm">
+          <span className="text-muted-foreground">Linked Social client</span>
+          <select
+            value={socialCustomerId}
+            onChange={(e) => setSocialCustomerId(e.target.value)}
+            className="border-border bg-background w-full rounded-lg border px-3 py-2"
+          >
+            <option value="">Not linked</option>
+            {socialClients.map((client) => (
+              <option key={client.id} value={client.id}>
+                {client.name}
+              </option>
+            ))}
+          </select>
         </label>
         <div className="grid grid-cols-2 gap-3">
           <label className="block space-y-1 text-sm">

@@ -101,7 +101,7 @@ export interface CampaignRow {
 }
 
 export interface Overview {
-  client: { id: string; name: string };
+  client: { id: string; name: string; clientType?: string | null };
   range: { from: string; to: string; label: string };
   store: ShopifyStore;
   settings: GrowthSettings;

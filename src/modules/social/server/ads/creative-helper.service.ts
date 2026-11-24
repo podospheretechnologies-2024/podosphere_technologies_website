@@ -3,7 +3,7 @@ import { z } from 'zod';
 import type { Prisma } from '@/generated/prisma/client';
 import { prisma } from '@/shared/lib/prisma';
 import { getCurrentUser } from '@/modules/auth/server/session';
-import { scopeWhere, type ClientScope } from '@/shared/server/client-scope';
+import { singleAssignedCustomerId, scopeWhere, type ClientScope } from '@/shared/server/client-scope';
 import { HttpError } from '@/shared/server/http-error';
 import { askClaude, isClaudeConfigured } from '../ai/claude.client';
 import type { AdsCreativeHelperBody } from './ads.schema';
@@ -69,7 +69,7 @@ export interface AdCreativeDraftItem {
 }
 
 function customerIdFromScope(scope: ClientScope): string | null {
-  return scope.customerIds !== 'all' && scope.customerIds.length === 1 ? scope.customerIds[0] : null;
+  return singleAssignedCustomerId(scope);
 }
 
 function toItem(row: {

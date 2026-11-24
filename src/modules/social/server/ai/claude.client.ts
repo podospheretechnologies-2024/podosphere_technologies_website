@@ -6,7 +6,7 @@ import { getServerEnv } from '@/shared/lib/env';
 import { prisma } from '@/shared/lib/prisma';
 import { HttpError } from '@/shared/server/http-error';
 import { BRAND_KIT_FIELDS, type BrandKit } from '../../config/brand-kit';
-import { organizationScope, type ClientScope } from '@/shared/server/client-scope';
+import { singleAssignedCustomerId, organizationScope, type ClientScope } from '@/shared/server/client-scope';
 import { brandKitService } from './brand-kit.service';
 import { aiSettingsService } from './ai-settings.service';
 import { generateStructured, type AiProvider } from './providers';
@@ -31,7 +31,7 @@ async function resolveBrandKit(scope: ClientScope): Promise<BrandKit> {
 
 /** Single selected client for write/usage attribution; null when scope is agency-wide. */
 function customerIdFromScope(scope: ClientScope): string | null {
-  return scope.customerIds !== 'all' && scope.customerIds.length === 1 ? scope.customerIds[0] : null;
+  return singleAssignedCustomerId(scope);
 }
 
 const REQUEST_TIMEOUT_MS = 2 * 60 * 1000;

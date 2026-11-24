@@ -1,6 +1,6 @@
 import 'server-only';
 import type { SocialSignature } from '@/generated/prisma/client';
-import type { ClientScope } from '@/shared/server/client-scope';
+import { singleAssignedCustomerId, type ClientScope } from '@/shared/server/client-scope';
 import { HttpError } from '@/shared/server/http-error';
 import type { SignatureItem } from '../../types/settings';
 import { signatureRepository } from './signature.repository';
@@ -17,7 +17,7 @@ function toSignatureItem(signature: SocialSignature): SignatureItem {
 
 /** Single selected client → that id; 'all' → null (agency-shared). */
 function customerIdForWrite(scope: ClientScope): string | null {
-  return scope.customerIds !== 'all' && scope.customerIds.length === 1 ? scope.customerIds[0] : null;
+  return singleAssignedCustomerId(scope);
 }
 
 async function findOrThrow(scope: ClientScope, id: string) {

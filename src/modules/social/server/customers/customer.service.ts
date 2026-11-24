@@ -2,10 +2,13 @@ import 'server-only';
 import type { Prisma } from '@/generated/prisma/client';
 import { prisma } from '@/shared/lib/prisma';
 import { HttpError } from '@/shared/server/http-error';
-import type { ClientScope } from '@/shared/server/client-scope';
+import { socialCustomerIdWhere, type ClientScope } from '@/shared/server/client-scope';
 import { parsePortalTabsConfig } from '../../config/portal-tabs';
 import { planService } from '../billing/plan.service';
 import { integrationRegistry } from '../integrations/core/integration.registry';
+import { logAudit } from '@/shared/server/audit.service';
+import { advanceOnboardingStep } from './onboarding-progress';
+import { CHANNEL_MAPPING_SELECT, moveChannelRows } from './channel-mapping';
 import { groupAssets, type GroupableAsset } from './client-grouping';
 import {
   clientLinksFromCreate,
@@ -48,41 +51,86 @@ function assertAllFound(found: string[], requested: string[], label: string) {
   throw new HttpError(400, `One or more ${label} were not found in this workspace`);
 }
 
+/** Moves needing a confirm (R6 / PS-04): the asset is already on another client. */
+async function refuseSilentMoves(
+  tx: Prisma.TransactionClient,
+  organizationId: string,
+  owners: { name: string; customerId: string | null }[],
+  customerId: string,
+  force: boolean,
+  label: string
+) {
+  if (force) return;
+  const elsewhere = owners.filter((row) => row.customerId && row.customerId !== customerId);
+  if (elsewhere.length === 0) return;
+  const clients = await tx.socialCustomer.findMany({
+    where: { organizationId, id: { in: elsewhere.map((row) => row.customerId as string) } },
+    select: { id: true, name: true },
+  });
+  const nameById = new Map(clients.map((row) => [row.id, row.name]));
+  const list = elsewhere
+    .map((row) => `${row.name} (on ${nameById.get(row.customerId as string) ?? 'another client'})`)
+    .join(', ');
+  throw new HttpError(
+    409,
+    `These ${label} already belong to another client: ${list}. Confirm the move to continue.`
+  );
+}
+
 async function assignIntegrations(
   tx: Prisma.TransactionClient,
   organizationId: string,
   customerId: string,
   ids: string[],
-  replace: boolean
+  replace: boolean,
+  force = false
 ) {
+  const requested =
+    ids.length > 0
+      ? await tx.socialIntegration.findMany({
+          where: { organizationId, id: { in: ids }, deletedAt: null },
+          select: CHANNEL_MAPPING_SELECT,
+        })
+      : [];
   if (ids.length > 0) {
-    const rows = await tx.socialIntegration.findMany({
-      where: { organizationId, id: { in: ids }, deletedAt: null },
-      select: { id: true },
-    });
     assertAllFound(
-      rows.map((row) => row.id),
+      requested.map((row) => row.id),
       ids,
       'social channels'
     );
+    await refuseSilentMoves(tx, organizationId, requested, customerId, force, 'channels');
   }
 
+  const moves: { channel: (typeof requested)[number]; from: string | null; to: string | null }[] = [];
   if (replace) {
-    await tx.socialIntegration.updateMany({
+    const dropped = await tx.socialIntegration.findMany({
       where: {
         organizationId,
         customerId,
         ...(ids.length > 0 ? { id: { notIn: ids } } : {}),
       },
-      data: { customerId: null },
+      select: CHANNEL_MAPPING_SELECT,
     });
+    for (const channel of dropped) moves.push({ channel, from: customerId, to: null });
+  }
+  for (const channel of requested) {
+    if (channel.customerId !== customerId) moves.push({ channel, from: channel.customerId, to: customerId });
   }
 
-  if (ids.length === 0) return;
-  await tx.socialIntegration.updateMany({
-    where: { organizationId, id: { in: ids }, deletedAt: null },
-    data: { customerId },
-  });
+  // R6: the channel and the rows that came from it move together, in this transaction.
+  for (const move of moves) {
+    await tx.socialIntegration.update({
+      where: { id: move.channel.id },
+      data: { customerId: move.to },
+    });
+    const counts = await moveChannelRows(tx, organizationId, move.channel, move.from, move.to);
+    await logAudit({
+      action: move.to === null ? 'integration.unmap' : move.from === null ? 'integration.map' : 'integration.move',
+      targetType: 'integration',
+      targetId: move.channel.id,
+      metadata: { name: move.channel.name, from: move.from, to: move.to, ...counts },
+    });
+  }
 }
 
 async function assignMetaAdAccounts(
@@ -90,18 +138,28 @@ async function assignMetaAdAccounts(
   organizationId: string,
   customerId: string,
   ids: string[],
-  replace: boolean
+  replace: boolean,
+  force = false
 ) {
   if (ids.length > 0) {
     const rows = await tx.adAccount.findMany({
       where: { organizationId, externalId: { in: ids } },
-      select: { externalId: true },
+      select: { externalId: true, name: true, customerId: true, isAgencyAccount: true },
     });
     assertAllFound(
       rows.map((row) => row.externalId),
       ids,
       'Meta ad accounts'
     );
+    // PS-04: an ad account on another client (or the agency's own account) never moves silently.
+    await refuseSilentMoves(tx, organizationId, rows, customerId, force, 'ad accounts');
+    const agency = rows.filter((row) => row.isAgencyAccount);
+    if (agency.length > 0 && !force) {
+      throw new HttpError(
+        409,
+        `${agency.map((row) => row.name).join(', ')} is marked as the agency's own ad account. Confirm to assign it to a client.`
+      );
+    }
   }
 
   if (replace) {
@@ -164,13 +222,14 @@ async function assignLinks(
   organizationId: string,
   customerId: string,
   links: Partial<ClientAssetLinks>,
-  replace: boolean
+  replace: boolean,
+  force = false
 ) {
   if (links.integrationIds) {
-    await assignIntegrations(tx, organizationId, customerId, links.integrationIds, replace);
+    await assignIntegrations(tx, organizationId, customerId, links.integrationIds, replace, force);
   }
   if (links.adAccountIds) {
-    await assignMetaAdAccounts(tx, organizationId, customerId, links.adAccountIds, replace);
+    await assignMetaAdAccounts(tx, organizationId, customerId, links.adAccountIds, replace, force);
   }
   if (links.googleAdAccountIds) {
     await assignGoogleAdAccounts(tx, organizationId, customerId, links.googleAdAccountIds, replace);
@@ -183,7 +242,7 @@ export const customerService = {
       where: {
         organizationId: scope.organizationId,
         deletedAt: null,
-        ...(scope.customerIds === 'all' ? {} : { id: { in: scope.customerIds } }),
+        ...socialCustomerIdWhere(scope),
       },
       include: clientListInclude,
       orderBy: { createdAt: 'desc' },
@@ -201,6 +260,7 @@ export const customerService = {
           organizationId,
           name: body.name,
           onboardingStep: 'created',
+          clientType: body.clientType ?? null,
           ...(portalTabs !== undefined ? { portalTabs } : {}),
         },
       });
@@ -222,7 +282,7 @@ export const customerService = {
         },
       });
 
-      await assignLinks(tx, organizationId, customer.id, links, false);
+      await assignLinks(tx, organizationId, customer.id, links, false, body.force === true);
       return customer;
     });
   },
@@ -240,8 +300,14 @@ export const customerService = {
     if (body.googleAdAccountIds) links.googleAdAccountIds = [...new Set(body.googleAdAccountIds)];
 
     await prisma.$transaction(async (tx) => {
-      await assignLinks(tx, organizationId, customerId, links, true);
+      await assignLinks(tx, organizationId, customerId, links, true, body.force === true);
+      if (body.clientType !== undefined) {
+        await tx.socialCustomer.update({ where: { id: customerId }, data: { clientType: body.clientType } });
+      }
     });
+    if ((links.integrationIds?.length ?? 0) > 0) {
+      await advanceOnboardingStep(organizationId, customerId, 'brand_kit');
+    }
 
     return prisma.socialCustomer.findFirstOrThrow({
       where: { id: customerId, organizationId },
@@ -263,6 +329,14 @@ export const customerService = {
 
     const now = new Date();
     await prisma.$transaction(async (tx) => {
+      // R6 unmap: the channels go back to Unassigned, and so do the rows that came from them.
+      const channels = await tx.socialIntegration.findMany({
+        where: { organizationId, customerId },
+        select: CHANNEL_MAPPING_SELECT,
+      });
+      for (const channel of channels) {
+        await moveChannelRows(tx, organizationId, channel, customerId, null);
+      }
       await tx.socialIntegration.updateMany({
         where: { organizationId, customerId },
         data: { customerId: null },

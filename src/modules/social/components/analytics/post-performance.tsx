@@ -28,6 +28,10 @@ function formatMetric(value: number | null): string {
 }
 
 export function PostPerformance({ posts }: PostPerformanceProps) {
+  // Hide metric columns that are empty for every post in the table.
+  const visibleColumns = METRIC_COLUMNS.filter((column) =>
+    posts.some((post) => post.metrics[column.key] !== null)
+  );
   return (
     <Card className="space-y-4">
       <div>
@@ -110,7 +114,7 @@ export function PostPerformance({ posts }: PostPerformanceProps) {
                   ) : null}
 
                   <dl className="grid grid-cols-3 gap-2 sm:grid-cols-5 lg:grid-cols-9">
-                    {METRIC_COLUMNS.map((column) => (
+                    {visibleColumns.map((column) => (
                       <div
                         key={column.key}
                         className={cn(

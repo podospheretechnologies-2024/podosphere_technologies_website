@@ -9,6 +9,7 @@ export const ANALYTICS_JOB = {
   captureStories: 'meta.stories.capture',
   syncDailyInsights: 'meta.insights.daily',
   backfill: 'meta.backfill',
+  inboxNamesBackfill: 'inbox.names.backfill',
 };
 
 let queue: Queue | undefined;

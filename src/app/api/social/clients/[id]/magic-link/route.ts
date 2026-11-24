@@ -3,6 +3,7 @@ import { requireClient } from '@/shared/server/access';
 import { approvalService } from '@/modules/social/server/approvals/approval.service';
 import { errorResponse, HttpError } from '@/shared/server/http-error';
 import { logAudit } from '@/shared/server/audit.service';
+import { advanceOnboardingStep } from '@/modules/social/server/customers/onboarding-progress';
 
 export async function POST(req: Request, props: { params: Promise<{ id: string }> }) {
   try {
@@ -37,6 +38,7 @@ export async function POST(req: Request, props: { params: Promise<{ id: string }
     }
 
     const magicLink = await approvalService.generateMagicLink(approver.id);
+    await advanceOnboardingStep(ctx.organization.id, id, 'connect_link');
     await logAudit({
       action: 'generate_approver_link',
       targetType: 'ClientApprover',

@@ -1556,6 +1556,12 @@
       "namedRegex": "^/api/social/integrations(?:/)?$"
     },
     {
+      "page": "/api/social/integrations/pending-pages",
+      "regex": "^/api/social/integrations/pending\\-pages(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/social/integrations/pending\\-pages(?:/)?$"
+    },
+    {
       "page": "/api/social/leads",
       "regex": "^/api/social/leads(?:/)?$",
       "routeKeys": {},

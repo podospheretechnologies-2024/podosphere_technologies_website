@@ -8,11 +8,13 @@ import type { MediaFormat } from '../../types/media';
 
 interface MediaUploadButtonProps {
   format: MediaFormat;
+  /** Tag uploads to this client (used under "All clients"). */
+  clientId?: string | null;
   onUploaded: (format: MediaFormat) => void;
   onErrors: (errors: string[]) => void;
 }
 
-export function MediaUploadButton({ format, onUploaded, onErrors }: MediaUploadButtonProps) {
+export function MediaUploadButton({ format, clientId, onUploaded, onErrors }: MediaUploadButtonProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [progress, setProgress] = useState<{ current: number; total: number } | null>(null);
   const formatLabel = MEDIA_FORMAT_OPTIONS.find((option) => option.value === format)?.label;
@@ -37,7 +39,7 @@ export function MediaUploadButton({ format, onUploaded, onErrors }: MediaUploadB
       }
 
       try {
-        await uploadMediaFile(file, format);
+        await uploadMediaFile(file, format, clientId);
         uploaded += 1;
       } catch (error) {
         errors.push(`${file.name}: ${error instanceof Error ? error.message : 'upload failed'}`);

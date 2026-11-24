@@ -11,6 +11,7 @@ import {
   MEDIA_FILTER_OPTIONS,
   MEDIA_FORMAT_OPTIONS,
 } from '../../config/media';
+import { useClientScope } from '../../hooks/use-client-scope';
 import { useMediaLibrary } from '../../hooks/use-media-library';
 import { deleteMediaItem } from '../../lib/media.client';
 import type { MediaFormat, MediaItem } from '../../types/media';
@@ -39,6 +40,8 @@ export function MediaLibrary({ accountName }: MediaLibraryProps) {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<MediaFilter>('all');
   const [uploadFormat, setUploadFormat] = useState<MediaFormat>(DEFAULT_MEDIA_FORMAT);
+  const { selectedClientId, clients } = useClientScope();
+  const [uploadClientId, setUploadClientId] = useState('');
   const [errors, setErrors] = useState<string[]>([]);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [previewing, setPreviewing] = useState<MediaItem | null>(null);
@@ -122,8 +125,25 @@ export function MediaLibrary({ accountName }: MediaLibraryProps) {
             value={uploadFormat}
             onChange={setUploadFormat}
           />
+          {!selectedClientId ? (
+            // PS-24: under "All clients" pick who the upload is for; default is agency-shared.
+            <select
+              aria-label="Upload for client"
+              className="border-border bg-background h-9 rounded-lg border px-2 text-sm"
+              value={uploadClientId}
+              onChange={(event) => setUploadClientId(event.target.value)}
+            >
+              <option value="">Agency-shared</option>
+              {clients.map((client) => (
+                <option key={client.id} value={client.id}>
+                  For {client.name}
+                </option>
+              ))}
+            </select>
+          ) : null}
           <MediaUploadButton
             format={uploadFormat}
+            clientId={!selectedClientId ? uploadClientId || null : undefined}
             onUploaded={handleUploaded}
             onErrors={setErrors}
           />
@@ -170,6 +190,13 @@ export function MediaLibrary({ accountName }: MediaLibraryProps) {
               key={media.id}
               media={media}
               accountName={accountName}
+              clientLabel={
+                selectedClientId
+                  ? undefined
+                  : media.customerId
+                    ? (clients.find((client) => client.id === media.customerId)?.name ?? 'Other client')
+                    : 'Agency-shared'
+              }
               deleting={deletingId === media.id}
               onPreview={setPreviewing}
               onDelete={handleDelete}

@@ -1,22 +1,24 @@
 import 'server-only';
 import type { Prisma } from '@/generated/prisma/client';
 import { prisma } from '@/shared/lib/prisma';
+import { customerIdFilter, type ScopeCustomerIds } from '@/shared/server/client-scope';
+import { PUBLISHED_POST_TYPE_VALUES } from '../../config/published-posts';
 
 // Only the first post of each channel counts; thread comments are part of the same post.
-function rootPostsWhere(organizationId: string, clientIds: 'all' | string[] = 'all'): Prisma.SocialPostWhereInput {
+function rootPostsWhere(organizationId: string, clientIds: ScopeCustomerIds = 'all'): Prisma.SocialPostWhereInput {
   return {
     organizationId,
     deletedAt: null,
     parentPostId: null,
-    integration: { 
+    integration: {
       deletedAt: null,
-      customerId: clientIds === 'all' ? undefined : { in: clientIds }
+      customerId: customerIdFilter(clientIds)
     },
   };
 }
 
 export const analyticsRepository = {
-  listOutcomes(organizationId: string, start: Date, end: Date, clientIds: 'all' | string[] = 'all') {
+  listOutcomes(organizationId: string, start: Date, end: Date, clientIds: ScopeCustomerIds = 'all') {
     return prisma.socialPost.findMany({
       where: {
         ...rootPostsWhere(organizationId, clientIds),
@@ -28,24 +30,24 @@ export const analyticsRepository = {
     });
   },
 
-  countUpcoming(organizationId: string, from: Date, clientIds: 'all' | string[] = 'all'): Promise<number> {
+  countUpcoming(organizationId: string, from: Date, clientIds: ScopeCustomerIds = 'all'): Promise<number> {
     return prisma.socialPost.count({
       where: { ...rootPostsWhere(organizationId, clientIds), state: 'QUEUE', publishDate: { gte: from } },
     });
   },
 
-  countDrafts(organizationId: string, clientIds: 'all' | string[] = 'all'): Promise<number> {
+  countDrafts(organizationId: string, clientIds: ScopeCustomerIds = 'all'): Promise<number> {
     return prisma.socialPost.count({
       where: { ...rootPostsWhere(organizationId, clientIds), state: 'DRAFT' },
     });
   },
 
-  listChannels(organizationId: string, clientIds: 'all' | string[] = 'all') {
+  listChannels(organizationId: string, clientIds: ScopeCustomerIds = 'all') {
     return prisma.socialIntegration.findMany({
-      where: { 
-        organizationId, 
+      where: {
+        organizationId,
         deletedAt: null,
-        customerId: clientIds === 'all' ? undefined : { in: clientIds }
+        customerId: customerIdFilter(clientIds)
       },
       select: {
         id: true,
@@ -59,7 +61,7 @@ export const analyticsRepository = {
     });
   },
 
-  listPublishedPosts(organizationId: string, start: Date, end: Date, clientIds: 'all' | string[] = 'all') {
+  listPublishedPosts(organizationId: string, start: Date, end: Date, clientIds: ScopeCustomerIds = 'all') {
     return prisma.socialPost.findMany({
       where: {
         ...rootPostsWhere(organizationId, clientIds),
@@ -86,12 +88,12 @@ export const analyticsRepository = {
       orderBy: { publishDate: 'desc' },
     });
   },
-  async listExternalPosts(organizationId: string, start: Date, end: Date, clientIds: 'all' | string[] = 'all') {
+  async listExternalPosts(organizationId: string, start: Date, end: Date, clientIds: ScopeCustomerIds = 'all') {
     const validIntegrations = await prisma.socialIntegration.findMany({
       where: {
         organizationId,
         deletedAt: null,
-        customerId: clientIds === 'all' ? undefined : { in: clientIds }
+        customerId: customerIdFilter(clientIds)
       },
       select: { id: true }
     });
@@ -101,6 +103,8 @@ export const analyticsRepository = {
       where: {
         integrationId: { in: validIntegrationIds },
         publishedAt: { gte: start, lt: end },
+        // PS-10: "Posts published" counts feed posts, reels, videos and carousels only (no stories/replies).
+        type: { in: PUBLISHED_POST_TYPE_VALUES },
       },
       select: {
         externalId: true,
@@ -114,6 +118,8 @@ export const analyticsRepository = {
         reach: true,
         impressions: true,
         engagementRate: true,
+        engagement: true,
+        clicks: true,
         saves: true,
         videoViews: true,
         integrationId: true,
@@ -125,14 +131,14 @@ export const analyticsRepository = {
   findScopedIntegration(
     organizationId: string,
     integrationId: string,
-    clientIds: 'all' | string[] = 'all'
+    clientIds: ScopeCustomerIds = 'all'
   ) {
     return prisma.socialIntegration.findFirst({
       where: {
         id: integrationId,
         organizationId,
         deletedAt: null,
-        customerId: clientIds === 'all' ? undefined : { in: clientIds },
+        customerId: customerIdFilter(clientIds),
       },
       select: { id: true, name: true, providerIdentifier: true },
     });

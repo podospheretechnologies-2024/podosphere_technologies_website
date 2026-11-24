@@ -2,7 +2,7 @@ import 'server-only';
 import { prisma } from '@/shared/lib/prisma';
 import { decrypt, encrypt } from '@/shared/lib/crypto';
 import { getServerEnv } from '@/shared/lib/env';
-import { scopeWhere, type ClientScope } from '@/shared/server/client-scope';
+import { singleAssignedCustomerId, scopeWhere, type ClientScope } from '@/shared/server/client-scope';
 import { HttpError } from '@/shared/server/http-error';
 import { whatsappBroadcastRatePaise } from '../../config/billing';
 import {
@@ -14,7 +14,7 @@ import { whatsappService } from '../whatsapp/whatsapp.service';
 
 /** Single selected client → that id; 'all' → null (agency-shared connection). */
 function customerIdForWrite(scope: ClientScope): string | null {
-  return scope.customerIds !== 'all' && scope.customerIds.length === 1 ? scope.customerIds[0] : null;
+  return singleAssignedCustomerId(scope);
 }
 
 /**
@@ -163,6 +163,29 @@ export const whatsappOnboardingService = {
     if (!response.ok || !payload.access_token) {
       throw new HttpError(502, payload.error?.message || 'Could not exchange the Embedded Signup code');
     }
+    // PS-23: the signup callback often has no number/name; read both from the phone number object.
+    let displayPhone = input.displayPhone ?? null;
+    let businessName = input.businessName ?? null;
+    if (!displayPhone || !businessName) {
+      try {
+        const info = await fetch(
+          `https://graph.facebook.com/${env.META_GRAPH_VERSION}/${input.phoneNumberId}?fields=display_phone_number,verified_name`,
+          { headers: { Authorization: `Bearer ${payload.access_token}` } }
+        );
+        const detail = (await info.json().catch(() => ({}))) as {
+          display_phone_number?: string;
+          verified_name?: string;
+        };
+        if (info.ok) {
+          displayPhone = displayPhone ?? detail.display_phone_number ?? null;
+          businessName = businessName ?? detail.verified_name ?? null;
+        }
+      } catch (error) {
+        console.warn(
+          `[whatsapp] phone number lookup failed for ${input.phoneNumberId}: ${error instanceof Error ? error.message : 'unknown'}`
+        );
+      }
+    }
     const customerId = customerIdForWrite(scope);
     await prisma.socialWhatsAppConnection.upsert({
       where: { phoneNumberId: input.phoneNumberId },
@@ -171,16 +194,16 @@ export const whatsappOnboardingService = {
         customerId,
         wabaId: input.wabaId,
         phoneNumberId: input.phoneNumberId,
-        displayPhone: input.displayPhone ?? null,
-        businessName: input.businessName ?? null,
+        displayPhone,
+        businessName,
         accessToken: encrypt(payload.access_token),
       },
       update: {
         organizationId: scope.organizationId,
         customerId,
         wabaId: input.wabaId,
-        displayPhone: input.displayPhone ?? null,
-        businessName: input.businessName ?? null,
+        displayPhone,
+        businessName,
         accessToken: encrypt(payload.access_token),
       },
     });

@@ -10,7 +10,9 @@ import type {
   GoogleSpreadsheetItem,
 } from '../../types/google-sheets';
 import { googleSheetsOAuthState, type GoogleSheetsReturnTo } from './google-sheets-oauth-state';
+import { redis } from '@/shared/lib/redis';
 import { googleSheetsRepository } from './google-sheets.repository';
+import { enqueueGoogleSheetsSync } from './google-sheets.queue';
 
 const AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
 const TOKEN_URL = 'https://oauth2.googleapis.com/token';
@@ -621,21 +623,35 @@ export const googleSheetsService = {
   },
 
   async getStatus(organizationId: string, options?: { autoSync?: boolean }) {
-    let connection = await googleSheetsRepository.findConnection(organizationId);
+    // DB only. `autoSync` at most queues one worker job (behind a Redis lock) when data is stale.
+    const connection = await googleSheetsRepository.findConnection(organizationId);
     if (
       options?.autoSync &&
       connection?.lastSyncedAt &&
       Date.now() - connection.lastSyncedAt.getTime() > AUTO_SYNC_MS
     ) {
       try {
-        const accessToken = await getValidAccessToken(organizationId);
-        await syncSpreadsheets(organizationId, accessToken);
-        connection = await googleSheetsRepository.findConnection(organizationId);
+        const acquired = await redis.set(`google-sheets:enqueue:${organizationId}`, '1', 'EX', 300, 'NX');
+        if (acquired) await enqueueGoogleSheetsSync(organizationId);
       } catch (error) {
-        console.error('Google Sheets auto-sync failed', error);
+        console.error('Google Sheets auto-sync enqueue failed', error);
       }
     }
     return buildStatus(connection);
+  },
+
+  /** Full sync guarded by a Redis lock so two syncs never run at once. Used by the worker. */
+  async syncWithLock(organizationId: string) {
+    if (!organizationId) return;
+    const key = `google-sheets:sync-lock:${organizationId}`;
+    const acquired = await redis.set(key, '1', 'EX', 30 * 60, 'NX');
+    if (!acquired) return;
+    try {
+      const accessToken = await getValidAccessToken(organizationId);
+      await syncSpreadsheets(organizationId, accessToken);
+    } finally {
+      await redis.del(key);
+    }
   },
 
   async refresh(organizationId: string) {
@@ -665,7 +681,7 @@ export const googleSheetsService = {
       }
       return findContentForDate(filterSheetRows(sheets, options), date);
     }
-    const status = await this.getStatus(organizationId, { autoSync: true });
+    const status = await this.getStatus(organizationId);
     if (!status.connection.connected) {
       throw new HttpError(404, 'Google Sheets is not connected');
     }

@@ -22,6 +22,7 @@ export default async function SocialLayout({ children }: { children: ReactNode }
   const clients = await prisma.socialCustomer.findMany({
     where: {
       organizationId: ctx.organization.id,
+      deletedAt: null,
       ...(listable === 'all' ? {} : { id: { in: listable } }),
     },
     select: { id: true, name: true },

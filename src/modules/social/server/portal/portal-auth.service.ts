@@ -183,9 +183,18 @@ export const portalAuthService = {
     organizationId: string,
     customerId: string,
     approverId: string,
-    patch: { disabled?: boolean; phone?: string | null }
+    patch: { disabled?: boolean; phone?: string | null; email?: string; name?: string }
   ): Promise<PortalApproverListItem> {
     const approver = await loadApproverInOrg(organizationId, customerId, approverId);
+    const nextEmail = patch.email?.toLowerCase();
+    const emailChanged = nextEmail !== undefined && nextEmail !== approver.email;
+    if (emailChanged) {
+      const taken = await prisma.clientApprover.findFirst({
+        where: { organizationId, email: nextEmail, id: { not: approver.id } },
+        select: { id: true },
+      });
+      if (taken) throw new HttpError(409, 'That email already has portal access in this workspace');
+    }
     const updated = await prisma.clientApprover.update({
       where: { id: approver.id },
       data: {
@@ -196,6 +205,9 @@ export const portalAuthService = {
             }
           : {}),
         ...(patch.phone !== undefined ? { phone: patch.phone } : {}),
+        ...(patch.name !== undefined ? { name: patch.name } : {}),
+        // New email = new identity: sign out any session issued to the old address.
+        ...(emailChanged ? { email: nextEmail, tokenVersion: { increment: 1 } } : {}),
       },
     });
     return toListItem(updated);

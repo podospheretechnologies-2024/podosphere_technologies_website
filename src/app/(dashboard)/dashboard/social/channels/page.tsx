@@ -12,7 +12,13 @@ function firstValue(value: string | string[] | undefined): string | undefined {
 export default async function ChannelsPage({
   searchParams,
 }: PageProps<'/dashboard/social/channels'>) {
-  const { connected, error } = await searchParams;
+  const { connected, error, pickPages } = await searchParams;
 
-  return <ChannelsManager connected={firstValue(connected)} connectError={firstValue(error)} />;
+  return (
+    <ChannelsManager
+      connected={firstValue(connected)}
+      connectError={firstValue(error)}
+      pickPages={Boolean(firstValue(pickPages))}
+    />
+  );
 }

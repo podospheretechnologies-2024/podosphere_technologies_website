@@ -1,6 +1,6 @@
 import 'server-only';
 import type { SocialSavedReply } from '@/generated/prisma/client';
-import type { ClientScope } from '@/shared/server/client-scope';
+import { singleAssignedCustomerId, type ClientScope } from '@/shared/server/client-scope';
 import { HttpError } from '@/shared/server/http-error';
 import { savedReplyRepository } from './saved-reply.repository';
 import type { SaveSavedReplyBody } from './saved-reply.schema';
@@ -27,7 +27,7 @@ function toItem(row: SocialSavedReply): SavedReplyItem {
 
 /** Single selected client → that id; 'all' → null (agency-shared). */
 function customerIdForWrite(scope: ClientScope): string | null {
-  return scope.customerIds !== 'all' && scope.customerIds.length === 1 ? scope.customerIds[0] : null;
+  return singleAssignedCustomerId(scope);
 }
 
 async function findOrThrow(scope: ClientScope, id: string) {

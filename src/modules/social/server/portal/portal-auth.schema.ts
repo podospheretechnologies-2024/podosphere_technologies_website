@@ -49,6 +49,8 @@ export const createPortalApproverSchema = z.object({
 
 export const updatePortalApproverSchema = z.object({
   disabled: z.boolean().optional(),
+  email: z.string().trim().email().max(320).optional(),
+  name: z.string().trim().min(1).max(120).optional(),
   phone: z
     .string()
     .trim()

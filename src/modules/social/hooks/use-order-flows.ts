@@ -12,6 +12,11 @@ import type {
 } from '../types/order-flow';
 import { useClientScopeKey } from './use-client-scope';
 
+/** PS-22: order flows belong to one client's store; never fetch under All clients / Unassigned. */
+export function isSingleClientScopeKey(scopeKey: string): boolean {
+  return Boolean(scopeKey) && scopeKey !== 'all' && scopeKey !== 'unassigned';
+}
+
 function withQuery(path: string, params: Record<string, string | undefined>): string {
   const search = new URLSearchParams();
   for (const [key, value] of Object.entries(params)) {
@@ -24,7 +29,7 @@ function withQuery(path: string, params: Record<string, string | undefined>): st
 export function useOrderFlows() {
   const scopeKey = useClientScopeKey();
   return useSWR<OrderFlowListResponse>(
-    scopeKey ? [ORDER_FLOWS_API, scopeKey] : null,
+    isSingleClientScopeKey(scopeKey) ? [ORDER_FLOWS_API, scopeKey] : null,
     ([url]: [string, string]) => fetcher<OrderFlowListResponse>(url),
     { revalidateOnFocus: false }
   );
@@ -39,7 +44,7 @@ export function useOrderFlowActivity(query: OrderFlowActivityQuery) {
     to: query.to,
   });
   return useSWR<OrderFlowActivityResponse>(
-    scopeKey ? [path, scopeKey] : null,
+    isSingleClientScopeKey(scopeKey) ? [path, scopeKey] : null,
     ([url]: [string, string]) => fetcher(url),
     { revalidateOnFocus: false }
   );
@@ -52,7 +57,7 @@ export function useOrderFlowResults(query: OrderFlowResultsQuery) {
     to: query.to,
   });
   return useSWR<OrderFlowResultsResponse>(
-    scopeKey ? [path, scopeKey] : null,
+    isSingleClientScopeKey(scopeKey) ? [path, scopeKey] : null,
     ([url]: [string, string]) => fetcher(url),
     { revalidateOnFocus: false }
   );

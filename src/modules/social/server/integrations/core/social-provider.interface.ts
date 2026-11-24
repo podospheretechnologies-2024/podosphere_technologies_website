@@ -10,6 +10,8 @@ export interface AuthenticateParams {
   code: string;
   codeVerifier: string;
   redirectUri: string;
+  /** Meta only: persist only these Page / IG ids. Omit to list every account for a picker. */
+  pageIds?: string[];
 }
 
 export interface AuthTokenDetails {

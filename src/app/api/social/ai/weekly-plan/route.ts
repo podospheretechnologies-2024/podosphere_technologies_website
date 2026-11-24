@@ -1,7 +1,7 @@
 import type { NextRequest } from 'next/server';
 import { z } from 'zod';
 import { weeklyPlanService } from '@/modules/social/server/ai/weekly-plan.service';
-import { getClientScope } from '@/shared/server/client-scope';
+import { singleAssignedCustomerId, getClientScope } from '@/shared/server/client-scope';
 import { errorResponse, methodNotAllowed } from '@/shared/server/http-error';
 
 const bodySchema = z
@@ -22,7 +22,8 @@ export async function POST(request: NextRequest) {
     const body = bodySchema.parse(raw);
 
     if (body?.sync) {
-      if (scope.customerIds === 'all' || scope.customerIds.length !== 1) {
+      const singleCustomerId = singleAssignedCustomerId(scope);
+      if (!singleCustomerId) {
         return Response.json(
           { error: 'Select a single client to run the weekly plan synchronously' },
           { status: 400 }
@@ -30,7 +31,7 @@ export async function POST(request: NextRequest) {
       }
       const result = await weeklyPlanService.generateForClient({
         organizationId: scope.organizationId,
-        customerId: scope.customerIds[0],
+        customerId: singleCustomerId,
       });
       return Response.json(result);
     }

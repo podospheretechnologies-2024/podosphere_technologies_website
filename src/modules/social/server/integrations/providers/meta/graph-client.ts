@@ -17,6 +17,9 @@ const RATE_LIMIT_CODES = new Set([4, 17, 32]);
 /** Missing permission / unapproved feature. Only App Review clears these; a retry never does. */
 const PERMISSION_CODES = new Set([10, 200]);
 
+/** Code-190 subcodes meaning the token really expired / was invalidated (460 password changed, 463 expired, 467 invalid). */
+const TOKEN_EXPIRY_SUBCODES = new Set([460, 463, 467]);
+
 /** Back off before the next page when any usage metric reaches this percent. */
 const USAGE_BACKOFF_THRESHOLD = 75;
 const USAGE_BACKOFF_MS = 2_000;
@@ -35,9 +38,13 @@ export class GraphApiError extends Error {
     super(message);
   }
 
-  /** Token expired or revoked: the user has to reconnect. */
+  /**
+   * Token expired or revoked: the user has to reconnect. Code 190 also carries subcodes that are not
+   * a dead token, so only the real expiry/invalidation subcodes (or no subcode) count.
+   */
   get isAuthError() {
-    return this.code === 190;
+    if (this.code !== 190) return false;
+    return this.subcode === undefined || this.subcode === null || TOKEN_EXPIRY_SUBCODES.has(this.subcode);
   }
 
   /** App / user / page rate limit — safe for BullMQ exponential backoff. */
@@ -233,6 +240,9 @@ async function fetchJson<T>(url: URL, init: RequestInit = {}): Promise<T> {
 
   if (!res.ok || body.error) {
     const e = body.error ?? {};
+    if (e.code === 190) {
+      console.warn(`[graph] code 190 subcode ${e.error_subcode ?? 'none'}: ${String(e.message ?? '').slice(0, 160)}`);
+    }
     throw new GraphApiError(
       e.message ?? `Graph API request failed (${res.status})`,
       res.status,

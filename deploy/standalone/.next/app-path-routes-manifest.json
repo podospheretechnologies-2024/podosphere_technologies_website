@@ -242,6 +242,7 @@
   "/api/social/integrations/[id]/route": "/api/social/integrations/[id]",
   "/api/social/integrations/callback/[provider]/route": "/api/social/integrations/callback/[provider]",
   "/api/social/integrations/connect/[provider]/route": "/api/social/integrations/connect/[provider]",
+  "/api/social/integrations/pending-pages/route": "/api/social/integrations/pending-pages",
   "/api/social/integrations/route": "/api/social/integrations",
   "/api/social/leads/[id]/push/route": "/api/social/leads/[id]/push",
   "/api/social/leads/[id]/route": "/api/social/leads/[id]",

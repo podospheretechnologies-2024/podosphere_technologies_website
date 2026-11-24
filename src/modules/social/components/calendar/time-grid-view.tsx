@@ -61,7 +61,8 @@ export function TimeGridView({
     <div className="border-border bg-surface overflow-hidden rounded-xl border shadow-sm">
       <div className="border-border bg-surface grid border-b" style={columns}>
         <div className="text-muted-foreground flex items-end justify-end px-3 pb-2 text-[10px] font-medium uppercase">
-          {now.format('[GMT]Z')}
+          {/* PS-21: the server runs on UTC, so the offset is rendered from the browser clock only. */}
+          {clock ? clock.format('[GMT]Z') : ''}
         </div>
         {days.map((day) => {
           const isToday = day.isSame(now, 'day');

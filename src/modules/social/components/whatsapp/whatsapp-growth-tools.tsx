@@ -488,8 +488,7 @@ export function WhatsAppGrowthTools() {
           <div>
             <h2 className="text-sm font-semibold">WhatsApp connected</h2>
             <p className="text-muted-foreground text-xs">
-              WABA {connection.wabaId}
-              {connection.displayPhone ? ` · ${connection.displayPhone}` : ''}
+              {connection.displayPhone ?? 'Number not loaded'}
               {connection.businessName ? ` · ${connection.businessName}` : ''}
             </p>
           </div>
@@ -515,7 +514,7 @@ export function WhatsAppGrowthTools() {
                 className="flex flex-wrap items-center justify-between gap-2 px-3 py-2"
               >
                 <span>
-                  {row.displayPhone || row.phoneNumberId}
+                  {row.displayPhone || 'Number not loaded'}
                   {row.businessName ? ` · ${row.businessName}` : ''}
                 </span>
                 <select

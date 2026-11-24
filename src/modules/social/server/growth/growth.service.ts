@@ -1,6 +1,6 @@
 import 'server-only';
 import { prisma } from '@/shared/lib/prisma';
-import { organizationScope, type ClientScope } from '@/shared/server/client-scope';
+import { organizationScope, socialCustomerIdWhere, type ClientScope } from '@/shared/server/client-scope';
 import { HttpError } from '@/shared/server/http-error';
 import type { GrowthClient } from './growth-scope';
 import { dayToDate, daysBetween, localDay, reportDue, roas, shiftDay } from './growth-metrics';
@@ -218,9 +218,10 @@ export async function overview(
   params: { preset: string | null; from: string | null; to: string | null }
 ) {
   const { organizationId, customerId } = gc;
-  const [store, settings] = await Promise.all([
+  const [store, settings, clientRow] = await Promise.all([
     shopifyService.get(organizationId, customerId),
     getSettings(organizationId, customerId),
+    prisma.socialCustomer.findUnique({ where: { id: customerId }, select: { clientType: true } }),
   ]);
   const timeZone = store.timeZone ?? 'Asia/Kolkata';
   const range = await resolveRange(organizationId, customerId, params.preset, params.from, params.to, timeZone);
@@ -354,7 +355,7 @@ export async function overview(
   const metaRoas = roas(totals.metaRevenue, totals.metaSpend);
 
   return {
-    client: { id: customerId, name: gc.customerName },
+    client: { id: customerId, name: gc.customerName, clientType: clientRow?.clientType ?? null },
     range,
     store,
     settings,
@@ -410,9 +411,9 @@ export async function clientsSummary(scope: ClientScope) {
     where: {
       organizationId: scope.organizationId,
       deletedAt: null,
-      ...(scope.customerIds === 'all' ? {} : { id: { in: scope.customerIds } }),
+      ...socialCustomerIdWhere(scope),
     },
-    select: { id: true, name: true },
+    select: { id: true, name: true, clientType: true },
     orderBy: { name: 'asc' },
   });
   if (!customers.length) return [];
@@ -424,7 +425,7 @@ export async function clientsSummary(scope: ClientScope) {
   const [stores, sales, accounts, googleAccounts, tasks, settings] = await Promise.all([
     prisma.socialShopifyStore.findMany({
       where: { organizationId: scope.organizationId, customerId: { in: ids } },
-      select: { customerId: true, status: true },
+      select: { customerId: true, status: true, lastError: true, lastSyncedAt: true },
     }),
     prisma.shopifyDailyMetric.groupBy({
       by: ['customerId'],
@@ -477,6 +478,9 @@ export async function clientsSummary(scope: ClientScope) {
       name: c.name,
       storeConnected: Boolean(store),
       storeStatus: store?.status ?? null,
+      clientType: c.clientType ?? null,
+      lastError: store?.lastError ?? null,
+      lastSyncedAt: store?.lastSyncedAt?.toISOString() ?? null,
       hasAds: accounts.some((a) => a.customerId === c.id) || googleAccounts.some((a) => a.customerId === c.id),
       sales7d: store ? (salesTotal ?? 0) : null,
       orders7d: store ? (s?._sum.orders ?? 0) : null,

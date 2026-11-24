@@ -22,7 +22,9 @@ export async function GET(request: NextRequest) {
 // storage instead of being buffered in memory.
 export async function POST(request: NextRequest) {
   try {
-    const scope = await getClientScope('draft');
+    // PS-24: under "All clients" the uploader can tag the file to one client (access-checked).
+    const forClient = request.headers.get('x-client-id')?.trim() || undefined;
+    const scope = await getClientScope('draft', forClient);
     const fileName = uploadFileNameSchema.parse(
       decodeURIComponent(request.headers.get('x-file-name') ?? '')
     );

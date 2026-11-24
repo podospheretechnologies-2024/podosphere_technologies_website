@@ -21,6 +21,16 @@ function formatWhen(iso: string | null | undefined) {
   }
 }
 
+function ago(iso: string | null | undefined) {
+  if (!iso) return 'never';
+  const minutes = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
+  if (minutes < 1) return 'just now';
+  if (minutes < 60) return `${minutes} min ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 48) return `${hours} h ago`;
+  return `${Math.round(hours / 24)} days ago`;
+}
+
 function GoogleMark({ className }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" aria-hidden>
@@ -246,9 +256,15 @@ export function GoogleSheetsCard() {
                   {data!.connection.spreadsheetCount} spreadsheet
                   {data!.connection.spreadsheetCount === 1 ? '' : 's'} · {data!.connection.rowCount}{' '}
                   rows
-                  {data!.connection.lastSyncedAt
-                    ? ` · Synced ${formatWhen(data!.connection.lastSyncedAt)}`
-                    : ''}
+                  {` · Last synced ${ago(data!.connection.lastSyncedAt)} · `}
+                  <button
+                    type="button"
+                    onClick={refresh}
+                    disabled={busy !== null}
+                    className="text-primary underline-offset-2 hover:underline disabled:opacity-50"
+                  >
+                    Sync now
+                  </button>
                 </p>
               </div>
             </div>

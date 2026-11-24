@@ -1,6 +1,6 @@
 import 'server-only';
 import type { SocialTag } from '@/generated/prisma/client';
-import type { ClientScope } from '@/shared/server/client-scope';
+import { singleAssignedCustomerId, type ClientScope } from '@/shared/server/client-scope';
 import { HttpError } from '@/shared/server/http-error';
 import type { TagItem } from '../../types/settings';
 import { tagRepository } from './tag.repository';
@@ -12,7 +12,7 @@ export function toTagItem(tag: Pick<SocialTag, 'id' | 'name' | 'color'>): TagIte
 
 /** Single selected client → that id; 'all' → null (agency-shared). */
 function customerIdForWrite(scope: ClientScope): string | null {
-  return scope.customerIds !== 'all' && scope.customerIds.length === 1 ? scope.customerIds[0] : null;
+  return singleAssignedCustomerId(scope);
 }
 
 async function findOrThrow(scope: ClientScope, id: string) {

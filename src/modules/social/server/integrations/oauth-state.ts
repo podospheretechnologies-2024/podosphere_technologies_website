@@ -11,6 +11,8 @@ const oauthStateSchema = z.object({
   codeVerifier: z.string(),
   refreshIntegrationId: z.string().optional(),
   customerId: z.string().optional(),
+  /** Started from the client portal (redirect back there, no Page picker). */
+  fromPortal: z.boolean().optional(),
 });
 
 export type OAuthState = z.infer<typeof oauthStateSchema>;

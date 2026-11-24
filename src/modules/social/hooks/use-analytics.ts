@@ -14,6 +14,5 @@ export function useAnalytics(range: { start: Dayjs; end: Dayjs }) {
   });
   const url = `${ANALYTICS_API_ROUTE}?${params}`;
   return useSWR<AnalyticsSummary>([url, scopeKey], ([path]) => fetcher(path), {
-    keepPreviousData: true,
   });
 }

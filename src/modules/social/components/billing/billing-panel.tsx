@@ -148,7 +148,14 @@ export function BillingPanel() {
       <div className="space-y-4">
         <p className="text-muted-foreground text-sm">
           Current plan: {status?.plan.label ?? '…'}{' '}
-          {status?.subscription ? `· ${status.subscription.status}` : ''}
+          {/* PS-29: say where the plan comes from when nothing is being paid. */}
+          {status
+            ? status.subscription?.status === 'active'
+              ? '· active subscription'
+              : status.subscription
+                ? `· set manually, subscription ${status.subscription.status}`
+                : '· set manually, no active subscription'
+            : ''}
         </p>
 
         <div className="grid gap-3 md:grid-cols-2">

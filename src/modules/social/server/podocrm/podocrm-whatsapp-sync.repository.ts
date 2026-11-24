@@ -6,6 +6,10 @@ export const podoCrmWhatsAppSyncRepository = {
     return prisma.socialPodoCrmWhatsAppSync.findUnique({ where: { organizationId } });
   },
 
+  listAll() {
+    return prisma.socialPodoCrmWhatsAppSync.findMany();
+  },
+
   findByPhoneNumberId(phoneNumberId: string) {
     return prisma.socialPodoCrmWhatsAppSync.findMany({ where: { phoneNumberId } });
   },

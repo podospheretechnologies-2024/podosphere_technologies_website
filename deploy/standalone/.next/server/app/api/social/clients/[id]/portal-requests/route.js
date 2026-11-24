@@ -6,7 +6,7 @@ R.c("server/chunks/_0kmq-9k._.js")
 R.c("server/chunks/[root-of-the-server]__1sb4deq._.js")
 R.c("server/chunks/_1tdrzt3._.js")
 R.c("server/chunks/1q8-_next_dist_0pvdlbw._.js")
-R.c("server/chunks/_1ssqwfv._.js")
+R.c("server/chunks/_0ienjby._.js")
 R.c("server/chunks/1oeh_server_app_api_social_clients_[id]_portal-requests_route_actions_0qwjb94.js")
 R.m(120601)
 module.exports=R.m(120601).exports

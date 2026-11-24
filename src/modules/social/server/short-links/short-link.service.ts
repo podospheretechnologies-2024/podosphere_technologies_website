@@ -2,7 +2,7 @@ import 'server-only';
 import { randomBytes } from 'node:crypto';
 import type { SocialShortLink } from '@/generated/prisma/client';
 import { getServerEnv } from '@/shared/lib/env';
-import type { ClientScope } from '@/shared/server/client-scope';
+import { singleAssignedCustomerId, type ClientScope } from '@/shared/server/client-scope';
 import { HttpError } from '@/shared/server/http-error';
 import {
   SHORT_LINK_CODE_BYTES,
@@ -66,7 +66,7 @@ function toItem(link: SocialShortLink): ShortLinkItem {
 
 /** Single selected client → that id; 'all' → null (agency-shared). */
 function customerIdForWrite(scope: ClientScope): string | null {
-  return scope.customerIds !== 'all' && scope.customerIds.length === 1 ? scope.customerIds[0] : null;
+  return singleAssignedCustomerId(scope);
 }
 
 function generateCode(): string {

@@ -1,6 +1,6 @@
 import 'server-only';
 import { prisma } from '@/shared/lib/prisma';
-import type { ClientScope } from '@/shared/server/client-scope';
+import { concreteCustomerIds, type ClientScope } from '@/shared/server/client-scope';
 import { HttpError } from '@/shared/server/http-error';
 import {
   googleSheetsService,
@@ -115,9 +115,10 @@ async function linksByClient(organizationId: string): Promise<Map<string, SheetL
  */
 export async function sheetScopeFor(scope: ClientScope): Promise<{ only?: SheetLink[]; exclude: SheetLink[] }> {
   if (scope.customerIds === 'all') return { exclude: [] };
+  const ids = concreteCustomerIds(scope.customerIds) as string[];
   const links = await linksByClient(scope.organizationId);
-  const inScope = new Set(scope.customerIds);
-  const ownLinks = scope.customerIds.flatMap((id) => {
+  const inScope = new Set(ids);
+  const ownLinks = ids.flatMap((id) => {
     const link = links.get(id);
     return link ? [link] : [];
   });
@@ -126,7 +127,7 @@ export async function sheetScopeFor(scope: ClientScope): Promise<{ only?: SheetL
     .filter(([customerId]) => !inScope.has(customerId))
     .map(([, link]) => link)
     .filter((link) => !ownLinks.some((own) => own.spreadsheetId === link.spreadsheetId && own.tab === link.tab));
-  const own = scope.customerIds.length === 1 ? links.get(scope.customerIds[0]) : undefined;
+  const own = ids.length === 1 ? links.get(ids[0]) : undefined;
   return own ? { only: [own], exclude } : { exclude };
 }
 

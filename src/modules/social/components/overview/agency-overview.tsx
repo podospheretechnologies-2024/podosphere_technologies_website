@@ -32,9 +32,12 @@ function formatSpend(value: number | null | undefined): string {
 export function AgencyOverviewPanel() {
   const { selectedClientId, clients } = useClientScope();
   const { data, error, isLoading } = useAgencyOverview();
-  const label = selectedClientId
-    ? (clients.find((c) => c.id === selectedClientId)?.name ?? 'Selected client')
-    : 'All clients';
+  const label =
+    selectedClientId === 'unassigned'
+      ? 'Unassigned channels'
+      : selectedClientId
+        ? (clients.find((c) => c.id === selectedClientId)?.name ?? 'Selected client')
+        : 'All clients';
 
   const cards = [
     {
@@ -53,7 +56,7 @@ export function AgencyOverviewPanel() {
     },
     {
       key: 'leads',
-      label: 'Leads',
+      label: 'Leads captured (30d)',
       value: formatCount(data?.leads),
       href: `${SOCIAL_BASE_PATH}/leads`,
       icon: Contact,
@@ -103,6 +106,28 @@ export function AgencyOverviewPanel() {
           Counts from stored MySQL data only — no live Meta calls.
         </p>
       </div>
+
+      {data?.unassigned && data.unassigned.channels > 0 ? (
+        // R3: unmapped channels are shown on their own line, never inside the client totals.
+        <div className="border-danger/30 bg-danger/5 flex flex-wrap items-center justify-between gap-3 rounded-xl border px-4 py-3 text-sm">
+          <p>
+            <span className="font-semibold">
+              {formatCount(data.unassigned.channels)}{' '}
+              {data.unassigned.channels === 1 ? 'channel is' : 'channels are'} not mapped to a client
+            </span>
+            {data.unassigned.followers != null
+              ? ` · ${formatCount(data.unassigned.followers)} followers`
+              : ''}
+            <span className="text-muted-foreground"> · not counted in the totals below</span>
+          </p>
+          <Link
+            href={`${SOCIAL_BASE_PATH}/clients/sort`}
+            className="bg-foreground text-background rounded-lg px-3 py-1.5 text-xs font-semibold"
+          >
+            Map Pages
+          </Link>
+        </div>
+      ) : null}
 
       {error && (
         <p className="text-danger text-sm">

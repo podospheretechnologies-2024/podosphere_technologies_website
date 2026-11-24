@@ -36,7 +36,8 @@ export function validateMediaFile(
 
 export function uploadMediaFile(
   file: File,
-  format: MediaFormat = DEFAULT_MEDIA_FORMAT
+  format: MediaFormat = DEFAULT_MEDIA_FORMAT,
+  clientId?: string | null
 ): Promise<MediaItem> {
   return apiFetch<MediaItem>(MEDIA_API_ROUTE, {
     method: 'POST',
@@ -44,6 +45,7 @@ export function uploadMediaFile(
       'Content-Type': file.type || 'application/octet-stream',
       'X-File-Name': encodeURIComponent(file.name),
       'X-Media-Format': format,
+      ...(clientId ? { 'X-Client-Id': clientId } : {}),
     },
     body: file,
   });

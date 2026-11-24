@@ -21,5 +21,7 @@ export function useAutoposts() {
 export function useGoogleSheets(autoSync = true) {
   const scopeKey = useClientScopeKey();
   const url = autoSync ? `${GOOGLE_SHEETS_API_ROUTE}?autoSync=1` : GOOGLE_SHEETS_API_ROUTE;
-  return useSWR<GoogleSheetsStatusResponse>([url, scopeKey], ([path]) => fetcher(path));
+  return useSWR<GoogleSheetsStatusResponse>([url, scopeKey], ([path]) => fetcher(path), {
+    revalidateOnFocus: false,
+  });
 }

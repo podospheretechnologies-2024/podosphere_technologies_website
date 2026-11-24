@@ -96,6 +96,8 @@ model SocialCustomer {
   name           String
   // Onboarding wizard: created → connect_link → channels → brand_kit → done
   onboardingStep String    @default("created") @db.VarChar(32)
+  // 'store' | 'website' | 'leads' — drives store ratio and ROAS-vs-CPL mode. Null = not set.
+  clientType     String?   @db.VarChar(16)
   // Copied from SocialClientTemplate on apply: postingScheduleHints + sourceChannels.
   templateBootstrap Json?
   // Optional soft AI spend cap for this client (USD / calendar month). Null = no per-client cap.
@@ -153,6 +155,7 @@ model SocialCustomer {
   hashtagGroups         SocialHashtagGroup[]
   bioPages              SocialBioPage[]
   portalRequests        SocialPortalRequest[]
+  opsClients            OpsClient[]
 
   @@index([organizationId])
   @@map("social_customers")
@@ -812,6 +815,8 @@ model AdAccount {
   accessTokenEncrypted  String?  @db.Text
   /// True when Graph returned an auth error (code 190); agency must set a fresh token.
   refreshNeeded         Boolean  @default(false)
+  /// Agency-owned ad account — never counted in a client's spend.
+  isAgencyAccount       Boolean  @default(false)
   createdAt             DateTime @default(now())
 
   organization Organization    @relation(fields: [organizationId], references: [id])
@@ -978,6 +983,8 @@ model SocialExternalPost {
   impressions    Int?
   videoViews     Int?
   engagementRate Decimal?  @db.Decimal(8, 4)
+  engagement     Int?
+  clicks         Int?
   metricsAt      DateTime?
 
   @@unique([integrationId, externalId])
@@ -1137,6 +1144,8 @@ model SocialInboxThread {
   hiddenAt        DateTime?
   // Set when a FB/IG comment is deleted via Graph DELETE /{comment-id}.
   closedAt        DateTime?
+  // Direction of the latest message ('inbound' | 'outbound'); set on every message write.
+  lastDirection   String?   @db.VarChar(16)
   // AI triage (on-demand POST …/triage). Labels: question|complaint|lead|spam|praise|other.
   aiLabel         String?   @map("ai_label") @db.VarChar(32)
   // low|normal|high|urgent
@@ -1154,6 +1163,7 @@ model SocialInboxThread {
 
   @@unique([organizationId, platform, externalId])
   @@index([organizationId, lastMessageAt])
+  @@index([organizationId, lastDirection])
   @@index([organizationId, customerId])
   @@index([organizationId, assigneeId])
   @@index([organizationId, slaDueAt])

@@ -109,7 +109,6 @@ export function useAdsOverview(accountId: string | null, date: AdsOverviewDateIn
   const url = overviewKey(accountId, date);
   return useSWR<AdsOverview>(url ? [url, scopeKey] : null, ([path]) => fetcher(path), {
     revalidateOnFocus: false,
-    keepPreviousData: true,
   });
 }
 
@@ -144,7 +143,6 @@ export function useAdsReport(
     : null;
   return useSWR<AdsReportResult>(url ? [url, scopeKey] : null, ([path]) => fetcher(path), {
     revalidateOnFocus: false,
-    keepPreviousData: true,
   });
 }
 

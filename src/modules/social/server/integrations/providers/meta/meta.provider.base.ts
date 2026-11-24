@@ -36,6 +36,15 @@ interface MetaErrorBody {
 
 type GraphParams = Record<string, string | number | boolean | undefined>;
 
+/** When `pageIds` is set, keep only those Pages / linked IG accounts. Empty means none. */
+function selectMetaPages(pages: GraphPage[], pageIds?: string[]): GraphPage[] {
+  if (pageIds === undefined) return pages;
+  const allow = new Set(pageIds);
+  return pages.filter(
+    (page) => allow.has(page.id) || allow.has(page.instagram_business_account?.id ?? '')
+  );
+}
+
 export interface GraphRequestOptions {
   /** Short label used in error messages, e.g. "upload photo". */
   action: string;
@@ -76,7 +85,11 @@ export abstract class MetaProviderBase extends SocialProviderBase {
     };
   }
 
-  async authenticate({ code, redirectUri }: AuthenticateParams): Promise<AuthTokenDetails[]> {
+  async authenticate({
+    code,
+    redirectUri,
+    pageIds,
+  }: AuthenticateParams): Promise<AuthTokenDetails[]> {
     const client = {
       client_id: this.getEnv('META_APP_ID'),
       client_secret: this.getEnv('META_APP_SECRET'),
@@ -115,7 +128,8 @@ export abstract class MetaProviderBase extends SocialProviderBase {
       token: userToken,
       params: { fields: PAGE_FIELDS, limit: 100 },
     });
-    const accounts = this.toAccounts(pages.data, user.id);
+    const selected = selectMetaPages(pages.data, pageIds);
+    const accounts = this.toAccounts(selected, user.id);
     if (accounts.length === 0) {
       throw new BadBodyError(this.identifier, this.noAccountsMessage);
     }

@@ -308,7 +308,12 @@ export const aiService = {
         .then(() => true)
         .catch(() => false),
     ]);
-    return { configured, imageConfigured };
+    let clientKeys: AiStatus['clientKeys'];
+    if (scope.customerIds === 'all') {
+      const keys = await aiSettingsService.listConfiguredKeys(scope.organizationId);
+      clientKeys = { count: keys.length, providers: [...new Set(keys.map((key) => key.provider))] };
+    }
+    return { configured, imageConfigured, ...(clientKeys ? { clientKeys } : {}) };
   },
 
   async generatePosts(scope: ClientScope, body: GeneratePostsBody): Promise<AiPostVariations> {

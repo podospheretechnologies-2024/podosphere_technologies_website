@@ -1,7 +1,8 @@
 import 'server-only';
 import { z } from 'zod';
 import { prisma } from '@/shared/lib/prisma';
-import { scopeWhere, type ClientScope } from '@/shared/server/client-scope';
+import { singleAssignedCustomerId, scopeWhere, type ClientScope } from '@/shared/server/client-scope';
+import { advanceOnboardingStep } from '../customers/onboarding-progress';
 import {
   BRAND_KIT_FIELD_MAX_LENGTH,
   BRAND_KIT_FIELDS,
@@ -18,7 +19,7 @@ export const brandKitSchema = z.object(
 
 /** Single selected client → that id; 'all' → null (agency brand kit). */
 function customerIdForWrite(scope: ClientScope): string | null {
-  return scope.customerIds !== 'all' && scope.customerIds.length === 1 ? scope.customerIds[0] : null;
+  return singleAssignedCustomerId(scope);
 }
 
 export const brandKitService = {
@@ -42,6 +43,7 @@ export const brandKitService = {
         data: { organizationId: scope.organizationId, customerId, data },
       });
     }
+    await advanceOnboardingStep(scope.organizationId, customerId, 'done');
     return data;
   },
 };

@@ -3,7 +3,8 @@
 import { useState } from 'react';
 import { Card } from '@/shared/components/ui/card';
 import type { OrderFlowKey } from '../../config/order-flows';
-import { useOrderFlows } from '../../hooks/use-order-flows';
+import { useClientScopeKey } from '../../hooks/use-client-scope';
+import { isSingleClientScopeKey, useOrderFlows } from '../../hooks/use-order-flows';
 import { useWhatsApp } from '../../hooks/use-whatsapp';
 import { OrderFlowActivity } from './order-flow-activity';
 import { OrderFlowEditor } from './order-flow-editor';
@@ -28,6 +29,22 @@ export function OrderFlowsDesk() {
 
   const numberConnected = Boolean(whatsapp.data?.configured && whatsapp.data.number);
   const phoneDisplay = whatsapp.data?.number?.displayPhoneNumber ?? null;
+  const scopeKey = useClientScopeKey();
+
+  if (!isSingleClientScopeKey(scopeKey)) {
+    return (
+      <Card className="space-y-2">
+        <p className="text-muted-foreground text-xs font-semibold tracking-[0.14em] uppercase">
+          WhatsApp order flows
+        </p>
+        <p className="text-sm font-medium">Pick a client</p>
+        <p className="text-muted-foreground text-sm">
+          Order flows run on one client&apos;s Shopify store. Choose a client in the switcher at the top to
+          see and edit its flows.
+        </p>
+      </Card>
+    );
+  }
 
   return (
     <Card className="space-y-4">

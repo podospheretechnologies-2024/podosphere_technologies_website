@@ -1,7 +1,7 @@
 import 'server-only';
 import { z } from 'zod';
 import { prisma } from '@/shared/lib/prisma';
-import type { ClientScope } from '@/shared/server/client-scope';
+import { singleAssignedCustomerId, type ClientScope } from '@/shared/server/client-scope';
 import { HttpError } from '@/shared/server/http-error';
 import { askAI } from '../ai/claude.client';
 import { getSettings, overview } from './growth.service';
@@ -623,6 +623,6 @@ export async function generateGrowthReport(gc: GrowthClient) {
 
 /** Worker helper: GrowthClient from stored ids. */
 export async function growthClientForWorker(scope: ClientScope, customerName: string): Promise<GrowthClient> {
-  const customerId = scope.customerIds === 'all' ? '' : scope.customerIds[0];
+  const customerId = singleAssignedCustomerId(scope) ?? '';
   return { scope, organizationId: scope.organizationId, customerId, customerName };
 }

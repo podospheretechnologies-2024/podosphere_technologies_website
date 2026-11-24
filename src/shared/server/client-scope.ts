@@ -1,7 +1,10 @@
 import 'server-only';
 import { cookies, headers } from 'next/headers';
+import { UNASSIGNED_CLIENT_SCOPE } from '@/shared/config/client-scope';
 import { getAccess, type AccessContext, type ClientPermission } from './access';
 import { HttpError } from './http-error';
+
+export { UNASSIGNED_CLIENT_SCOPE };
 
 /** httpOnly cookie set by the client switcher; read by `getClientScope`. */
 export const CLIENT_SCOPE_COOKIE = 'podo_client';
@@ -12,8 +15,33 @@ export const CLIENT_SCOPE_COOKIE = 'podo_client';
  */
 export interface ClientScope {
   organizationId: string;
-  /** 'all' = every client of the organization (OWNER/ADMIN with no client picked). */
-  customerIds: 'all' | string[];
+  /**
+   * `'all'` = every client of the organization (OWNER/ADMIN with no client picked).
+   * `'unassigned'` = rows with `customerId = null` (OWNER/ADMIN only).
+   */
+  customerIds: 'all' | 'unassigned' | string[];
+}
+
+export function isUnassignedClientId(id: string | null | undefined): boolean {
+  return id === UNASSIGNED_CLIENT_SCOPE;
+}
+
+export function isConcreteCustomerIds(ids: ClientScope['customerIds']): ids is string[] {
+  return Array.isArray(ids);
+}
+
+/** Single selected client id, or null for All / Unassigned / empty MEMBER list. */
+export function singleAssignedCustomerId(scope: ClientScope): string | null {
+  return isConcreteCustomerIds(scope.customerIds) && scope.customerIds.length === 1
+    ? scope.customerIds[0]
+    : null;
+}
+
+/** True when this row's customerId is visible in the current scope. */
+export function customerIdAllowed(scope: ClientScope, customerId: string | null): boolean {
+  if (scope.customerIds === 'all') return true;
+  if (scope.customerIds === 'unassigned') return customerId === null;
+  return customerId !== null && scope.customerIds.includes(customerId);
 }
 
 /** Clients the switcher may list. OWNER/ADMIN → `'all'`; MEMBER → assigned ids they can `permission`. */
@@ -37,6 +65,13 @@ export function scopeFromAccess(
 ): ClientScope {
   const organizationId = ctx.organization.id;
   const allowed = listableClientIds(ctx, permission);
+
+  if (isUnassignedClientId(selectedClientId)) {
+    if (ctx.role === 'MEMBER' || allowed !== 'all') {
+      throw new HttpError(404, 'Not found');
+    }
+    return { organizationId, customerIds: 'unassigned' };
+  }
 
   if (ctx.role === 'MEMBER') {
     const ids = allowed === 'all' ? [] : allowed;
@@ -69,6 +104,9 @@ export function pinSelectedClientId(
 ): string | null {
   const allowed = clients.map((client) => client.id);
   if (fromCookie && allowed.includes(fromCookie)) return fromCookie;
+  if (isUnassignedClientId(fromCookie) && (role === 'OWNER' || role === 'ADMIN')) {
+    return UNASSIGNED_CLIENT_SCOPE;
+  }
   if (role === 'MEMBER' && allowed.length > 0) return allowed[0];
   return null;
 }
@@ -108,11 +146,64 @@ export function organizationScope(organizationId: string, customerId?: string | 
   return { organizationId, customerIds: 'all' };
 }
 
+export type ScopeWhere = {
+  organizationId: string;
+  customerId?: { in: string[] } | null;
+};
+
 /**
  * The one place that turns a scope into a Prisma `where` fragment.
- * Rows with `customerId = null` (agency-owned data) are visible only when the scope is 'all'.
+ * `'all'` includes every row in the org (assigned and unassigned).
+ * `'unassigned'` is `customerId = null` (OWNER/ADMIN only).
  */
-export function scopeWhere(scope: ClientScope): { organizationId: string; customerId?: { in: string[] } } {
+export function scopeWhere(scope: ClientScope): ScopeWhere {
   if (scope.customerIds === 'all') return { organizationId: scope.organizationId };
+  if (scope.customerIds === 'unassigned') {
+    return { organizationId: scope.organizationId, customerId: null };
+  }
   return { organizationId: scope.organizationId, customerId: { in: scope.customerIds } };
+}
+
+export type ScopeCustomerIds = ClientScope['customerIds'];
+
+/**
+ * `customerId` filter for a NULLABLE column (integrations, posts, threads, leads, media).
+ * `'all'` → no filter, `'unassigned'` → `null`, list → `{ in }`.
+ */
+export function customerIdFilter(ids: ScopeCustomerIds = 'all'): { in: string[] } | null | undefined {
+  if (ids === 'all') return undefined;
+  if (ids === 'unassigned') return null;
+  return { in: ids };
+}
+
+/**
+ * `customerId` filter for a REQUIRED column (rows that always belong to a client).
+ * Unassigned can never match such a row, so it becomes an empty list.
+ */
+export function requiredCustomerIdFilter(ids: ScopeCustomerIds = 'all'): { in: string[] } | undefined {
+  if (ids === 'all') return undefined;
+  if (ids === 'unassigned') return { in: [] };
+  return { in: ids };
+}
+
+/** `scopeWhere` for models whose `customerId` is required. */
+export function scopeWhereRequired(scope: ClientScope): {
+  organizationId: string;
+  customerId?: { in: string[] };
+} {
+  const filter = requiredCustomerIdFilter(scope.customerIds);
+  return filter ? { organizationId: scope.organizationId, customerId: filter } : { organizationId: scope.organizationId };
+}
+
+/** Concrete client ids in scope (unassigned → none). `'all'` stays `'all'`. */
+export function concreteCustomerIds(ids: ScopeCustomerIds): 'all' | string[] {
+  if (ids === 'unassigned') return [];
+  return ids;
+}
+
+/** Filter for `SocialCustomer.id` lists. Unassigned matches no client row. */
+export function socialCustomerIdWhere(scope: ClientScope): { id?: { in: string[] } } {
+  if (scope.customerIds === 'all') return {};
+  if (scope.customerIds === 'unassigned') return { id: { in: [] } };
+  return { id: { in: scope.customerIds } };
 }

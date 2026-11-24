@@ -1,7 +1,7 @@
 import 'server-only';
 import { prisma } from '@/shared/lib/prisma';
 import type { ClientPermission } from '@/shared/server/access';
-import { getClientScope, type ClientScope } from '@/shared/server/client-scope';
+import { singleAssignedCustomerId, getClientScope, type ClientScope } from '@/shared/server/client-scope';
 import { HttpError } from '@/shared/server/http-error';
 
 export interface GrowthClient {
@@ -21,10 +21,10 @@ export async function requireGrowthClient(permission: ClientPermission = 'view')
 }
 
 export async function growthClientFromScope(scope: ClientScope): Promise<GrowthClient> {
-  if (scope.customerIds === 'all' || scope.customerIds.length !== 1) {
+  const customerId = singleAssignedCustomerId(scope);
+  if (!customerId) {
     throw new HttpError(400, 'Pick a client in the client switcher first.');
   }
-  const customerId = scope.customerIds[0];
   const customer = await prisma.socialCustomer.findFirst({
     where: { id: customerId, organizationId: scope.organizationId, deletedAt: null },
     select: { id: true, name: true },

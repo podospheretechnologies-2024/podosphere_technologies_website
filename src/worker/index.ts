@@ -9,6 +9,8 @@ import { startReportWorker } from '@/modules/social/server/reports/report.worker
 import { startWeeklyPlanWorker } from '@/modules/social/server/ai/weekly-plan.worker';
 import { startGrowthWorker } from '@/modules/social/server/growth/growth.worker';
 import { startOrderFlowWorker } from '@/modules/social/server/whatsapp/order-flow.worker';
+import { startGoogleSheetsWorker } from '@/modules/social/server/google-sheets/google-sheets.worker';
+import { startPodoCrmPingWorker } from '@/modules/social/server/podocrm/podocrm-ping.worker';
 
 // Background process for queued jobs. Every module that needs background work
 // starts its workers here.
@@ -24,6 +26,8 @@ async function main() {
     await startWeeklyPlanWorker(),
     await startGrowthWorker(), // Growth Desk: Shopify sync, post tasks, daily insights
     await startOrderFlowWorker(), // WhatsApp order flows: due messages every 5 min
+    await startGoogleSheetsWorker(), // Google Sheets sync every 15 min
+    await startPodoCrmPingWorker(), // PodoCRM link keep-alive ping, daily
   ];
   console.log('[worker] started');
 

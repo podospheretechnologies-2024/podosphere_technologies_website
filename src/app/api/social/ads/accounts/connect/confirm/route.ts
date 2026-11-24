@@ -4,7 +4,8 @@ import { adAccountIdSchema } from '@/modules/social/server/ads/ads.schema';
 import { adsService } from '@/modules/social/server/ads/ads.service';
 import { canUseAds } from '@/shared/config/organization';
 import { requireRole } from '@/shared/server/access';
-import { resolveSelectedClientId } from '@/shared/server/client-scope';
+import { isUnassignedClientId } from '@/shared/server/client-scope';
+import { prisma } from '@/shared/lib/prisma';
 import { getCurrentOrganization } from '@/shared/server/current-organization';
 import { errorResponse, HttpError } from '@/shared/server/http-error';
 
@@ -21,14 +22,21 @@ export async function POST(request: NextRequest) {
     if (!canUseAds(organization)) throw new HttpError(404, 'Not found');
 
     const body = bodySchema.parse(await request.json());
-    const selectedClient = await resolveSelectedClientId();
-    const customerId =
-      body.customerId !== undefined ? body.customerId : selectedClient;
+    // PS-04: only a client named in the request overrides an account's current client. Without one,
+    // the client picked when the connect started applies to new / Unassigned accounts only.
+    if (body.customerId && isUnassignedClientId(body.customerId)) body.customerId = null;
+    if (body.customerId) {
+      const client = await prisma.socialCustomer.findFirst({
+        where: { id: body.customerId, organizationId: organization.id, deletedAt: null },
+        select: { id: true },
+      });
+      if (!client) throw new HttpError(404, 'Client not found');
+    }
 
     const result = await adsService.confirmConnectedAccounts(
       organization.id,
       body.accountIds,
-      customerId
+      body.customerId
     );
     return Response.json({ success: true, ...result });
   } catch (error) {

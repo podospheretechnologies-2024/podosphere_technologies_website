@@ -343,6 +343,7 @@ function toFrameMedia(media: PostMedia, format: MediaFormat): MediaItem {
     captionIdeas: null,
     variantUrl: null,
     variantKey: null,
+    customerId: null,
     createdAt: new Date().toISOString(),
   };
 }

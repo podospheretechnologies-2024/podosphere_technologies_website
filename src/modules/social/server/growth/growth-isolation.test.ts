@@ -2,7 +2,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('server-only', () => ({}));
 vi.mock('@/shared/lib/env', () => ({ getServerEnv: () => ({ SHOPIFY_API_VERSION: '2026-07', ENCRYPTION_KEY: 'x'.repeat(32) }) }));
-vi.mock('@/shared/server/client-scope', () => ({ getClientScope: vi.fn(), resolveSelectedClientId: vi.fn(), scopeFromAccess: vi.fn() }));
+vi.mock('@/shared/server/client-scope', () => ({
+  getClientScope: vi.fn(),
+  resolveSelectedClientId: vi.fn(),
+  scopeFromAccess: vi.fn(),
+  singleAssignedCustomerId: (scope: { customerIds: 'all' | 'unassigned' | string[] }) =>
+    Array.isArray(scope.customerIds) && scope.customerIds.length === 1 ? scope.customerIds[0] : null,
+}));
 vi.mock('@/modules/social/server/ai/claude.client', () => ({ askAI: vi.fn() }));
 vi.mock('@/shared/lib/prisma', () => {
   const model = () => ({

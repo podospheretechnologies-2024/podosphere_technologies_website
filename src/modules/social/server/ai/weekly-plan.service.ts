@@ -60,6 +60,7 @@ function brandKitSummary(kit: Record<string, string>): string {
 }
 
 async function resolveCustomerIds(scope: ClientScope): Promise<string[]> {
+  if (scope.customerIds === 'unassigned') return [];
   if (scope.customerIds !== 'all') {
     return scope.customerIds;
   }

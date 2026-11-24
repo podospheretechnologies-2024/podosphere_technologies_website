@@ -190,7 +190,8 @@ describe('list queries are limited to the scope', () => {
     await expect(adsService.audiences(memberOfA, 'act_client_b')).rejects.toMatchObject({
       status: 404,
     });
-    expect(whereOf(prisma.adAccount.findMany)).toEqual({
+    expect(whereOf(prisma.adAccount.findFirst)).toEqual({
+      externalId: 'act_client_b',
       organizationId: 'org-1',
       customerId: { in: ['client-a'] },
     });

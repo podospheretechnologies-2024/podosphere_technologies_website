@@ -23,6 +23,10 @@ export type ClientScopeContextValue = {
   scopeKey: string;
   setSelectedClientId: (clientId: string | null) => Promise<void>;
   isLoading: boolean;
+  /** True from the click until the server has stored the new scope. */
+  isSwitching: boolean;
+  /** Display name of the scope being switched to (while `isSwitching`). */
+  switchingToName: string | null;
 };
 
 export const ClientScopeContext = createContext<ClientScopeContextValue | null>(null);

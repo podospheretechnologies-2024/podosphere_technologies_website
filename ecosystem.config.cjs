@@ -18,7 +18,8 @@ module.exports = {
       args: 'start -p 3100',
       exec_mode: 'fork',
       instances: 1,
-      env: { NODE_ENV: 'production' },
+      // TZ: server-rendered dates and day windows in IST (PS-21 safety net).
+      env: { NODE_ENV: 'production', TZ: 'Asia/Kolkata' },
       max_memory_restart: '700M',
       time: true,
       merge_logs: true,
@@ -33,7 +34,8 @@ module.exports = {
       args: '--conditions=react-server src/worker/index.ts',
       exec_mode: 'fork',
       instances: 1,
-      env: { NODE_ENV: 'production' },
+      // TZ: server-rendered dates and day windows in IST (PS-21 safety net).
+      env: { NODE_ENV: 'production', TZ: 'Asia/Kolkata' },
       max_memory_restart: '400M',
       kill_timeout: 15000,
       time: true,

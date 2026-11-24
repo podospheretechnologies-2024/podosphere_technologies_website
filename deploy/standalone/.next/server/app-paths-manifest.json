@@ -242,6 +242,7 @@
   "/api/social/integrations/[id]/route": "app/api/social/integrations/[id]/route.js",
   "/api/social/integrations/callback/[provider]/route": "app/api/social/integrations/callback/[provider]/route.js",
   "/api/social/integrations/connect/[provider]/route": "app/api/social/integrations/connect/[provider]/route.js",
+  "/api/social/integrations/pending-pages/route": "app/api/social/integrations/pending-pages/route.js",
   "/api/social/integrations/route": "app/api/social/integrations/route.js",
   "/api/social/leads/[id]/push/route": "app/api/social/leads/[id]/push/route.js",
   "/api/social/leads/[id]/route": "app/api/social/leads/[id]/route.js",

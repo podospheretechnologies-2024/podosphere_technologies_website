@@ -2,7 +2,7 @@ import 'server-only';
 import { decrypt } from '@/shared/lib/crypto';
 import { prisma } from '@/shared/lib/prisma';
 import { getServerEnv } from '@/shared/lib/env';
-import { scopeWhere, type ClientScope } from '@/shared/server/client-scope';
+import { singleAssignedCustomerId, scopeWhere, type ClientScope } from '@/shared/server/client-scope';
 import { HttpError } from '@/shared/server/http-error';
 import type {
   SendWhatsAppInput,
@@ -282,7 +282,7 @@ function toChatMessage(
 
 /** Single selected client → that id; 'all' → null (agency-shared). */
 function customerIdForWrite(scope: ClientScope): string | null {
-  return scope.customerIds !== 'all' && scope.customerIds.length === 1 ? scope.customerIds[0] : null;
+  return singleAssignedCustomerId(scope);
 }
 
 async function recordOutbound(

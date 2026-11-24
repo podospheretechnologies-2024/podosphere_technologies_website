@@ -50,6 +50,8 @@ export function ClientSwitcher() {
             {client.name}
           </option>
         ))}
+        {/* R2: channels with no client yet. OWNER/ADMIN only; the server 404s anyone else. */}
+        {allowAllClients ? <option value="unassigned">Unassigned channels</option> : null}
       </select>
       <ChevronDown className="text-muted-foreground pointer-events-none absolute right-2 size-3.5" />
     </label>

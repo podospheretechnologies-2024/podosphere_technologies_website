@@ -18,19 +18,22 @@ import { AdminsOnlyNotice } from '../shell/admins-only-notice';
 import { useWorkspaceRole } from '../shell/workspace-role-context';
 import { AddChannelDialog } from './add-channel-dialog';
 import { ChannelCard, type ChannelAction } from './channel-card';
+import { PendingPagesPicker } from './pending-pages-picker';
 import { PodoCrmWhatsAppLinkCard } from './podocrm-whatsapp-link-card';
 import { ProviderMark } from './provider-mark';
 
 interface ChannelsManagerProps {
   connected?: string;
   connectError?: string;
+  /** Meta OAuth returned several Pages: open the Page picker (PS-01). */
+  pickPages?: boolean;
 }
 
 function errorMessage(error: unknown, fallback: string): string {
   return error instanceof Error ? error.message : fallback;
 }
 
-export function ChannelsManager({ connected, connectError }: ChannelsManagerProps) {
+export function ChannelsManager({ connected, connectError, pickPages }: ChannelsManagerProps) {
   const router = useRouter();
   const { canManageCampaigns } = useWorkspaceRole();
   const { data, error, isLoading, mutate } = useChannels();
@@ -41,6 +44,22 @@ export function ChannelsManager({ connected, connectError }: ChannelsManagerProp
   const [notice, setNotice] = useState<string | null>(
     connected ? `${connected} was connected successfully.` : null
   );
+  const [pickerOpen, setPickerOpen] = useState(Boolean(pickPages));
+
+  function closePicker(result: { connected: string[] } | { error: string } | null) {
+    setPickerOpen(false);
+    router.replace(`${SOCIAL_BASE_PATH}/channels`);
+    if (result && 'connected' in result) {
+      setNotice(
+        result.connected.length > 0
+          ? `${result.connected.join(', ')} ${result.connected.length === 1 ? 'was' : 'were'} connected.`
+          : 'No Pages were connected.'
+      );
+      void mutate();
+    } else if (result && 'error' in result) {
+      setActionError(result.error);
+    }
+  }
 
   async function connect(identifier: string, refreshId?: string) {
     setActionError(null);
@@ -201,6 +220,8 @@ export function ChannelsManager({ connected, connectError }: ChannelsManagerProp
           ))}
         </div>
       )}
+
+      {canManageCampaigns && pickerOpen ? <PendingPagesPicker onDone={closePicker} /> : null}
 
       {canManageCampaigns ? (
         <AddChannelDialog

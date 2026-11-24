@@ -12,7 +12,6 @@ export function usePostsList(page: number, state: PostListFilter) {
   const params = new URLSearchParams({ page: String(page), state });
   const url = `${POSTS_API_ROUTE}?${params}`;
   return useSWR<PostListPage>([url, scopeKey], ([path]) => fetcher(path), {
-    keepPreviousData: true,
   });
 }
 
@@ -26,7 +25,6 @@ export function useCalendarPosts(range: { start: Dayjs; end: Dayjs } | null) {
     : null;
   const url = params ? `${POSTS_API_ROUTE}/calendar?${params}` : null;
   return useSWR<PostListItem[]>(url ? [url, scopeKey] : null, ([path]) => fetcher(path), {
-    keepPreviousData: true,
   });
 }
 

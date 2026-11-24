@@ -27,6 +27,7 @@ import {
 } from './competitor-media';
 
 import { fetchPostMetrics } from './post-metrics';
+import { backfillInboxContactNames } from '../inbox/inbox.service';
 
 /** Rethrow rate limits so BullMQ exponential backoff retries the job. */
 function rethrowIfRetryable(error: unknown): void {
@@ -347,6 +348,8 @@ async function syncPostMetrics() {
             reach: metrics.reach ?? post.reach,
             impressions: metrics.impressions ?? post.impressions,
             videoViews: metrics.views ?? post.videoViews,
+            engagement: metrics.engagement ?? post.engagement,
+            clicks: metrics.clicks ?? post.clicks,
             metricsAt: new Date(),
           },
         });
@@ -475,6 +478,8 @@ async function applyPostMetrics(
       reach: metrics.reach,
       impressions: metrics.impressions,
       videoViews: metrics.views,
+      engagement: metrics.engagement,
+      clicks: metrics.clicks,
       metricsAt: new Date(),
     },
   });
@@ -996,6 +1001,8 @@ function processJob(job: Job) {
       return syncDailyInsights().then(syncCompetitors);
     case ANALYTICS_JOB.backfill:
       return runBackfill((job.data ?? {}) as BackfillJobData);
+    case ANALYTICS_JOB.inboxNamesBackfill:
+      return backfillInboxContactNames();
     default:
       throw new Error(`Unknown job "${job.name}"`);
   }

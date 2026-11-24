@@ -63,7 +63,7 @@ export const FESTIVAL_OCCASIONS: FestivalOccasion[] = [
   {
     id: 'holi',
     name: 'Holi',
-    dates: ['2025-03-14', '2026-03-03', '2027-03-22'],
+    dates: ['2025-03-14', '2026-03-03', '2027-03-22', '2028-03-11'],
     regions: ['india'],
     suggestedTonePresetId: 'festival-teaser',
     draftTopic:
@@ -99,11 +99,74 @@ export const FESTIVAL_OCCASIONS: FestivalOccasion[] = [
   {
     id: 'diwali',
     name: 'Diwali',
-    dates: ['2025-10-20', '2026-11-08', '2027-10-29'],
+    dates: ['2025-10-20', '2026-11-08', '2027-10-29', '2028-10-17'],
     regions: ['india'],
     suggestedTonePresetId: 'festival-teaser',
     draftTopic:
       'Diwali — warm festival of lights greeting; diyas, family, new beginnings; soft festive offer or thank-you for customers.',
+  },
+  {
+    id: 'lohri',
+    name: 'Lohri',
+    dates: ['2026-01-13', '2027-01-13', '2028-01-13'],
+    regions: ['india'],
+    suggestedTonePresetId: 'festival-teaser',
+    draftTopic:
+      'Lohri — bonfire, harvest and togetherness greeting; warm Punjabi festive spirit; soft seasonal offer tease if relevant.',
+  },
+  {
+    id: 'makar-sankranti',
+    name: 'Makar Sankranti / Pongal',
+    dates: ['2026-01-14', '2027-01-14', '2028-01-14'],
+    regions: ['india'],
+    suggestedTonePresetId: 'warm-grateful',
+    draftTopic:
+      'Makar Sankranti and Pongal — harvest festival greeting, kites, sweets and new beginnings; warm and respectful tone.',
+  },
+  {
+    id: 'raksha-bandhan',
+    name: 'Raksha Bandhan (approx.)',
+    dates: ['2026-08-28', '2027-08-17'],
+    regions: ['india'],
+    suggestedTonePresetId: 'warm-grateful',
+    draftTopic:
+      'Raksha Bandhan — celebrate the sibling bond; warm gifting message; optional soft gift-idea tease.',
+  },
+  {
+    id: 'onam',
+    name: 'Onam (approx.)',
+    dates: ['2026-08-26', '2027-09-12'],
+    regions: ['india'],
+    suggestedTonePresetId: 'festival-teaser',
+    draftTopic:
+      'Onam — Kerala harvest festival greeting; pookalam, sadya and togetherness; warm festive wish.',
+  },
+  {
+    id: 'ganesh-chaturthi',
+    name: 'Ganesh Chaturthi (approx.)',
+    dates: ['2026-09-14', '2027-09-04'],
+    regions: ['india'],
+    suggestedTonePresetId: 'festival-teaser',
+    draftTopic:
+      'Ganesh Chaturthi — Ganpati Bappa Morya greeting; new beginnings and blessings; respectful festive message.',
+  },
+  {
+    id: 'navratri-dussehra',
+    name: 'Navratri / Dussehra (approx.)',
+    dates: ['2026-10-20', '2027-10-09'],
+    regions: ['india'],
+    suggestedTonePresetId: 'festival-teaser',
+    draftTopic:
+      'Navratri and Dussehra — nine nights of celebration ending with the victory of good over evil; festive wish, soft offer tease.',
+  },
+  {
+    id: 'guru-nanak-jayanti',
+    name: 'Guru Nanak Jayanti (approx.)',
+    dates: ['2026-11-24', '2027-11-15'],
+    regions: ['india'],
+    suggestedTonePresetId: 'warm-grateful',
+    draftTopic:
+      'Guru Nanak Jayanti — respectful greeting on the Gurpurab; message of equality, service and gratitude; no hard sell.',
   },
   {
     id: 'christmas',

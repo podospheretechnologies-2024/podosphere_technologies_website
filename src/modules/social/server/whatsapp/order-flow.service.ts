@@ -1,6 +1,6 @@
 import 'server-only';
 import { prisma } from '@/shared/lib/prisma';
-import type { ClientScope } from '@/shared/server/client-scope';
+import { singleAssignedCustomerId, type ClientScope } from '@/shared/server/client-scope';
 import { HttpError } from '@/shared/server/http-error';
 import {
   ORDER_FLOW_BY_KEY,
@@ -34,10 +34,11 @@ import { orderFlowSender } from './order-flow-sender';
 import { whatsappService } from './whatsapp.service';
 
 function requireSingleClient(scope: ClientScope): string {
-  if (scope.customerIds === 'all' || scope.customerIds.length !== 1) {
+  const customerId = singleAssignedCustomerId(scope);
+  if (!customerId) {
     throw new HttpError(400, 'Pick a client in the client switcher first.');
   }
-  return scope.customerIds[0];
+  return customerId;
 }
 
 function asObject(value: unknown): Record<string, unknown> {

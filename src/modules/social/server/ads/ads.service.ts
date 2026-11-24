@@ -3,6 +3,8 @@ import { decrypt, encrypt } from '@/shared/lib/crypto';
 import { getServerEnv } from '@/shared/lib/env';
 import { HttpError } from '@/shared/server/http-error';
 import { prisma } from '@/shared/lib/prisma';
+import { redis } from '@/shared/lib/redis';
+import { last30Days, resolveTimeZone } from '@/shared/lib/metric-window';
 import { ADS_LEAD_ACTION_TYPES } from '../../config/ads';
 import { previousAdsRange } from '../../config/ads';
 import {
@@ -700,6 +702,44 @@ async function fetchLeadsForAds(
 
 import { scopeWhere, type ClientScope } from '@/shared/server/client-scope';
 
+const OVERVIEW_CACHE_SECONDS = 900;
+
+/** Daily account spend/clicks for a custom range from `AdInsightDaily` (campaign rows summed per day). */
+async function storedDailyInsights(
+  organizationId: string,
+  accountExternalId: string,
+  date: AdsOverviewDateQuery
+): Promise<{ data: GraphInsight[] } | null> {
+  if (date.mode !== 'range') return null;
+  try {
+    const adAccount = await prisma.adAccount.findFirst({
+      where: { organizationId, externalId: accountExternalId },
+      select: { id: true },
+    });
+    if (!adAccount) return null;
+    const rows = await prisma.adInsightDaily.groupBy({
+      by: ['date'],
+      where: {
+        adAccountId: adAccount.id,
+        level: 'campaign',
+        date: { gte: new Date(`${date.since}T00:00:00.000Z`), lte: new Date(`${date.until}T00:00:00.000Z`) },
+      },
+      _sum: { spend: true, clicks: true },
+      orderBy: { date: 'asc' },
+    });
+    if (!rows.length) return null;
+    return {
+      data: rows.map((row) => ({
+        date_start: row.date.toISOString().slice(0, 10),
+        spend: String(row._sum.spend ?? 0),
+        clicks: String(row._sum.clicks ?? 0),
+      })) as GraphInsight[],
+    };
+  } catch {
+    return null;
+  }
+}
+
 export const adsService = {
   /** True when bootstrap env token is set (agency discovery sync). */
   isConfigured(): boolean {
@@ -732,12 +772,33 @@ export const adsService = {
       where: scopeWhere(scope),
       orderBy: { name: 'asc' },
     });
+    if (accounts.length === 0) return [];
+
+    // PS-07: spend over the same 30 complete days (org timezone) as the Overview, from stored insights.
+    const org = await prisma.organization.findUnique({
+      where: { id: scope.organizationId },
+      select: { timeZone: true },
+    });
+    const window = last30Days(resolveTimeZone(org?.timeZone));
+    const spendRows = await prisma.adInsightDaily.groupBy({
+      by: ['adAccountId'],
+      where: {
+        adAccountId: { in: accounts.map((acc) => acc.id) },
+        level: 'campaign',
+        date: { gte: window.from, lte: window.to },
+      },
+      _sum: { spend: true },
+    });
+    const spendByAccount = new Map(
+      spendRows.map((row) => [row.adAccountId, Number(row._sum.spend ?? 0)])
+    );
+
     return accounts.map((acc) => ({
       id: acc.externalId,
       name: acc.name,
       currency: acc.currency,
       status: acc.status,
-      amountSpent: 0,
+      amountSpent: spendByAccount.get(acc.id) ?? 0,
       hasToken: Boolean(acc.accessTokenEncrypted),
       refreshNeeded: acc.refreshNeeded,
     }));
@@ -745,12 +806,21 @@ export const adsService = {
 
   /** Ensures the account is in scope; throws 404 otherwise (no cross-client leak). */
   async requireAccount(scope: ClientScope, accountId: string): Promise<AdAccountItem> {
-    const accounts = await this.listAccounts(scope);
-    const account = accounts.find((item) => item.id === accountId);
-    if (!account) {
+    const acc = await prisma.adAccount.findFirst({
+      where: { externalId: accountId, ...scopeWhere(scope) },
+    });
+    if (!acc) {
       throw new HttpError(404, 'Ad account not found in this workspace');
     }
-    return account;
+    return {
+      id: acc.externalId,
+      name: acc.name,
+      currency: acc.currency,
+      status: acc.status,
+      amountSpent: 0,
+      hasToken: Boolean(acc.accessTokenEncrypted),
+      refreshNeeded: acc.refreshNeeded,
+    };
   },
 
   /**
@@ -898,13 +968,14 @@ export const adsService = {
       name?: string;
       currency?: string;
       account_status?: number;
+      timezone_name?: string;
       business?: { id?: string; name?: string };
     }>(
       config,
       'me/adaccounts',
       userToken,
       {
-        fields: 'id,account_id,name,currency,account_status,business{id,name}',
+        fields: 'id,account_id,name,currency,account_status,timezone_name,business{id,name}',
         limit: 100,
       }
     );
@@ -916,6 +987,7 @@ export const adsService = {
       currency: row.currency ?? 'INR',
       accountStatus: row.account_status ?? 1,
       businessName: row.business?.name ?? null,
+      timezoneName: row.timezone_name,
     }));
 
     if (accounts.length === 0) {
@@ -972,8 +1044,10 @@ export const adsService = {
       throw new HttpError(400, 'None of the selected ad accounts were in the Facebook Login result');
     }
 
-    const resolvedCustomerId =
-      customerId !== undefined ? customerId : (pending.customerId ?? null);
+    // PS-04: a request that names a client explicitly may set it; otherwise the switcher client is
+    // only used for NEW (or Unassigned) accounts — an account already on a client keeps that client.
+    const explicitCustomerId = customerId !== undefined;
+    const resolvedCustomerId = explicitCustomerId ? customerId : (pending.customerId ?? null);
     const saved: string[] = [];
 
     for (const externalId of selected) {
@@ -993,7 +1067,11 @@ export const adsService = {
             name: meta.name,
             currency: meta.currency,
             status: meta.accountStatus,
-            customerId: resolvedCustomerId,
+            ...(meta.timezoneName ? { timezoneName: meta.timezoneName } : {}),
+            customerId:
+              explicitCustomerId || existing.customerId === null
+                ? resolvedCustomerId
+                : existing.customerId,
             accessTokenEncrypted: pending.accessTokenEncrypted,
             refreshNeeded: false,
             tokenSource: 'user_oauth',
@@ -1007,7 +1085,7 @@ export const adsService = {
             externalId,
             name: meta.name,
             currency: meta.currency,
-            timezoneName: 'UTC',
+            timezoneName: meta.timezoneName ?? 'Asia/Kolkata',
             status: meta.accountStatus,
             accessTokenEncrypted: pending.accessTokenEncrypted,
             refreshNeeded: false,
@@ -1076,7 +1154,30 @@ export const adsService = {
     });
   },
 
+  /**
+   * Account overview. Access is checked first; the heavy Graph build is cached in Redis for 15 min
+   * per account + date range (version bumped when an ad is paused/resumed).
+   */
   async overview(scope: ClientScope, accountId: string, date: AdsOverviewDateQuery): Promise<AdsOverview> {
+    await this.requireAccount(scope, accountId);
+    const version = (await redis.get(`ads:overview:ver:${accountId}`).catch(() => null)) ?? '0';
+    const key = `ads:overview:${accountId}:v${version}:${JSON.stringify(date)}`;
+    try {
+      const cached = await redis.get(key);
+      if (cached) return JSON.parse(cached) as AdsOverview;
+    } catch {
+      // Redis down: fall through to the live build.
+    }
+    const result = await this.buildOverview(scope, accountId, date);
+    try {
+      await redis.set(key, JSON.stringify(result), 'EX', OVERVIEW_CACHE_SECONDS);
+    } catch {
+      // Cache is best effort.
+    }
+    return result;
+  },
+
+  async buildOverview(scope: ClientScope, accountId: string, date: AdsOverviewDateQuery): Promise<AdsOverview> {
     const account = await this.requireAccount(scope, accountId);
     const token = await this.requireAccountToken(scope, accountId);
 
@@ -1101,18 +1202,24 @@ export const adsService = {
         },
         accountId
       ),
-      getPaged<GraphInsight>(
-        token,
-        `${accountId}/insights`,
-        {
-          fields: 'spend,clicks',
-          ...dateParams,
-          time_increment: 1,
-          limit: PAGE_SIZE,
-        },
-        MAX_PAGES,
-        accountId
-      ).then((data) => ({ data })),
+      // Daily spend/clicks are stored hourly by the ads worker: read the DB for explicit ranges and
+      // only go to Graph when nothing is stored (or for date presets).
+      storedDailyInsights(scope.organizationId, accountId, date).then(
+        (stored) =>
+          stored ??
+          getPaged<GraphInsight>(
+            token,
+            `${accountId}/insights`,
+            {
+              fields: 'spend,clicks',
+              ...dateParams,
+              time_increment: 1,
+              limit: PAGE_SIZE,
+            },
+            MAX_PAGES,
+            accountId
+          ).then((data) => ({ data }))
+      ),
       getPaged<GraphInsight>(
         token,
         `${accountId}/insights`,
@@ -1624,6 +1731,7 @@ export const adsService = {
         });
       }
     }
+    if (updated.length) await redis.incr(`ads:overview:ver:${accountId}`).catch(() => undefined);
     return { updated, failed };
   },
 };

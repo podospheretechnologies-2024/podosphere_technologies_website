@@ -22,6 +22,8 @@ export interface MediaItem {
   /** URL of the one stored platform crop, if generated. */
   variantUrl: string | null;
   variantKey: PlatformImageSizeKey | null;
+  /** Client the file belongs to; null = agency-shared (PS-24). */
+  customerId: string | null;
   createdAt: string;
 }
 

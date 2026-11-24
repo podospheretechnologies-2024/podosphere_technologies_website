@@ -1,6 +1,6 @@
 import 'server-only';
 import type { Prisma, SocialMedia, SocialMediaFormat } from '@/generated/prisma/client';
-import type { ClientScope } from '@/shared/server/client-scope';
+import { singleAssignedCustomerId, type ClientScope } from '@/shared/server/client-scope';
 import { HttpError } from '@/shared/server/http-error';
 import {
   DEFAULT_MEDIA_FORMAT,
@@ -49,7 +49,7 @@ const formatFromDb: Record<SocialMediaFormat, MediaFormat> = {
 
 /** Single selected client → that id; 'all' → null (agency-shared media). */
 function customerIdForWrite(scope: ClientScope): string | null {
-  return scope.customerIds !== 'all' && scope.customerIds.length === 1 ? scope.customerIds[0] : null;
+  return singleAssignedCustomerId(scope);
 }
 
 function readCaptionIdeas(value: Prisma.JsonValue | null | undefined): string[] | null {
@@ -83,6 +83,7 @@ function toMediaItem(media: SocialMedia): MediaItem {
     captionIdeas: readCaptionIdeas(media.captionIdeas),
     variantUrl: media.variantPath,
     variantKey: readVariantKey(media.variantKey),
+    customerId: media.customerId,
     createdAt: media.createdAt.toISOString(),
   };
 }

@@ -65,6 +65,9 @@ interface SummaryRow {
   name: string;
   storeConnected: boolean;
   storeStatus: string | null;
+  clientType: string | null;
+  lastError: string | null;
+  lastSyncedAt: string | null;
   hasAds: boolean;
   sales7d: number | null;
   orders7d: number | null;
@@ -79,11 +82,18 @@ interface SummaryRow {
 function ClientsSummary({ onPick, hasClients }: { onPick: (id: string, tab?: GrowthTab) => void; hasClients: boolean }) {
   const { data, error, isLoading } = useGrowth<SummaryRow[]>('/summary');
   const connectedCount = data?.filter((row) => row.storeConnected).length ?? 0;
+  const storeClients = data?.filter((row) => row.clientType === 'store' || row.storeConnected).length ?? 0;
   return (
     <div className="space-y-3">
       <p className="text-muted-foreground text-sm">
         Website and lead clients use CPL on the desk; Shopify is only for stores. Assign Meta/Google ads on Ads, GA4 in Setup. Last 7 days
-        {data && data.length > 0 ? ` · ${connectedCount} of ${data.length} Shopify stores linked` : ''}.
+        {/* PS-16b: ratio counts only clients typed 'store' (or already linked); others have no store to link. */}
+        {data && data.length > 0
+          ? storeClients > 0
+            ? ` · ${connectedCount} of ${storeClients} ${storeClients === 1 ? 'store' : 'stores'} linked`
+            : ` · ${connectedCount} Shopify ${connectedCount === 1 ? 'store' : 'stores'} linked`
+          : ''}
+        .
       </p>
       <p className="text-muted-foreground text-xs">Client missing? Add it on Clients, then assign its ad account on Ads.</p>
       <ErrorLine error={error?.message ?? null} />
@@ -108,9 +118,17 @@ function ClientsSummary({ onPick, hasClients }: { onPick: (id: string, tab?: Gro
                   <td className="px-3 py-2">
                     {row.storeConnected ? <Pill tone={row.storeStatus === 'error' ? 'bad' : 'good'}>{row.storeStatus === 'error' ? 'Error' : 'Shopify'}</Pill> : <Pill>Not connected</Pill>}
                   </td>
-                  <td className="px-3 py-2">{money(row.sales7d)}</td>
+                  <td className="px-3 py-2">
+                    {money(row.sales7d)}
+                    {row.storeConnected && (row.lastSyncedAt || row.lastError) ? (
+                      <div className={cn('text-[10px] font-normal', row.lastError ? 'text-danger' : 'text-muted-foreground')}>
+                        {row.lastSyncedAt ? `as of ${new Date(row.lastSyncedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}` : ''}
+                        {row.lastError ? ` · sync failing: ${row.lastError.slice(0, 80)}` : ''}
+                      </div>
+                    ) : null}
+                  </td>
                   <td className="px-3 py-2">{count(row.orders7d)}</td>
-                  <td className="px-3 py-2">{row.hasAds ? money(row.spend7d) : '–'}</td>
+                  <td className="px-3 py-2">{row.hasAds ? money(row.spend7d) : <Pill>No ad account linked</Pill>}</td>
                   <td className={cn('px-3 py-2 font-semibold', row.roas7d != null && (row.roas7d >= row.targetRoas ? 'text-success' : 'text-danger'))}>
                     {times(row.roas7d)}
                   </td>
@@ -164,7 +182,13 @@ function ClientDesk({ initialTab = 'today' }: { initialTab?: GrowthTab }) {
   const t = data.totals;
   const target = data.settings.targetRoas;
   const leadObjective = data.campaigns.some((c) => (c.objective ?? '').toUpperCase().includes('LEAD'));
-  const websiteMode = !data.store.connected && (leadObjective || (t.metaLeads ?? 0) > 0 || data.hasAds);
+  const clientType = data.client.clientType ?? null;
+  const websiteMode =
+    clientType === 'website' || clientType === 'leads'
+      ? true
+      : clientType === 'store'
+        ? false
+        : !data.store.connected && (leadObjective || (t.metaLeads ?? 0) > 0 || data.hasAds);
   const cpl =
     t.metaLeads && t.metaSpend && t.metaLeads > 0 ? Math.round((t.metaSpend / t.metaLeads) * 100) / 100 : null;
   const targetCpl = data.settings.targetCpl ?? 200;

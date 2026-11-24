@@ -11,6 +11,9 @@ export async function GET(request: NextRequest) {
     const assigneeParam = request.nextUrl.searchParams.get('assigneeId');
     const aiLabel = request.nextUrl.searchParams.get('aiLabel') ?? undefined;
     const aiPriority = request.nextUrl.searchParams.get('aiPriority') ?? undefined;
+    const beforeParam = request.nextUrl.searchParams.get('before');
+    const before = beforeParam ? new Date(beforeParam) : undefined;
+    const limit = Number(request.nextUrl.searchParams.get('limit')) || undefined;
     const options = {
       ...(assigneeParam === null
         ? {}
@@ -20,6 +23,8 @@ export async function GET(request: NextRequest) {
           }),
       ...(aiLabel ? { aiLabel } : {}),
       ...(aiPriority ? { aiPriority } : {}),
+      ...(before && !Number.isNaN(before.getTime()) ? { before } : {}),
+      ...(limit ? { limit } : {}),
     };
     return Response.json(await inboxService.listThreads(scope, options));
   } catch (error) {

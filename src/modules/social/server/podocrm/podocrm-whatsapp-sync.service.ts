@@ -276,6 +276,24 @@ export const podoCrmWhatsAppSyncService = {
     };
   },
 
+  /** Daily keep-alive: signed ping for every linked organization; updates `lastPingAt` on success. */
+  async pingAll(): Promise<void> {
+    const rows = await podoCrmWhatsAppSyncRepository.listAll();
+    for (const row of rows) {
+      try {
+        const ping = await signedPost(row.podocrmBaseUrl, '/sync/whatsapp/ping', decrypt(row.syncSecret), {
+          event_id: randomUUID(),
+          phone_number_id: row.phoneNumberId,
+          workspace_id: row.organizationId.slice(0, 64),
+        });
+        if (ping.ok) await podoCrmWhatsAppSyncRepository.markPinged(row.organizationId);
+        else console.error(`[podocrm-sync] daily ping failed status=${ping.status}`);
+      } catch (error) {
+        console.error(`[podocrm-sync] daily ping error=${error instanceof Error ? error.message : 'unknown'}`);
+      }
+    }
+  },
+
   async unlink(organizationId: string): Promise<void> {
     await podoCrmWhatsAppSyncRepository.delete(organizationId);
   },
