@@ -105,7 +105,7 @@ function pickHeaderIndex(headers: string[], hints: string[]): number {
   return -1;
 }
 
-function parseFlexibleDate(raw: string): string | null {
+export function parseFlexibleDate(raw: string): string | null {
   const value = raw.trim();
   if (!value) return null;
 
@@ -132,12 +132,35 @@ function parseFlexibleDate(raw: string): string | null {
     }
   }
 
-  const parsed = Date.parse(value);
+  // 07-Oct-2026, 7 Oct 2026, Wed 07-Oct-2026, Oct 7, 2026: read the parts directly (no timezone shift).
+  const named = value.match(/(\d{1,2})[\s\-\/.]+([A-Za-z]{3,9})[\s\-\/.,]+(\d{2,4})/) ?? null;
+  const namedUs = named ? null : value.match(/([A-Za-z]{3,9})[\s\-.]+(\d{1,2})(?:st|nd|rd|th)?[\s,]+(\d{2,4})/);
+  const parts = named
+    ? { day: named[1], month: named[2], year: named[3] }
+    : namedUs
+      ? { day: namedUs[2], month: namedUs[1], year: namedUs[3] }
+      : null;
+  if (parts) {
+    const month = MONTHS.indexOf(parts.month.slice(0, 3).toLowerCase()) + 1;
+    const day = Number(parts.day);
+    let year = Number(parts.year);
+    if (year < 100) year += 2000;
+    if (month >= 1 && day >= 1 && day <= 31) {
+      return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    }
+  }
+
+  // Last resort, only for text that carries a 4-digit year ("Week 1" must not become a date).
+  const parsed = /\b\d{4}\b/.test(value) ? Date.parse(value) : Number.NaN;
   if (!Number.isNaN(parsed)) {
-    return new Date(parsed).toISOString().slice(0, 10);
+    // Local parts, not toISOString(): on an IST server that would move the date a day back.
+    const d = new Date(parsed);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   }
   return null;
 }
+
+const MONTHS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
 
 function rowFromValues(
   sheetName: string,
@@ -358,7 +381,11 @@ async function fetchSpreadsheetRows(
   }
 
   // Whole-sheet ranges avoid A1 end-column bugs (ZZ / KN both returned "Unable to parse range").
-  const ranges = sheetNames.map((name) => `'${name.replace(/'/g, "''")}'`);
+  // A tab named like a column (BDA, KN, ZZ) is read as a column range: give those an explicit row range.
+  const ranges = sheetNames.map((name) => {
+    const quoted = `'${name.replace(/'/g, "''")}'`;
+    return /^[A-Za-z]{1,3}$/.test(name) ? `${quoted}!1:${MAX_ROWS_PER_SHEET}` : quoted;
+  });
   const params = new URLSearchParams();
   for (const range of ranges) params.append('ranges', range);
   params.set('majorDimension', 'ROWS');
@@ -444,6 +471,21 @@ export function filterSheetRows(
     });
 }
 
+const SYNC_GAP_MS = 2200;
+
+/** One retry after a 429 (per-minute quota): wait for the window to reset. */
+async function fetchSpreadsheetRowsRetry(accessToken: string, spreadsheetId: string) {
+  try {
+    return await fetchSpreadsheetRows(accessToken, spreadsheetId);
+  } catch (error) {
+    if (error instanceof HttpError && error.message.includes('(429)')) {
+      await new Promise((resolve) => setTimeout(resolve, 30_000));
+      return fetchSpreadsheetRows(accessToken, spreadsheetId);
+    }
+    throw error;
+  }
+}
+
 async function syncSpreadsheets(organizationId: string, accessToken: string) {
   const files = await listAllSpreadsheets(accessToken);
   const connection = await googleSheetsRepository.findConnectionOnly(organizationId);
@@ -456,8 +498,10 @@ async function syncSpreadsheets(organizationId: string, accessToken: string) {
 
   // Sequential to avoid Google rate limits; each file is full historical pull.
   for (const file of files) {
+    // Google allows ~60 read requests/min/user and each sheet takes 2: pause between files.
+    await new Promise((resolve) => setTimeout(resolve, SYNC_GAP_MS));
     try {
-      const { sheetNames, headers, rows } = await fetchSpreadsheetRows(accessToken, file.id);
+      const { sheetNames, headers, rows } = await fetchSpreadsheetRowsRetry(accessToken, file.id);
       items.push({
         spreadsheetId: file.id,
         name: file.name,
@@ -471,6 +515,22 @@ async function syncSpreadsheets(organizationId: string, accessToken: string) {
       });
     } catch (error) {
       console.error(`Google Sheets sync failed for ${file.id}`, error);
+      const previous = await googleSheetsRepository.findBySpreadsheetId(connection.id, file.id);
+      if (previous && parseStringArray(previous.sheetNames).length > 0) {
+        // Keep the last good copy (and its old syncedAt) rather than blanking it.
+        items.push({
+          spreadsheetId: file.id,
+          name: file.name,
+          url: previous.url,
+          modifiedTime: previous.modifiedTime,
+          sheetNames: parseStringArray(previous.sheetNames),
+          headers: parseStringArray(previous.headers),
+          rows: previous.rows as unknown as Prisma.InputJsonValue,
+          rowCount: previous.rowCount,
+          syncedAt: previous.syncedAt,
+        });
+        continue;
+      }
       items.push({
         spreadsheetId: file.id,
         name: file.name,
@@ -480,7 +540,8 @@ async function syncSpreadsheets(organizationId: string, accessToken: string) {
         headers: [],
         rows: [] as unknown as Prisma.InputJsonValue,
         rowCount: 0,
-        syncedAt,
+        // Epoch: marks this as a failed pull so clientSpreadsheet re-reads it live.
+        syncedAt: new Date(0),
       });
     }
   }
@@ -719,7 +780,9 @@ export const googleSheetsService = {
       throw new HttpError(404, 'Google Sheets is not connected');
     }
     const cached = await googleSheetsRepository.findBySpreadsheetId(connection.id, spreadsheetId);
-    if (cached && !options.force && Date.now() - cached.syncedAt.getTime() < AUTO_SYNC_MS) {
+    // A copy with no tabs is a failed bulk sync, not real data: never serve it as fresh.
+    const cachedUsable = cached ? parseStringArray(cached.sheetNames).length > 0 : false;
+    if (cached && cachedUsable && !options.force && Date.now() - cached.syncedAt.getTime() < AUTO_SYNC_MS) {
       return toSpreadsheetItem(cached);
     }
     const accessToken = await getValidAccessToken(organizationId);
@@ -727,7 +790,7 @@ export const googleSheetsService = {
     try {
       data = await fetchSpreadsheetRows(accessToken, spreadsheetId);
     } catch (error) {
-      if (cached) return toSpreadsheetItem(cached);
+      if (cached && cachedUsable) return toSpreadsheetItem(cached);
       if (error instanceof HttpError && error.message.includes('(404)')) {
         throw new HttpError(404, `The connected Google account (${connection.email}) cannot find this sheet. Share it with that account.`);
       }
